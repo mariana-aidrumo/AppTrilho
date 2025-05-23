@@ -5,110 +5,47 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ChangeRequest, SoxControl, VersionHistoryEntry } from "@/types";
+import type { ChangeRequest } from "@/types"; // SoxControl, VersionHistoryEntry no longer needed here
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText, PlusSquare } from "lucide-react";
+import { Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockChangeRequests, mockSoxControls, mockVersionHistory } from "@/data/mock-data";
-import { useToast } from "@/hooks/use-toast";
-import { useState, useMemo } from "react";
+import { mockChangeRequests } from "@/data/mock-data"; // mockSoxControls, mockVersionHistory no longer needed here
+// import { useToast } from "@/hooks/use-toast"; // No longer needed here
+import { useMemo } from "react";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
-  const { toast } = useToast();
-  const [dataVersion, setDataVersion] = useState(0);
+  // const { toast } = useToast(); // No longer needed here
+  // const [dataVersion, setDataVersion] = useState(0); // No longer needed for quick actions
 
-  const forceRerender = () => setDataVersion(prev => prev + 1);
+  // const forceRerender = () => setDataVersion(prev => prev + 1); // No longer needed for quick actions
 
+  // handleQuickAdminAction is removed as all actions are now on the details page.
 
-  const handleQuickAdminAction = (requestId: string, action: "approve") => { // Removed "reject"
-    const requestIndex = mockChangeRequests.findIndex(r => r.id === requestId);
-    if (requestIndex === -1) {
-      toast({ title: "Erro", description: "Solicitação não encontrada.", variant: "destructive" });
-      return;
-    }
-
-    const request = mockChangeRequests[requestIndex];
-    let toastMessage = "";
-
-    if (action === "approve") {
-      mockChangeRequests[requestIndex].status = "Aprovado";
-      mockChangeRequests[requestIndex].reviewedBy = currentUser.name;
-      mockChangeRequests[requestIndex].reviewDate = new Date().toISOString();
-      toastMessage = `Solicitação ${requestId} aprovada rapidamente.`;
-
-      if (request.controlId.startsWith("NEW-CTRL-")) {
-        const newControlIdNumber = mockSoxControls.length + 1;
-        const newSoxControl: SoxControl = {
-          id: String(newControlIdNumber),
-          controlId: request.changes.controlId || `CTRL-QUICK-${newControlIdNumber}`,
-          controlName: request.changes.controlName || "Novo Controle (Aprovação Rápida)",
-          description: request.changes.description || "Detalhes na solicitação.",
-          controlOwner: request.changes.controlOwner || request.requestedBy,
-          controlFrequency: request.changes.controlFrequency || "Ad-hoc",
-          controlType: request.changes.controlType || "Preventivo",
-          status: "Ativo", 
-          lastUpdated: new Date().toISOString(),
-          relatedRisks: request.changes.relatedRisks || [], 
-          testProcedures: request.changes.testProcedures || "", 
-          evidenceRequirements: request.changes.evidenceRequirements || "",
-          processo: request.changes.processo,
-          subProcesso: request.changes.subProcesso,
-          modalidade: request.changes.modalidade
-        };
-        mockSoxControls.push(newSoxControl);
-        mockVersionHistory.unshift({
-          id: `vh-quick-new-${newSoxControl.id}-${Date.now()}`, controlId: newSoxControl.id,
-          changeDate: new Date().toISOString(), changedBy: currentUser.name,
-          summaryOfChanges: `Controle ${newSoxControl.controlId} criado via aprovação rápida da solicitação ${request.id}.`,
-          newValues: { ...newSoxControl }, 
-          relatedChangeRequestId: request.id
-        });
-      } else {
-        const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
-        if (controlIndex !== -1) {
-          const originalControl = { ...mockSoxControls[controlIndex] };
-          mockSoxControls[controlIndex] = { ...originalControl, ...request.changes, lastUpdated: new Date().toISOString(), status: "Ativo" }; 
-           mockVersionHistory.unshift({
-            id: `vh-quick-update-${mockSoxControls[controlIndex].id}-${Date.now()}`, controlId: mockSoxControls[controlIndex].id,
-            changeDate: new Date().toISOString(), changedBy: currentUser.name,
-            summaryOfChanges: `Alterações rápidas da solicitação ${request.id} aplicadas ao controle ${mockSoxControls[controlIndex].controlId}.`,
-            previousValues: originalControl,
-            newValues: request.changes,
-            relatedChangeRequestId: request.id
-          });
-        }
-      }
-    }
-    // Removed "reject" logic from quick actions
-    
-    toast({ title: "Sucesso!", description: toastMessage });
-    forceRerender(); 
-  };
 
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => mockChangeRequests.filter(req => 
     !req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests, dataVersion]);
+  ), [mockChangeRequests]); // dataVersion removed from dependencies
 
   const adminPendingNewControls = useMemo(() => mockChangeRequests.filter(req => 
     req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests, dataVersion]);
+  ), [mockChangeRequests]); // dataVersion removed from dependencies
 
 
   // Filtros para Dono do Controle
   const ownerPendingApprovalRequests = useMemo(() => mockChangeRequests.filter(
     req => req.requestedBy === currentUser.name && (req.status === "Pendente" || req.status === "Em Análise")
-  ), [mockChangeRequests, currentUser.name, dataVersion]);
+  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
 
   const ownerAwaitingFeedbackRequests = useMemo(() => mockChangeRequests.filter(
     req => req.requestedBy === currentUser.name && req.status === "Aguardando Feedback do Dono"
-  ), [mockChangeRequests, currentUser.name, dataVersion]);
+  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
 
   const ownerRequestsHistory = useMemo(() => mockChangeRequests.filter(
     req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
-  ), [mockChangeRequests, currentUser.name, dataVersion]);
+  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
 
   const pageTitle = isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações";
   const pageDescription = isUserAdmin()
@@ -213,18 +150,7 @@ export default function PendingApprovalsPage() {
                     <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
                       <Link href={`/change-requests/${request.id}`}><Eye className="h-4 w-4" /></Link>
                     </Button>
-                    {isAdminContext && request.status === "Pendente" && (
-                      <>
-                        <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "approve")}>
-                          <CheckCircle2 className="h-4 w-4" />
-                        </Button>
-                        {/* Botão de Rejeitar Rapidamente Removido 
-                        <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "reject")}>
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                        */}
-                      </>
-                    )}
+                    {/* Botões de ação rápida para Admin removidos. Ações devem ser feitas na página de detalhes. */}
                     {context === "owner-feedback" && (
                          <Button variant="outline" size="sm" asChild title="Revisar e Reenviar" 
                             className="border-orange-500 text-orange-600 hover:bg-orange-100 hover:text-orange-700">
