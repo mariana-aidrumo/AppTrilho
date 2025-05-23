@@ -1,5 +1,6 @@
+
 import type { LucideIcon } from "lucide-react";
-import { ListChecks, FilePlus2, Home, History, CheckSquare } from "lucide-react";
+import { ListChecks, FilePlus2, Home, History, CheckSquare, Layers } from "lucide-react"; // Adicionado Layers
 import type { UserProfileType } from "@/types";
 
 export type NavItem = {
@@ -25,19 +26,25 @@ export const siteConfig: SiteConfig = {
       title: "Painel", 
       href: "/sox-matrix",
       icon: Home,
-      dynamicTitle: (profile) => profile === "Dono do Controle" ? "Meus Controles" : "Painel da Matriz SOX",
+      dynamicTitle: (profile) => profile === "Dono do Controle" ? "Painel (Visão Geral)" : "Painel da Matriz SOX",
       allowedProfiles: ["Administrador de Controles Internos", "Dono do Controle"],
+    },
+    {
+      title: "Meus Controles Registrados",
+      href: "/my-registered-controls",
+      icon: Layers, // Ícone para representar uma coleção de controles
+      allowedProfiles: ["Dono do Controle"],
     },
     {
       title: "Aprovações Pendentes",
       href: "/pending-approvals",
-      icon: CheckSquare, // Ícone mais apropriado para aprovações
+      icon: CheckSquare, 
       allowedProfiles: ["Administrador de Controles Internos"],
     },
      {
       title: "Minhas Solicitações",
       href: "/pending-approvals", 
-      icon: ListChecks, // Usando ListChecks para solicitações do usuário
+      icon: ListChecks, 
       allowedProfiles: ["Dono do Controle"],
     },
     {
@@ -58,8 +65,5 @@ export const siteConfig: SiteConfig = {
         icon: History, 
         allowedProfiles: ["Administrador de Controles Internos"],
     },
-    // Dono do Controle pode ver o histórico dos *seus* controles, 
-    // idealmente acessado de dentro da página de detalhes do controle ou "Meus Controles".
-    // Para manter a barra lateral concisa, não adicionaremos um item específico aqui por enquanto.
   ],
 };
