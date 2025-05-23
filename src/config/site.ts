@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from "lucide-react";
-import { ListChecks, FilePlus2, Home, History, CheckSquare, Layers } from "lucide-react"; // Adicionado Layers
+import { ListChecks, FilePlus2, Home, History, CheckSquare, Layers, LayoutDashboard } from "lucide-react";
 import type { UserProfileType } from "@/types";
 
 export type NavItem = {
@@ -8,7 +8,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   disabled?: boolean;
-  allowedProfiles?: UserProfileType[]; 
+  allowedProfiles?: UserProfileType[];
   dynamicTitle?: (profile: UserProfileType) => string;
 };
 
@@ -22,48 +22,47 @@ export const siteConfig: SiteConfig = {
   name: "SOX Hub",
   description: "Hub de Controles SOX.",
   navItems: [
+    // Itens para Administrador de Controles Internos
     {
-      title: "Painel", 
+      title: "Painel da Matriz SOX",
       href: "/sox-matrix",
-      icon: Home,
-      dynamicTitle: (profile) => profile === "Dono do Controle" ? "Painel (Visão Geral)" : "Painel da Matriz SOX",
-      allowedProfiles: ["Administrador de Controles Internos", "Dono do Controle"],
-    },
-    {
-      title: "Meus Controles Registrados",
-      href: "/my-registered-controls",
-      icon: Layers, // Ícone para representar uma coleção de controles
-      allowedProfiles: ["Dono do Controle"],
+      icon: LayoutDashboard, // Ícone mais genérico para painel
+      allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
       title: "Aprovações Pendentes",
       href: "/pending-approvals",
-      icon: CheckSquare, 
+      icon: CheckSquare,
       allowedProfiles: ["Administrador de Controles Internos"],
     },
-     {
-      title: "Minhas Solicitações",
-      href: "/pending-approvals", 
-      icon: ListChecks, 
-      allowedProfiles: ["Dono do Controle"],
-    },
     {
-      title: "Propor Novo Controle",
-      href: "/new-control",
-      icon: FilePlus2,
-      allowedProfiles: ["Administrador de Controles Internos", "Dono do Controle"],
-    },
-    {
-        title: "Histórico da Matriz",
+        title: "Histórico da Matriz", // Terceiro item para Admin
         href: "/matrix-history",
         icon: History,
         allowedProfiles: ["Administrador de Controles Internos"],
     },
+
+    // Itens para Dono do Controle
     {
-        title: "Histórico de Controles", 
-        href: "/version-history",
-        icon: History, 
-        allowedProfiles: ["Administrador de Controles Internos"],
+      title: "Painel (Visão Geral)",
+      href: "/sox-matrix",
+      icon: Home, // Home para o dashboard principal do Dono
+      allowedProfiles: ["Dono do Controle"],
     },
+    {
+      title: "Meus Controles Registrados",
+      href: "/my-registered-controls",
+      icon: Layers,
+      allowedProfiles: ["Dono do Controle"],
+    },
+     {
+      title: "Minhas Solicitações", // Terceiro item para Dono do Controle
+      href: "/pending-approvals",
+      icon: ListChecks,
+      allowedProfiles: ["Dono do Controle"],
+    },
+    // A página "Propor Novo Controle" será acessada por botões, não pelo menu lateral.
+    // A página "Histórico de Controles" (/version-history) foi removida da navegação principal do Admin
+    // para manter 3 itens, mas o código da página pode ser mantido.
   ],
 };
