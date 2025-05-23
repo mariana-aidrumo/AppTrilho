@@ -16,24 +16,90 @@ export default function SoxMatrixPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
 
   const pageTitle = isUserControlOwner() ? "Painel (Visão Geral)" : "Painel da Matriz SOX";
-  
+
+  // Filtros para o Dono do Controle
+  let ownerRegisteredControls: SoxControl[] = [];
+  let ownerControlsWithPendingChanges: { control: SoxControl, request: ChangeRequest }[] = [];
+  let ownerPendingNewControlRequests: ChangeRequest[] = [];
+
+  if (isUserControlOwner()) {
+    const userOwnedControlIds = currentUser.controlsOwned || [];
+
+    // 1. Controles Registrados (ativos e sem alterações pendentes pelo dono)
+    ownerRegisteredControls = mockSoxControls.filter(control =>
+      userOwnedControlIds.includes(control.id) &&
+      control.status === "Ativo" &&
+      !mockChangeRequests.some(cr =>
+        cr.controlId === control.controlId &&
+        cr.requestedBy === currentUser.name &&
+        (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
+      )
+    );
+
+    // 2. Controles com Alterações Solicitadas (existentes, com alterações pendentes pelo dono)
+    mockChangeRequests.forEach(cr => {
+      if (cr.requestedBy === currentUser.name &&
+          !cr.controlId.startsWith("NEW-CTRL-") &&
+          (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")) {
+        const control = mockSoxControls.find(c => c.controlId === cr.controlId && userOwnedControlIds.includes(c.id));
+        if (control) {
+          ownerControlsWithPendingChanges.push({ control, request: cr });
+        }
+      }
+    });
+
+    // 3. Propostas de Novos Controles Pendentes
+    ownerPendingNewControlRequests = mockChangeRequests.filter(
+      req => req.requestedBy === currentUser.name &&
+             req.controlId.startsWith("NEW-CTRL-") &&
+             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
+    );
+  }
+
   const adminControls = mockSoxControls;
-  const ownerControls = mockSoxControls.filter(control => currentUser.controlsOwned?.includes(control.id) && control.status === "Ativo");
+  // Para a tabela principal do admin, não há necessidade de filtrar os controles de forma diferente
+  const displayedControlsForAdminTable = adminControls;
 
-  const ownerPendingNewControls = mockChangeRequests.filter(
-    req => req.requestedBy === currentUser.name && 
-           req.controlId.startsWith("NEW-CTRL-") && 
-           req.status === "Pendente"
-  );
-
-  const displayedControls = isUserControlOwner() ? ownerControls : adminControls;
 
   return (
     <div className="space-y-6">
-      {/* Cards de Ação Condicionais */}
-      <div className={`grid grid-cols-1 gap-6 mb-6 ${isUserAdmin() ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-        {isUserAdmin() && (
-          <>
+      {/* Cards de Ação Condicionais - Dono do Controle */}
+      {isUserControlOwner() && (
+         <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2">
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-lg font-medium">Minhas Solicitações</CardTitle>
+                 <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary cursor-pointer" /></Link>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">
+                  Acompanhe o status das suas solicitações de controle.
+                </p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                  <Link href="/pending-approvals">Ver Solicitações</Link>
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-lg font-medium">Propor Novo Controle</CardTitle>
+                <Link href="/new-control"><FilePlus2 className="h-5 w-5 text-primary cursor-pointer" /></Link>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">
+                  Envie uma proposta para um novo controle SOX.
+                </p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                  <Link href="/new-control">Propor Controle</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+      )}
+
+      {/* Cards de Ação Condicionais - Admin */}
+      {isUserAdmin() && (
+          <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-3">
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-lg font-medium">Aprovações Pendentes</CardTitle>
@@ -76,42 +142,121 @@ export default function SoxMatrixPage() {
                 </Button>
               </CardContent>
             </Card>
-          </>
+          </div>
         )}
-        {isUserControlOwner() && (
-          <>
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-medium">Minhas Solicitações</CardTitle>
-                 <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary cursor-pointer" /></Link>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Acompanhe o status das suas solicitações de controle.
-                </p>
-                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link href="/pending-approvals">Ver Solicitações</Link>
-                </Button>
-              </CardContent>
-            </Card>
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-medium">Propor Novo Controle</CardTitle>
-                <Link href="/new-control"><FilePlus2 className="h-5 w-5 text-primary cursor-pointer" /></Link>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Envie uma proposta para um novo controle SOX.
-                </p>
-                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link href="/new-control">Propor Controle</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
 
+      {/* Visão Geral para Dono do Controle */}
+      {isUserControlOwner() && (
+        <div className="space-y-6">
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Controles Registrados</CardTitle>
+              <CardDescription>Seus controles ativos e sem alterações pendentes.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownerRegisteredControls.length > 0 ? (
+                <ul className="space-y-2">
+                  {ownerRegisteredControls.slice(0, 3).map(control => (
+                    <li key={control.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/30">
+                      <div>
+                        <Link href={`/controls/${control.id}`} className="text-primary hover:underline font-medium">
+                          {control.controlId}: {control.controlName}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{control.processo} / {control.subProcesso}</p>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/controls/${control.id}`}>Ver Detalhes <ExternalLink className="ml-2 h-3 w-3"/></Link>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Você não possui controles registrados nesta categoria.</p>
+              )}
+              {ownerRegisteredControls.length > 0 && ( // Mostrar o link mesmo se houver menos de 3, para consistência
+                <div className="mt-4 text-right">
+                  <Button variant="link" asChild>
+                    <Link href="/my-registered-controls">Ver todos os controles registrados ({ownerRegisteredControls.length})</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Controles com Alterações Solicitadas</CardTitle>
+              <CardDescription>Seus controles existentes com propostas de alteração pendentes.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownerControlsWithPendingChanges.length > 0 ? (
+                <ul className="space-y-2">
+                  {ownerControlsWithPendingChanges.slice(0, 3).map(item => (
+                    <li key={item.request.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/30">
+                      <div>
+                        <Link href={`/controls/${item.control.id}`} className="text-primary hover:underline font-medium">
+                          {item.control.controlId}: {item.control.controlName}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">Solicitação: {item.request.id} (Status: {item.request.status})</p>
+                      </div>
+                       <Button variant="outline" size="sm" asChild>
+                        <Link href={`/change-requests/${item.request.id}`}>Ver Solicitação <ExternalLink className="ml-2 h-3 w-3"/></Link>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Nenhum de seus controles possui alterações solicitadas pendentes.</p>
+              )}
+              {ownerControlsWithPendingChanges.length > 3 && (
+                <div className="mt-4 text-right">
+                  <Button variant="link" asChild>
+                    {/* Idealmente, linkaria para /pending-approvals filtrado, mas por ora pode ir para a lista geral */}
+                    <Link href="/pending-approvals">Ver todas as alterações solicitadas ({ownerControlsWithPendingChanges.length})</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Propostas de Novos Controles Pendentes</CardTitle>
+              <CardDescription>Acompanhe os novos controles que você solicitou.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownerPendingNewControlRequests.length > 0 ? (
+                <ul className="space-y-2">
+                  {ownerPendingNewControlRequests.slice(0, 3).map(request => (
+                    <li key={request.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/30">
+                      <div>
+                        <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline font-medium">
+                          {request.changes.controlId || 'ID Pendente'} - {request.changes.controlName}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">Solicitado em: {new Date(request.requestDate).toLocaleDateString('pt-BR')} (Status: {request.status})</p>
+                      </div>
+                       <Button variant="outline" size="sm" asChild>
+                        <Link href={`/change-requests/${request.id}`}>Ver Proposta <ExternalLink className="ml-2 h-3 w-3"/></Link>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">Você não tem propostas de novos controles pendentes.</p>
+              )}
+              {ownerPendingNewControlRequests.length > 0 && ( // Mostrar o link mesmo se houver menos de 3
+                <div className="mt-4 text-right">
+                  <Button variant="link" asChild>
+                    <Link href="/pending-approvals">Ver todas as propostas ({ownerPendingNewControlRequests.length})</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filtros e Tabela para Admin */}
       {isUserAdmin() && (
         <>
           <Card className="shadow-md">
@@ -193,7 +338,7 @@ export default function SoxMatrixPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {displayedControls.map((control) => (
+                    {displayedControlsForAdminTable.map((control) => (
                       <TableRow key={control.id}>
                         <TableCell>{control.processo}</TableCell>
                         <TableCell>{control.subProcesso}</TableCell>
@@ -234,7 +379,7 @@ export default function SoxMatrixPage() {
                   </TableBody>
                 </Table>
               </div>
-              {displayedControls.length === 0 && (
+              {displayedControlsForAdminTable.length === 0 && (
                 <p className="mt-4 text-center text-muted-foreground">
                   Nenhum controle encontrado.
                 </p>
@@ -243,94 +388,8 @@ export default function SoxMatrixPage() {
           </Card>
         </>
       )}
-
-      {isUserControlOwner() && (
-        <div className="space-y-6">
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Meus Controles Registrados</CardTitle>
-              <CardDescription>Uma visão rápida dos seus controles ativos.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {ownerControls.length > 0 ? (
-                <ul className="space-y-2">
-                  {ownerControls.slice(0, 3).map(control => (
-                    <li key={control.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/30">
-                      <div>
-                        <Link href={`/controls/${control.id}`} className="text-primary hover:underline font-medium">
-                          {control.controlId}: {control.controlName}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{control.processo} / {control.subProcesso}</p>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/controls/${control.id}`}>Ver Detalhes <ExternalLink className="ml-2 h-3 w-3"/></Link>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground">Você não possui controles registrados ativos.</p>
-              )}
-              {ownerControls.length > 3 && (
-                <div className="mt-4 text-right">
-                  <Button variant="link" asChild>
-                    <Link href="/my-registered-controls">Ver todos os meus controles ({ownerControls.length})</Link>
-                  </Button>
-                </div>
-              )}
-               {ownerControls.length === 0 && (
-                 <div className="mt-4 text-right">
-                    <Button variant="link" asChild>
-                        <Link href="/my-registered-controls">Ver todos os meus controles</Link>
-                    </Button>
-                 </div>
-                )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Minhas Propostas de Novos Controles (Pendentes)</CardTitle>
-              <CardDescription>Acompanhe os novos controles que você solicitou.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {ownerPendingNewControls.length > 0 ? (
-                <ul className="space-y-2">
-                  {ownerPendingNewControls.slice(0, 3).map(request => (
-                    <li key={request.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/30">
-                      <div>
-                        <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline font-medium">
-                          {request.changes.controlId || 'ID Pendente'} - {request.changes.controlName}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">Solicitado em: {new Date(request.requestDate).toLocaleDateString('pt-BR')}</p>
-                      </div>
-                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/change-requests/${request.id}`}>Ver Solicitação <ExternalLink className="ml-2 h-3 w-3"/></Link>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground">Você não tem propostas de novos controles pendentes.</p>
-              )}
-              {ownerPendingNewControls.length > 3 && (
-                <div className="mt-4 text-right">
-                  <Button variant="link" asChild>
-                    <Link href="/pending-approvals">Ver todas as minhas solicitações ({ownerPendingNewControls.length})</Link>
-                  </Button>
-                </div>
-              )}
-              {ownerPendingNewControls.length === 0 && (
-                 <div className="mt-4 text-right">
-                    <Button variant="link" asChild>
-                        <Link href="/pending-approvals">Ver todas as minhas solicitações</Link>
-                    </Button>
-                 </div>
-                )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
+
+    

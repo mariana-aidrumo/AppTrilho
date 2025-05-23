@@ -9,14 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Eye, FileEdit, ChevronRight, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockSoxControls } from "@/data/mock-data";
+import { mockSoxControls, mockChangeRequests } from "@/data/mock-data";
 
 export default function MyRegisteredControlsPage() {
   const { currentUser, isUserControlOwner } = useUserProfile();
 
   if (!isUserControlOwner()) {
-    // Idealmente, redirecionar ou mostrar uma mensagem de não autorizado
-    // Por simplicidade, vamos apenas mostrar uma mensagem
     return (
         <div className="space-y-6">
             <div className="flex items-center">
@@ -38,15 +36,23 @@ export default function MyRegisteredControlsPage() {
     );
   }
 
-  const ownerControls = mockSoxControls.filter(
-    control => currentUser.controlsOwned?.includes(control.id) && control.status === "Ativo"
+  const userOwnedControlIds = currentUser.controlsOwned || [];
+  const ownerRegisteredControls = mockSoxControls.filter(control =>
+    userOwnedControlIds.includes(control.id) &&
+    control.status === "Ativo" &&
+    !mockChangeRequests.some(cr =>
+      cr.controlId === control.controlId &&
+      cr.requestedBy === currentUser.name &&
+      (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
+    )
   );
+
 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
         <Button variant="outline" asChild>
-          <Link href="/sox-matrix">
+          <Link href="/sox-matrix"> {/* Link de volta para o painel geral do dono */}
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel (Visão Geral)
           </Link>
         </Button>
@@ -56,11 +62,11 @@ export default function MyRegisteredControlsPage() {
         <CardHeader>
           <CardTitle>Meus Controles Registrados</CardTitle>
           <CardDescription>
-            Visualize todos os controles SOX ativos pelos quais você é responsável.
+            Visualize todos os seus controles SOX ativos que não possuem alterações pendentes solicitadas por você.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {ownerControls.length > 0 ? (
+          {ownerRegisteredControls.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -76,7 +82,7 @@ export default function MyRegisteredControlsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ownerControls.map((control) => (
+                  {ownerRegisteredControls.map((control) => (
                     <TableRow key={control.id}>
                       <TableCell>{control.processo}</TableCell>
                       <TableCell>{control.subProcesso}</TableCell>
@@ -118,7 +124,7 @@ export default function MyRegisteredControlsPage() {
             </div>
           ) : (
             <p className="mt-4 text-center text-muted-foreground">
-              Você não possui nenhum controle registrado ativo.
+              Você não possui nenhum controle registrado nesta categoria.
             </p>
           )}
         </CardContent>
@@ -126,3 +132,5 @@ export default function MyRegisteredControlsPage() {
     </div>
   );
 }
+
+    
