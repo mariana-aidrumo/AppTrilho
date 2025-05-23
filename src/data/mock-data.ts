@@ -1,6 +1,5 @@
-
 // src/data/mock-data.ts
-import type { SoxControl, ChangeRequest, VersionHistoryEntry, EvidenceFile } from '@/types';
+import type { SoxControl, ChangeRequest, VersionHistoryEntry } from '@/types'; // EvidenceFile removido
 
 export const mockSoxControls: SoxControl[] = [
   {
@@ -15,7 +14,7 @@ export const mockSoxControls: SoxControl[] = [
     lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(),
     relatedRisks: ["Demonstração Financeira Incorreta", "Transações Fraudulentas", "Passivos Não Registrados"],
     testProcedures: "Verificar se as conciliações bancárias são realizadas mensalmente, revisadas independentemente e todos os itens de conciliação são investigados e compensados adequadamente. Obter uma amostra das conciliações bancárias concluídas e verificar as assinaturas e datas do preparador e revisor.",
-    evidenceRequirements: "Relatório de conciliação bancária assinado, cronogramas de suporte para itens de conciliação e evidência de acompanhamento de itens pendentes.",
+    // evidenceRequirements: "Relatório de conciliação bancária assinado, cronogramas de suporte para itens de conciliação e evidência de acompanhamento de itens pendentes.", // Removido
     processo: "Relatórios Financeiros",
     subProcesso: "Fechamento Mensal",
     modalidade: "Manual",
@@ -32,7 +31,7 @@ export const mockSoxControls: SoxControl[] = [
     lastUpdated: new Date().toISOString(),
     relatedRisks: ["Acesso Não Autorizado", "Violação de Dados"],
     testProcedures: "Amostra de logs de acesso do usuário e comparação com funções aprovadas.",
-    evidenceRequirements: "Documentação de revisão de acesso do usuário com aprovações.",
+    // evidenceRequirements: "Documentação de revisão de acesso do usuário com aprovações.", // Removido
     processo: "Gerenciamento de Acesso de Usuário",
     subProcesso: "Provisionamento de Usuário",
     modalidade: "Automático",
@@ -49,7 +48,7 @@ export const mockSoxControls: SoxControl[] = [
     lastUpdated: new Date().toISOString(),
     relatedRisks: ["Perda de Estoque", "Erros de Avaliação de Estoque"],
     testProcedures: "Realizar contagens cíclicas e investigar discrepâncias.",
-    evidenceRequirements: "Folhas de contagem cíclica e relatórios de ajuste.",
+    // evidenceRequirements: "Folhas de contagem cíclica e relatórios de ajuste.", // Removido
     processo: "Compras",
     subProcesso: "Gerenciamento de Fornecedores",
     modalidade: "Manual",
@@ -66,7 +65,7 @@ export const mockSoxControls: SoxControl[] = [
     lastUpdated: new Date(Date.now() - 86400000 * 2).toISOString(),
     relatedRisks: ["Acesso não autorizado", "Violação de dados"],
     testProcedures: "Examinar logs de sistemas críticos em busca de anomalias.",
-    evidenceRequirements: "Relatórios de revisão de logs com ações tomadas.",
+    // evidenceRequirements: "Relatórios de revisão de logs com ações tomadas.", // Removido
     processo: "Segurança da Informação",
     subProcesso: "Monitoramento de Segurança",
     modalidade: "Híbrido",
@@ -191,12 +190,8 @@ export const mockVersionHistory: VersionHistoryEntry[] = [
   },
 ];
 
-export const mockEvidenceFiles: EvidenceFile[] = [
-  { id: "ev1", controlId: "1", fileName: "Q1_Conciliacao_Bancaria_Assinada.pdf", fileType: "application/pdf", fileSize: 1024 * 250, uploadDate: new Date(Date.now() - 86400000 * 90).toISOString(), uploadedBy: "Alice Wonderland", storageUrl: "#" },
-  { id: "ev2", controlId: "1", fileName: "Itens_Conciliacao_Q1.xlsx", fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileSize: 1024 * 80, uploadDate: new Date(Date.now() - 86400000 * 90).toISOString(), uploadedBy: "Alice Wonderland", storageUrl: "#" },
-  { id: "ev3", controlId: "2", fileName: "Aprovacao_Acesso_Q3.docx", fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileSize: 1024 * 120, uploadDate: new Date(Date.now() - 86400000 * 5).toISOString(), uploadedBy: "Bob The Builder", storageUrl: "#" },
-  { id: "ev4", controlId: "3", fileName: "Evidencia_Contagem_Ciclica_Semana1.pdf", fileType: "application/pdf", fileSize: 1024 * 300, uploadDate: new Date(Date.now() - 86400000 * 7).toISOString(), uploadedBy: "Usuário Dono", storageUrl: "#" },
-];
+// Removido mockEvidenceFiles
+// export const mockEvidenceFiles: EvidenceFile[] = [ ... ];
 
 // Mock data for filters in sox-matrix page
 export const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];

@@ -5,12 +5,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest, UnifiedHistoryItem, UnifiedHistoryEventType } from "@/types";
-import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert, ListFilter, ExternalLinkIcon, ListOrdered } from "lucide-react";
+import type { SoxControl, UnifiedHistoryItem, UnifiedHistoryEventType } from "@/types"; // EvidenceFile removido
+import { ArrowLeft, Edit2, History, PlusCircle, ShieldAlert, ListOrdered } from "lucide-react"; // Paperclip removido
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useSearchParams } from 'next/navigation';
-import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockEvidenceFiles as allMockEvidenceFiles, mockChangeRequests } from "@/data/mock-data";
+import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockChangeRequests } from "@/data/mock-data"; // mockEvidenceFiles removido
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo } from "react";
 
@@ -65,7 +65,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     mockChangeRequests
       .filter(cr => cr.controlId === control.controlId || (cr.changes.controlId === control.controlId && cr.controlId.startsWith("NEW-CTRL")))
       .forEach(cr => {
-        // Adicionar apenas se não houver um VersionHistoryEntry correspondente para aprovação
         const alreadyCoveredByVH = historyItems.some(hi => hi.type === "CHANGE_REQUEST_APPROVED" && hi.sourceId === cr.id);
 
         if (!alreadyCoveredByVH) {
@@ -92,7 +91,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                     eventDate = cr.reviewDate || cr.requestDate;
                     actor = cr.reviewedBy || 'Admin';
                     break;
-                // Aprovado já é coberto por VersionHistory, mas pode haver casos. Aqui é mais para o evento de submissão em si.
             }
 
             if (eventType) {
@@ -108,21 +106,21 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         }
       });
     
-    // 3. Evidence Files
-    allMockEvidenceFiles
-      .filter(ev => ev.controlId === control.id)
-      .forEach(ev => {
-        historyItems.push({
-          id: ev.id,
-          date: ev.uploadDate,
-          type: "EVIDENCE_UPLOADED",
-          description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
-          actor: ev.uploadedBy,
-        });
-      });
+    // 3. Evidence Files - Removido
+    // allMockEvidenceFiles
+    //   .filter(ev => ev.controlId === control.id)
+    //   .forEach(ev => {
+    //     historyItems.push({
+    //       id: ev.id,
+    //       date: ev.uploadDate,
+    //       type: "EVIDENCE_UPLOADED",
+    //       description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
+    //       actor: ev.uploadedBy,
+    //     });
+    //   });
 
     return historyItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [control, allMockVersionHistory, mockChangeRequests, allMockEvidenceFiles]);
+  }, [control, allMockVersionHistory, mockChangeRequests]);
 
 
   const renderPendingChangesList = () => {
@@ -131,14 +129,14 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     }
     const items: JSX.Element[] = [];
     
-    // Usar Object.keys e depois acessar o valor para evitar o erro do Turbopack
     Object.keys(mockPendingChangeForThisControl.changes).forEach(key => {
         const value = (mockPendingChangeForThisControl.changes as any)[key];
         const fieldTranslations: Record<string, string> = {
             controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
             controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
             status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-            testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
+            testProcedures: "Procedimentos de Teste", 
+            // evidenceRequirements: "Requisitos de Evidência", // Removido
             processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
             justificativa: "Justificativa"
         };
@@ -185,7 +183,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       case "CHANGE_REQUEST_APPROVED": return "Solicitação Aprovada";
       case "CHANGE_REQUEST_REJECTED": return "Solicitação Rejeitada";
       case "CHANGE_REQUEST_FEEDBACK_REQUESTED": return "Feedback Solicitado";
-      case "EVIDENCE_UPLOADED": return "Evidência Enviada";
+      // case "EVIDENCE_UPLOADED": return "Evidência Enviada"; // Removido
       default: return "Evento";
     }
   };
@@ -196,7 +194,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
           <Link href={isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "/my-registered-controls" : "/sox-matrix"}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "Meus Controles Registrados" : "Painel da Matriz SOX"}
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "Meus Controles" : "Painel da Matriz SOX"}
           </Link>
         </Button>
         {canEditControl && (!mockPendingChangeForThisControl || mockPendingChangeForThisControl.controlId !== control.controlId) && (
@@ -315,11 +313,12 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <h3 className="font-semibold text-muted-foreground">Procedimentos de Teste</h3>
             <p className="text-sm whitespace-pre-wrap">{control.testProcedures}</p>
           </div>
-          <Separator />
+          {/* Seção Requisitos de Evidência Removida */}
+          {/* <Separator />
           <div>
             <h3 className="font-semibold text-muted-foreground">Requisitos de Evidência</h3>
             <p className="text-sm whitespace-pre-wrap">{control.evidenceRequirements}</p>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
 
@@ -335,7 +334,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <>
               <ul className="space-y-3">
                 {unifiedHistory.slice(0, 3).map(entry => (
-                  <li key={entry.id} className="text-sm border-l-2 pl-3 border-primary/50">
+                  <li key={`${entry.id}-${entry.type}`} className="text-sm border-l-2 pl-3 border-primary/50">
                     <p className="flex justify-between items-center">
                       <span className="font-semibold">{getEventTypeLabel(entry.type)}</span>
                       <span className="text-xs text-muted-foreground">
@@ -343,7 +342,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                       </span>
                     </p>
                     <p className="text-muted-foreground">{entry.description}</p>
-                    {entry.sourceId && entry.type !== "CONTROL_CREATED" && entry.type !== "CONTROL_UPDATED" && entry.type !== "EVIDENCE_UPLOADED" && (
+                    {entry.sourceId && entry.type !== "CONTROL_CREATED" && entry.type !== "CONTROL_UPDATED" && (
                        <Link href={`/change-requests/${entry.sourceId}`} className="text-xs text-primary hover:underline">
                          Ver Solicitação {entry.sourceId}
                        </Link>
@@ -368,7 +367,8 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      {/* Card de Evidência Removido */}
+      {/* <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Paperclip className="w-5 h-5" />
@@ -397,8 +397,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <p className="text-sm text-muted-foreground">Nenhuma evidência carregada para este controle.</p>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }
-

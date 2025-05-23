@@ -1,4 +1,3 @@
-
 // src/app/controls/[controlId]/history/page.tsx
 "use client";
 
@@ -6,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ListOrdered } from "lucide-react";
 import Link from "next/link";
-import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockChangeRequests, mockEvidenceFiles as allMockEvidenceFiles } from "@/data/mock-data";
+import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockChangeRequests } from "@/data/mock-data"; // mockEvidenceFiles removido
 import type { SoxControl, UnifiedHistoryItem, UnifiedHistoryEventType } from "@/types";
 import { useMemo } from "react";
 
@@ -92,18 +91,18 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
         }
       });
     
-    // 3. Evidence Files
-    allMockEvidenceFiles
-      .filter(ev => ev.controlId === control.id)
-      .forEach(ev => {
-        historyItems.push({
-          id: ev.id,
-          date: ev.uploadDate,
-          type: "EVIDENCE_UPLOADED",
-          description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
-          actor: ev.uploadedBy,
-        });
-      });
+    // 3. Evidence Files - Removido
+    // allMockEvidenceFiles
+    //   .filter(ev => ev.controlId === control.id)
+    //   .forEach(ev => {
+    //     historyItems.push({
+    //       id: ev.id,
+    //       date: ev.uploadDate,
+    //       type: "EVIDENCE_UPLOADED",
+    //       description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
+    //       actor: ev.uploadedBy,
+    //     });
+    //   });
 
     return historyItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [control]);
@@ -116,7 +115,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
       case "CHANGE_REQUEST_APPROVED": return "Solicitação Aprovada";
       case "CHANGE_REQUEST_REJECTED": return "Solicitação Rejeitada";
       case "CHANGE_REQUEST_FEEDBACK_REQUESTED": return "Feedback Solicitado";
-      case "EVIDENCE_UPLOADED": return "Envio de Evidência";
+      // case "EVIDENCE_UPLOADED": return "Envio de Evidência"; // Removido
       default: return "Evento";
     }
   };
@@ -177,7 +176,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
                     </p>
                   </div>
                   <p className="text-sm text-foreground mb-2">{entry.description}</p>
-                  {entry.sourceId && entry.type !== "CONTROL_CREATED" && entry.type !== "CONTROL_UPDATED" && entry.type !== "EVIDENCE_UPLOADED" && (
+                  {entry.sourceId && entry.type !== "CONTROL_CREATED" && entry.type !== "CONTROL_UPDATED" && (
                      <p className="text-xs text-muted-foreground">
                         Referência: {' '}
                         <Link href={`/change-requests/${entry.sourceId}`} className="text-primary hover:underline">
@@ -196,4 +195,3 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
     </div>
   );
 }
-

@@ -72,7 +72,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
          setChangedFields(newControlFields);
       }
     }
-  }, [params.requestId, mockChangeRequests, mockSoxControls]);
+  }, [params.requestId]); // mockChangeRequests and mockSoxControls removed from dependencies to avoid stale closures if they change
 
 
   const translateFieldName = (fieldName: string): string => {
@@ -80,7 +80,8 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
       controlOwner: "Dono do Controle", controlFrequency: "Frequência do Controle", controlType: "Tipo de Controle",
       status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-      testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
+      testProcedures: "Procedimentos de Teste", 
+      // evidenceRequirements: "Requisitos de Evidência", // Removido
       processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade", justificativa: "Justificativa"
     };
     return translations[fieldName] || fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
@@ -101,7 +102,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       ...request,
       reviewedBy: currentUser.name,
       reviewDate: new Date().toISOString(),
-      adminFeedback: action === "approve" ? request.adminFeedback : adminComment || request.adminFeedback, // Mantém feedback anterior se aprovado, senão usa novo.
+      adminFeedback: action === "approve" ? request.adminFeedback : adminComment || request.adminFeedback, 
     };
 
     let toastMessage = "";
@@ -111,22 +112,20 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       toastMessage = `Solicitação ${request.id} aprovada.`;
 
       if (request.controlId.startsWith("NEW-CTRL-")) {
-        // Criar novo controle
         const newControlIdNumber = mockSoxControls.length + 1;
         const newSoxControl: SoxControl = {
           id: String(newControlIdNumber),
-          // Usa o ID proposto em changes, ou gera um novo se não existir
           controlId: request.changes.controlId || `CTRL-${String(newControlIdNumber).padStart(3, '0')}`,
           controlName: request.changes.controlName || "Nome não definido",
           description: request.changes.description || "Descrição não definida",
           controlOwner: request.changes.controlOwner || "Não definido",
           controlFrequency: request.changes.controlFrequency || "Ad-hoc",
           controlType: request.changes.controlType || "Preventivo",
-          status: "Ativo",
+          status: "Ativo", // Novo controle já nasce ativo
           lastUpdated: new Date().toISOString(),
           relatedRisks: request.changes.relatedRisks || [],
           testProcedures: request.changes.testProcedures || "Não definido",
-          evidenceRequirements: request.changes.evidenceRequirements || "Não definido",
+          // evidenceRequirements: request.changes.evidenceRequirements || "Não definido", // Removido
           processo: request.changes.processo,
           subProcesso: request.changes.subProcesso,
           modalidade: request.changes.modalidade,
@@ -155,13 +154,13 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
             changeDate: new Date().toISOString(),
             changedBy: currentUser.name,
             summaryOfChanges: `Alterações da solicitação ${request.id} aplicadas ao controle ${originalControl.controlId}.`,
-            previousValues: { ...originalControl }, // Simplified, real diff would be better
+            previousValues: { ...originalControl }, 
             newValues: { ...request.changes },
             relatedChangeRequestId: request.id,
           });
         } else {
           toastMessage = `Controle ${request.controlId} não encontrado para atualização.`;
-           updatedRequest.status = "Pendente"; // Reverte o status se o controle não for encontrado
+           updatedRequest.status = "Pendente"; 
         }
       }
     } else if (action === "reject") {
@@ -185,7 +184,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     }
 
     mockChangeRequests[requestIndex] = updatedRequest;
-    setRequest(updatedRequest); // Atualiza o estado local para refletir a mudança imediatamente
+    setRequest(updatedRequest); 
 
     toast({
       title: "Sucesso!",
@@ -193,7 +192,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     });
     setAdminComment("");
     setIsProcessing(false);
-    // Opcional: router.push("/pending-approvals"); ou router.refresh() se estiver usando Server Components para a lista.
+    router.refresh(); // Força a atualização dos dados na UI se estiver usando server components ou para listas dinâmicas
   };
 
   if (!request) {
@@ -309,7 +308,6 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
                   <CardDescription className="text-orange-600">O administrador solicitou ajustes nesta proposta. Revise o feedback acima e reenvie suas alterações.</CardDescription>
                 </CardHeader>
                 <CardFooter>
-                   {/* Simulação de botão, idealmente levaria a um formulário de edição da proposta */}
                   <Button variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-100" disabled>
                     <Edit className="mr-2 h-4 w-4" /> Revisar e Reenviar Proposta (Simulado)
                   </Button>

@@ -45,7 +45,7 @@ const adminNewControlSchema = z.object({
   }).optional(),
   relatedRisks: z.string().optional(), 
   testProcedures: z.string().optional(),
-  evidenceRequirements: z.string().optional(),
+  // evidenceRequirements: z.string().optional(), // Removido
 });
 
 type OwnerFormValues = z.infer<typeof ownerNewControlSchema>;
@@ -73,7 +73,7 @@ export default function NewControlPage() {
     resolver: zodResolver(currentSchema),
     defaultValues: isUserAdmin() ? 
       { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined } : 
-      {} // Dono não tem mais defaults aqui, formulário simplificado
+      {}
   });
   
 
@@ -113,7 +113,7 @@ export default function NewControlPage() {
         lastUpdated: new Date().toISOString(),
         relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
         testProcedures: adminData.testProcedures || "",
-        evidenceRequirements: adminData.evidenceRequirements || "",
+        // evidenceRequirements: adminData.evidenceRequirements || "", // Removido
         processo: adminData.processo,
         subProcesso: adminData.subProcesso,
         modalidade: adminData.modalidade,
@@ -133,7 +133,7 @@ export default function NewControlPage() {
         variant: "default",
       });
 
-    } else { // Dono do Controle submetendo proposta SIMPLIFICADA
+    } else { 
       const ownerData = data as OwnerFormValues;
       const newRequestId = `cr-new-${Date.now()}`;
       const tempProposedId = `TEMP-${Date.now()}`; 
@@ -145,10 +145,10 @@ export default function NewControlPage() {
         requestDate: new Date().toISOString(),
         changes: { 
           controlName: ownerData.controlName,
-          description: ownerData.justificativa, // Usar justificativa como descrição inicial
+          description: ownerData.justificativa, 
           justificativa: ownerData.justificativa,
-          controlOwner: currentUser.name, // Dono é o solicitante
-          status: "Rascunho", // Admin definirá outros campos na aprovação
+          controlOwner: currentUser.name, 
+          status: "Rascunho", 
         },
         status: "Pendente",
         comments: `Proposta de novo controle: ${ownerData.controlName}.`,
@@ -313,10 +313,11 @@ export default function NewControlPage() {
                   <Label htmlFor="testProcedures">Procedimentos de Teste</Label>
                   <Textarea id="testProcedures" {...register("testProcedures")} placeholder="Descreva os procedimentos de teste." rows={3} />
                 </div>
-                <div>
+                {/* Campo Requisitos de Evidência Removido */}
+                {/* <div>
                   <Label htmlFor="evidenceRequirements">Requisitos de Evidência</Label>
                   <Textarea id="evidenceRequirements" {...register("evidenceRequirements")} placeholder="Descreva os requisitos de evidência." rows={3} />
-                </div>
+                </div> */}
               </>
             ) : (
               <> {/* Campos SIMPLIFICADOS para Dono do Controle */}
@@ -334,8 +335,8 @@ export default function NewControlPage() {
                     rows={5}
                     onChange={(e) => {
                         const { onChange } = register("justificativa");
-                        onChange(e); // Chama o onChange original do react-hook-form
-                        setDescriptionForAI(e.target.value);      // Atualiza estado para IA
+                        onChange(e); 
+                        setDescriptionForAI(e.target.value);      
                     }}
                   />
                   {errors.justificativa && <p className="text-sm text-destructive mt-1">{(errors.justificativa as any).message}</p>}
@@ -383,5 +384,3 @@ export default function NewControlPage() {
     </div>
   );
 }
-
-    

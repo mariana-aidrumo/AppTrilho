@@ -15,7 +15,7 @@ export interface SoxControl {
   lastUpdated: string; // Data ISO
   relatedRisks: string[];
   testProcedures: string;
-  evidenceRequirements: string;
+  // evidenceRequirements: string; // Removido
   processo?: string;
   subProcesso?: string;
   modalidade?: ControlModalidade;
@@ -48,16 +48,17 @@ export interface VersionHistoryEntry {
   relatedChangeRequestId?: string; // ID da ChangeRequest que originou esta versão
 }
 
-export interface EvidenceFile {
-  id: string;
-  controlId: string;
-  fileName: string;
-  fileType: string;
-  fileSize: number; // em bytes
-  uploadDate: string; // Data ISO
-  uploadedBy: string; // ID ou nome do usuário
-  storageUrl: string; // URL para o arquivo no armazenamento
-}
+// Removida a interface EvidenceFile
+// export interface EvidenceFile {
+//   id: string;
+//   controlId: string;
+//   fileName: string;
+//   fileType: string;
+//   fileSize: number; // em bytes
+//   uploadDate: string; // Data ISO
+//   uploadedBy: string; // ID ou nome do usuário
+//   storageUrl: string; // URL para o arquivo no armazenamento
+// }
 
 export type UserProfileType = "Dono do Controle" | "Administrador de Controles Internos";
 
@@ -74,8 +75,8 @@ export type UnifiedHistoryEventType =
   | "CHANGE_REQUEST_SUBMITTED"
   | "CHANGE_REQUEST_APPROVED"
   | "CHANGE_REQUEST_REJECTED"
-  | "CHANGE_REQUEST_FEEDBACK_REQUESTED"
-  | "EVIDENCE_UPLOADED";
+  | "CHANGE_REQUEST_FEEDBACK_REQUESTED";
+  // | "EVIDENCE_UPLOADED"; // Removido
 
 export interface UnifiedHistoryItem {
   id: string; // ID original do item de origem (vh.id, cr.id, ev.id)
