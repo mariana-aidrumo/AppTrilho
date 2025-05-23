@@ -22,14 +22,10 @@ export default function SoxMatrixPage() {
 
 
   // Filtros para o Dono do Controle
-  let ownerRegisteredControls: SoxControl[] = [];
-  let ownerControlsWithPendingChanges: { control: SoxControl, request: ChangeRequest }[] = [];
-  let ownerPendingNewControlRequests: ChangeRequest[] = [];
-
-  if (isUserControlOwner()) {
+  const ownerRegisteredControls = useMemo(() => {
+    if (!isUserControlOwner()) return [];
     const userOwnedControlIds = currentUser.controlsOwned || [];
-
-    ownerRegisteredControls = mockSoxControls.filter(control =>
+    return mockSoxControls.filter(control =>
       userOwnedControlIds.includes(control.id) &&
       control.status === "Ativo" &&
       !mockChangeRequests.some(cr =>
@@ -38,28 +34,38 @@ export default function SoxMatrixPage() {
         (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
       )
     );
+  }, [isUserControlOwner, currentUser, mockSoxControls, mockChangeRequests]);
 
+  const ownerControlsWithPendingChanges = useMemo(() => {
+    if (!isUserControlOwner()) return [];
+    const userOwnedControlIds = currentUser.controlsOwned || [];
+    const pendingChanges: { control: SoxControl, request: ChangeRequest }[] = [];
     mockChangeRequests.forEach(cr => {
       if (cr.requestedBy === currentUser.name &&
           !cr.controlId.startsWith("NEW-CTRL-") &&
           (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")) {
         const control = mockSoxControls.find(c => c.controlId === cr.controlId && userOwnedControlIds.includes(c.id));
         if (control) {
-          ownerControlsWithPendingChanges.push({ control, request: cr });
+          pendingChanges.push({ control, request: cr });
         }
       }
     });
-
-    ownerPendingNewControlRequests = mockChangeRequests.filter(
+    return pendingChanges;
+  }, [isUserControlOwner, currentUser, mockSoxControls, mockChangeRequests]);
+  
+  const ownerPendingNewControlRequests = useMemo(() => {
+    if (!isUserControlOwner()) return [];
+    return mockChangeRequests.filter(
       req => req.requestedBy === currentUser.name &&
              req.controlId.startsWith("NEW-CTRL-") && 
              (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") 
     );
-  }
+  }, [isUserControlOwner, currentUser, mockChangeRequests]);
+
 
   // Dados para Admin
   const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, [mockSoxControls]);
-  const adminTotalOwners = useMemo(() => (mockDonos.length > 1 ? mockDonos.length -1 : 0) , [mockDonos]); // Descontando "Todos"
+  const adminTotalOwners = useMemo(() => (mockDonos.filter(d => d !== "Todos").length) , [mockDonos]); 
   const adminTotalPendingRequests = useMemo(() => mockChangeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, [mockChangeRequests]);
 
 
@@ -139,33 +145,15 @@ export default function SoxMatrixPage() {
                 <p className="text-xs text-muted-foreground">Total de solicitações aguardando ação</p>
               </CardContent>
             </Card>
-            <Card className="shadow-md hover:shadow-lg transition-shadow col-span-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-medium">Histórico da Matriz</CardTitle>
-                <Link href="/matrix-history"><History className="h-5 w-5 text-primary cursor-pointer" /></Link>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                   Acesse o histórico da matriz.
-                </p>
-                 <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link href="/matrix-history">Ver Histórico</Link>
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         )}
 
       {/* Visão Geral para Dono do Controle */}
       {isUserControlOwner() && (
         <div className="space-y-6">
-           <div className="grid grid-cols-1 gap-6 mb-6">
-            {/* Os cards de ação foram movidos para o menu lateral */}
-          </div>
-
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Meus Controles Registrados</CardTitle>
+              <CardTitle>Controles Registrados</CardTitle>
               <CardDescription>Seus controles ativos e sem alterações pendentes solicitadas por você.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -200,7 +188,7 @@ export default function SoxMatrixPage() {
 
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Meus Controles com Alterações Solicitadas</CardTitle>
+              <CardTitle>Controles com Alterações Solicitadas</CardTitle>
               <CardDescription>Seus controles existentes com propostas de alteração pendentes de aprovação.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -235,7 +223,7 @@ export default function SoxMatrixPage() {
 
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Minhas Propostas de Novos Controles Pendentes</CardTitle>
+              <CardTitle>Propostas de Novos Controles Pendentes</CardTitle>
               <CardDescription>Acompanhe os novos controles que você solicitou e aguardam aprovação.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -408,3 +396,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+
