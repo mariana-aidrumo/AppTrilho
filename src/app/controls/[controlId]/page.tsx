@@ -75,6 +75,25 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
   const effectiveEditMode = isEditMode && canEditControl; 
 
+  const renderPendingChangesList = () => {
+    if (!mockPendingChangeForThisControl || !mockPendingChangeForThisControl.changes || Object.keys(mockPendingChangeForThisControl.changes).length === 0) {
+      return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
+    }
+    const items: JSX.Element[] = [];
+    for (const key in mockPendingChangeForThisControl.changes) {
+      if (Object.prototype.hasOwnProperty.call(mockPendingChangeForThisControl.changes, key)) {
+        const typedKey = key as keyof SoxControl;
+        const value = mockPendingChangeForThisControl.changes[typedKey];
+        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+        items.push(
+          <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
+        );
+      }
+    }
+    if (items.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
+    return <ul className="list-disc list-inside ml-4 mt-1 space-y-1">{items}</ul>;
+  };
+
 
   return (
     <div className="space-y-6">
@@ -114,16 +133,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <CardContent className="text-sm">
                 <p><strong>Solicitado por:</strong> {mockPendingChangeForThisControl.requestedBy} em {new Date(mockPendingChangeForThisControl.requestDate).toLocaleDateString('pt-BR')}</p>
                 <p className="mt-1"><strong>Resumo das alterações propostas:</strong></p>
-                <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                    {Object.entries(mockPendingChangeForThisControl.changes).map((entry) => {
-                        const key = entry[0];
-                        const value = entry[1];
-                        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
-                        return (
-                            <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
-                        );
-                    })}
-                </ul>
+                {renderPendingChangesList()}
                  <div className="mt-4 flex justify-end">
                     <Button variant="outline" size="sm" asChild className="border-yellow-600 text-yellow-700 hover:bg-yellow-100">
                         <Link href={`/change-requests/${mockPendingChangeForThisControl.id}`}>
