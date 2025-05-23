@@ -175,21 +175,7 @@ export default function SoxMatrixPage() {
       {/* Visão Geral para Dono do Controle */}
       {isUserControlOwner() && (
         <div className="space-y-6">
-           <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2"> {/* Apenas um card de ação aqui */}
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-medium">Minhas Solicitações</CardTitle>
-                 <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary cursor-pointer" /></Link>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Acompanhe o status das suas solicitações de alteração e de novos controles.
-                </p>
-                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link href="/pending-approvals">Ver Solicitações</Link>
-                </Button>
-              </CardContent>
-            </Card>
+           <div className="grid grid-cols-1 gap-6 mb-6"> {/* Apenas um card de ação aqui, já que "Minhas Solicitações" está no menu */}
              {/* O card "Propor Novo Controle" foi movido para o menu lateral */}
           </div>
 

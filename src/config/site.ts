@@ -26,7 +26,7 @@ export const siteConfig: SiteConfig = {
     {
       title: "Painel da Matriz SOX",
       href: "/sox-matrix",
-      icon: LayoutDashboard, 
+      icon: LayoutDashboard,
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
@@ -36,7 +36,7 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
-        title: "Histórico da Matriz", 
+        title: "Histórico da Matriz",
         href: "/matrix-history",
         icon: History,
         allowedProfiles: ["Administrador de Controles Internos"],
@@ -46,7 +46,7 @@ export const siteConfig: SiteConfig = {
     {
       title: "Painel (Visão Geral)",
       href: "/sox-matrix",
-      icon: Home, 
+      icon: Home,
       allowedProfiles: ["Dono do Controle"],
     },
     {
@@ -56,13 +56,16 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Dono do Controle"],
     },
      {
-      title: "Solicitar Novo Controle", 
-      href: "/new-control", // Rota para o formulário de novo controle
+      title: "Solicitar Novo Controle",
+      href: "/new-control",
       icon: FilePlus2,
       allowedProfiles: ["Dono do Controle"],
     },
-    // A página "Minhas Solicitações" será acessada através de um card/link no "Painel (Visão Geral)"
-    // A página de "Propor Novo Controle" agora é um item de menu direto para o Dono.
+    {
+      title: "Minhas Solicitações",
+      href: "/pending-approvals",
+      icon: ListChecks, // Usando o ícone ListChecks para consistência
+      allowedProfiles: ["Dono do Controle"],
+    },
   ],
 };
-
