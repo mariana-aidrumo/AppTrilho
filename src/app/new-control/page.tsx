@@ -3,7 +3,7 @@
 "use client"; 
 
 import { useState } from 'react';
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form'; // Adicionado Controller
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -20,18 +20,10 @@ import { mockChangeRequests, mockSoxControls, mockVersionHistory, mockProcessos,
 import type { ChangeRequest, SoxControl, VersionHistoryEntry, ControlFrequency, ControlType, ControlModalidade } from '@/types';
 import Link from 'next/link';
 
-// Esquema para Dono do Controle (proposta básica)
+// Esquema para Dono do Controle (proposta básica SIMPLIFICADA)
 const ownerNewControlSchema = z.object({
-  proposedControlId: z.string().optional(),
   controlName: z.string().min(3, "Nome do controle é obrigatório (mínimo 3 caracteres)."),
   justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória (mínimo 10 caracteres)."),
-  // Campos adicionais que o Dono pode sugerir (opcionais para ele)
-  controlOwner: z.string().optional(),
-  controlFrequency: z.string().optional(), 
-  controlType: z.string().optional(), 
-  processo: z.string().optional(),
-  subProcesso: z.string().optional(),
-  modalidade: z.string().optional(), 
 });
 
 // Esquema para Administrador (criação direta)
@@ -51,7 +43,7 @@ const adminNewControlSchema = z.object({
   modalidade: z.enum(["Manual", "Automático", "Híbrido"], {
     errorMap: () => ({ message: "Selecione uma modalidade válida." }),
   }).optional(),
-  relatedRisks: z.string().optional(), // Campo para string separada por vírgulas
+  relatedRisks: z.string().optional(), 
   testProcedures: z.string().optional(),
   evidenceRequirements: z.string().optional(),
 });
@@ -81,7 +73,7 @@ export default function NewControlPage() {
     resolver: zodResolver(currentSchema),
     defaultValues: isUserAdmin() ? 
       { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined } : 
-      { controlOwner: currentUser.name } // Dono sugere a si mesmo
+      {} // Dono não tem mais defaults aqui, formulário simplificado
   });
   
 
@@ -141,32 +133,25 @@ export default function NewControlPage() {
         variant: "default",
       });
 
-    } else { // Dono do Controle submetendo proposta
+    } else { // Dono do Controle submetendo proposta SIMPLIFICADA
       const ownerData = data as OwnerFormValues;
       const newRequestId = `cr-new-${Date.now()}`;
-      const proposedId = ownerData.proposedControlId || `TEMP-${Date.now()}`; 
+      const tempProposedId = `TEMP-${Date.now()}`; 
       
       const newChangeRequest: ChangeRequest = {
         id: newRequestId,
-        controlId: `NEW-CTRL-${proposedId.toUpperCase().replace(/\s+/g, '-')}`, 
+        controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`, 
         requestedBy: currentUser.name,
         requestDate: new Date().toISOString(),
         changes: { 
-          controlId: ownerData.proposedControlId,
           controlName: ownerData.controlName,
-          description: ownerData.justificativa, 
+          description: ownerData.justificativa, // Usar justificativa como descrição inicial
           justificativa: ownerData.justificativa,
-          // O Dono pode sugerir, Admin confirma/altera
-          controlOwner: ownerData.controlOwner || currentUser.name, 
-          controlFrequency: ownerData.controlFrequency as ControlFrequency,
-          controlType: ownerData.controlType as ControlType,
-          processo: ownerData.processo,
-          subProcesso: ownerData.subProcesso,
-          modalidade: ownerData.modalidade as ControlModalidade,
-          status: "Rascunho", 
+          controlOwner: currentUser.name, // Dono é o solicitante
+          status: "Rascunho", // Admin definirá outros campos na aprovação
         },
         status: "Pendente",
-        comments: `Proposta de novo controle: ${ownerData.controlName}. ID Sugerido: ${ownerData.proposedControlId || 'N/A'}`,
+        comments: `Proposta de novo controle: ${ownerData.controlName}.`,
       };
       mockChangeRequests.unshift(newChangeRequest); 
       toast({
@@ -174,8 +159,8 @@ export default function NewControlPage() {
         description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
         variant: "default",
       });
-      setDescriptionForAI(""); // Limpa campo de descrição para IA
-      setSuggestedControls([]); // Limpa sugestões
+      setDescriptionForAI(""); 
+      setSuggestedControls([]); 
     }
     reset(); 
   };
@@ -183,14 +168,14 @@ export default function NewControlPage() {
   const pageTitle = isUserAdmin() ? "Criar Novo Controle" : "Solicitar Novo Controle";
   const pageDescription = isUserAdmin() 
     ? "Preencha todos os detalhes para criar um novo controle diretamente na matriz."
-    : "Preencha os detalhes básicos para o novo controle. Sua proposta será enviada para análise do Administrador.";
+    : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise do Administrador.";
 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
         <Button variant="outline" asChild>
-          <Link href="/sox-matrix">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel
+          <Link href={isUserAdmin() ? "/sox-matrix" : "/my-registered-controls"}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserAdmin() ? "Painel" : "Meus Controles"}
           </Link>
         </Button>
       </div>
@@ -334,12 +319,7 @@ export default function NewControlPage() {
                 </div>
               </>
             ) : (
-              <> {/* Campos para Dono do Controle */}
-                <div>
-                  <Label htmlFor="proposedControlId">ID do Controle (Opcional - Sugestão)</Label>
-                  <Input id="proposedControlId" {...register("proposedControlId")} placeholder="Ex: FIN-010 (Admin pode definir outro)" />
-                  {errors.proposedControlId && <p className="text-sm text-destructive mt-1">{(errors.proposedControlId as any).message}</p>}
-                </div>
+              <> {/* Campos SIMPLIFICADOS para Dono do Controle */}
                 <div>
                   <Label htmlFor="controlName">Nome do Controle</Label>
                   <Input id="controlName" {...register("controlName")} placeholder="Nome conciso e claro para o controle" />
@@ -353,94 +333,13 @@ export default function NewControlPage() {
                     placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário." 
                     rows={5}
                     onChange={(e) => {
-                        setValue("justificativa", e.target.value); // Atualiza o campo do formulário
+                        const { onChange } = register("justificativa");
+                        onChange(e); // Chama o onChange original do react-hook-form
                         setDescriptionForAI(e.target.value);      // Atualiza estado para IA
                     }}
                   />
                   {errors.justificativa && <p className="text-sm text-destructive mt-1">{(errors.justificativa as any).message}</p>}
                 </div>
-                 <p className="text-sm text-muted-foreground mt-4">Campos adicionais (opcional - serão definidos pelo Administrador na aprovação):</p>
-                 <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <Label htmlFor="ownerControlOwner">Dono do Controle (Sugestão)</Label>
-                         <Controller
-                            name="controlOwner"
-                            control={control}
-                            defaultValue={currentUser.name} // Sugere o usuário atual
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Sugira o dono" /></SelectTrigger>
-                                    <SelectContent>
-                                        {filteredDonos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="ownerControlFrequency">Frequência (Sugestão)</Label>
-                        <Controller
-                            name="controlFrequency"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Sugira a frequência" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
-                </div>
-                <div className="grid md:grid-cols-3 gap-4">
-                     <div>
-                        <Label htmlFor="ownerControlType">Tipo (P/D) (Sugestão)</Label>
-                         <Controller
-                            name="controlType"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Sugira o tipo" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="ownerProcesso">Processo (Sugestão)</Label>
-                        <Controller
-                            name="processo"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Sugira o processo" /></SelectTrigger>
-                                    <SelectContent>
-                                        {mockProcessos.filter(p => p !== "Todos").map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
-                     <div>
-                        <Label htmlFor="ownerModalidade">Modalidade (Sugestão)</Label>
-                         <Controller
-                            name="modalidade"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Sugira a modalidade" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlModalidades.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
-                </div>
-
 
                 <Card className="bg-accent/20 border-accent/50">
                   <CardHeader>

@@ -2,17 +2,17 @@
 // src/app/my-registered-controls/page.tsx
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, FileEdit, ChevronRight, ArrowLeft, ExternalLink } from "lucide-react";
+import { Eye, FileEdit, ChevronRight, ArrowLeft, ExternalLink, FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockChangeRequests } from "@/data/mock-data";
 import { useMemo } from "react";
 
-export default function MyControlsPage() { // Renomeado de MyRegisteredControlsPage
+export default function MyControlsPage() {
   const { currentUser, isUserControlOwner } = useUserProfile();
 
   if (!isUserControlOwner()) {
@@ -75,10 +75,15 @@ export default function MyControlsPage() { // Renomeado de MyRegisteredControlsP
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center">
+      <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
           <Link href="/sox-matrix"> 
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel (Visão Geral)
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href="/new-control">
+            <FilePlus2 className="mr-2 h-4 w-4" /> Solicitar Novo Controle
           </Link>
         </Button>
       </div>
@@ -257,3 +262,4 @@ export default function MyControlsPage() { // Renomeado de MyRegisteredControlsP
     </div>
   );
 }
+

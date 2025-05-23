@@ -51,15 +51,9 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Dono do Controle"],
     },
     {
-      title: "Meus Controles", // Renomeado
+      title: "Meus Controles",
       href: "/my-registered-controls",
-      icon: Layers,
-      allowedProfiles: ["Dono do Controle"],
-    },
-     {
-      title: "Solicitar Novo Controle",
-      href: "/new-control",
-      icon: FilePlus2,
+      icon: Layers, // Ícone alterado para Layers, mais genérico
       allowedProfiles: ["Dono do Controle"],
     },
     {
@@ -68,5 +62,7 @@ export const siteConfig: SiteConfig = {
       icon: ListChecks,
       allowedProfiles: ["Dono do Controle"],
     },
+    // Removido "Solicitar Novo Controle" daqui
   ],
 };
+
