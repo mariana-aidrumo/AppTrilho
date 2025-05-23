@@ -4,14 +4,15 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl } from "@/types";
+import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, FileEdit, ChevronRight, ArrowLeft } from "lucide-react";
+import { Eye, FileEdit, ChevronRight, ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockChangeRequests } from "@/data/mock-data";
+import { useMemo } from "react";
 
-export default function MyRegisteredControlsPage() {
+export default function MyControlsPage() { // Renomeado de MyRegisteredControlsPage
   const { currentUser, isUserControlOwner } = useUserProfile();
 
   if (!isUserControlOwner()) {
@@ -37,22 +38,46 @@ export default function MyRegisteredControlsPage() {
   }
 
   const userOwnedControlIds = currentUser.controlsOwned || [];
-  const ownerRegisteredControls = mockSoxControls.filter(control =>
-    userOwnedControlIds.includes(control.id) &&
-    control.status === "Ativo" &&
-    !mockChangeRequests.some(cr =>
-      cr.controlId === control.controlId &&
-      cr.requestedBy === currentUser.name &&
-      (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
-    )
-  );
+
+  const myActiveControls = useMemo(() => 
+    mockSoxControls.filter(control =>
+      userOwnedControlIds.includes(control.id) &&
+      control.status === "Ativo" &&
+      !mockChangeRequests.some(cr =>
+        cr.controlId === control.controlId &&
+        cr.requestedBy === currentUser.name &&
+        (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
+      )
+    ), [mockSoxControls, userOwnedControlIds, currentUser.name, mockChangeRequests]);
+
+  const myControlsWithPendingChanges = useMemo(() => {
+    const pendingChanges: { control: SoxControl, request: ChangeRequest }[] = [];
+    mockChangeRequests.forEach(cr => {
+      if (cr.requestedBy === currentUser.name &&
+          !cr.controlId.startsWith("NEW-CTRL-") &&
+          (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")) {
+        const control = mockSoxControls.find(c => c.controlId === cr.controlId && userOwnedControlIds.includes(c.id));
+        if (control) {
+          pendingChanges.push({ control, request: cr });
+        }
+      }
+    });
+    return pendingChanges;
+  }, [userOwnedControlIds, currentUser.name, mockChangeRequests, mockSoxControls]);
+  
+  const myPendingNewControlRequests = useMemo(() => 
+    mockChangeRequests.filter(
+      req => req.requestedBy === currentUser.name &&
+             req.controlId.startsWith("NEW-CTRL-") && 
+             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") 
+    ), [currentUser.name, mockChangeRequests]);
 
 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
         <Button variant="outline" asChild>
-          <Link href="/sox-matrix"> {/* Link de volta para o painel geral do dono */}
+          <Link href="/sox-matrix"> 
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel (Visão Geral)
           </Link>
         </Button>
@@ -60,13 +85,13 @@ export default function MyRegisteredControlsPage() {
 
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Meus Controles Registrados</CardTitle>
+          <CardTitle>Meus Controles Ativos</CardTitle>
           <CardDescription>
-            Visualize todos os seus controles SOX ativos que não possuem alterações pendentes solicitadas por você.
+            Seus controles SOX ativos que não possuem alterações pendentes solicitadas por você.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {ownerRegisteredControls.length > 0 ? (
+          {myActiveControls.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -82,7 +107,7 @@ export default function MyRegisteredControlsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ownerRegisteredControls.map((control) => (
+                  {myActiveControls.map((control) => (
                     <TableRow key={control.id}>
                       <TableCell>{control.processo}</TableCell>
                       <TableCell>{control.subProcesso}</TableCell>
@@ -112,9 +137,6 @@ export default function MyRegisteredControlsPage() {
                           <Button variant="ghost" size="icon" asChild title="Solicitar Alteração">
                             <Link href={`/controls/${control.id}?edit=true`}><FileEdit className="h-4 w-4" /></Link>
                           </Button>
-                          <Button variant="ghost" size="icon" asChild title="Navegar">
-                            <Link href={`/controls/${control.id}`}><ChevronRight className="h-4 w-4" /></Link>
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -124,13 +146,114 @@ export default function MyRegisteredControlsPage() {
             </div>
           ) : (
             <p className="mt-4 text-center text-muted-foreground">
-              Você não possui nenhum controle registrado nesta categoria.
+              Você não possui nenhum controle ativo nesta categoria.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md">
+        <CardHeader>
+            <CardTitle>Meus Controles com Alterações Solicitadas</CardTitle>
+            <CardDescription>Seus controles existentes com propostas de alteração pendentes de aprovação.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            {myControlsWithPendingChanges.length > 0 ? (
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>ID Controle</TableHead>
+                            <TableHead>Nome do Controle</TableHead>
+                            <TableHead>ID Solicitação</TableHead>
+                            <TableHead>Status Solicitação</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {myControlsWithPendingChanges.map(item => (
+                            <TableRow key={item.request.id}>
+                                <TableCell>
+                                    <Link href={`/controls/${item.control.id}`} className="text-primary hover:underline">
+                                        {item.control.controlId}
+                                    </Link>
+                                </TableCell>
+                                <TableCell>{item.control.controlName}</TableCell>
+                                <TableCell>{item.request.id}</TableCell>
+                                <TableCell>
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                        item.request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
+                                        item.request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
+                                        item.request.status === "Aguardando Feedback do Dono" ? "bg-orange-100 text-orange-700" :
+                                        "bg-gray-100 text-gray-700"
+                                    }`}>
+                                        {item.request.status}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link href={`/change-requests/${item.request.id}`}>Ver Solicitação <ExternalLink className="ml-2 h-3 w-3"/></Link>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+            ) : (
+            <p className="mt-4 text-center text-muted-foreground">Nenhum de seus controles possui alterações solicitadas pendentes.</p>
+            )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md">
+        <CardHeader>
+            <CardTitle>Minhas Propostas de Novos Controles Pendentes</CardTitle>
+            <CardDescription>Acompanhe os novos controles que você solicitou e aguardam aprovação.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            {myPendingNewControlRequests.length > 0 ? (
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>ID Proposta</TableHead>
+                            <TableHead>Nome Proposto</TableHead>
+                            <TableHead>Data Solicitação</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                         {myPendingNewControlRequests.map(request => (
+                            <TableRow key={request.id}>
+                                <TableCell>{request.changes.controlId || request.controlId}</TableCell>
+                                <TableCell>{request.changes.controlName}</TableCell>
+                                <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
+                                <TableCell>
+                                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                        request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
+                                        request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
+                                        "bg-gray-100 text-gray-700"
+                                    }`}>
+                                        {request.status}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link href={`/change-requests/${request.id}`}>Ver Proposta <ExternalLink className="ml-2 h-3 w-3"/></Link>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+            ) : (
+            <p className="mt-4 text-center text-muted-foreground">Você não tem propostas de novos controles pendentes.</p>
+            )}
         </CardContent>
       </Card>
     </div>
   );
 }
-
-    

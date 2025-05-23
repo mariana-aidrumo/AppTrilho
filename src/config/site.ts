@@ -41,6 +41,7 @@ export const siteConfig: SiteConfig = {
       icon: FilePlus2,
       allowedProfiles: ["Administrador de Controles Internos"],
     },
+    
 
     // Itens para Dono do Controle
     {
@@ -50,7 +51,7 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Dono do Controle"],
     },
     {
-      title: "Meus Controles Registrados",
+      title: "Meus Controles", // Renomeado
       href: "/my-registered-controls",
       icon: Layers,
       allowedProfiles: ["Dono do Controle"],
@@ -69,4 +70,3 @@ export const siteConfig: SiteConfig = {
     },
   ],
 };
-
