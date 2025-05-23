@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -176,6 +177,15 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const [hasMounted, setHasMounted] = React.useState(false)
+
+    React.useEffect(() => {
+      setHasMounted(true)
+    }, [])
+
+    if (!hasMounted && collapsible !== "none") {
+      return null // Render nothing until client has mounted and isMobile is reliable
+    }
 
     if (collapsible === "none") {
       return (
