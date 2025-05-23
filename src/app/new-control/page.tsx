@@ -1,32 +1,63 @@
-// TODO: Este componente será um client component para manipulação de formulário e interação com IA
+// src/app/new-control/page.tsx
 "use client"; 
 
 import { useState } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Lightbulb } from "lucide-react";
-import { suggestRelatedControls, type SuggestRelatedControlsInput, type SuggestRelatedControlsOutput } from '@/ai/flows/suggest-related-controls'; // AI Flow
+import { suggestRelatedControls, type SuggestRelatedControlsInput, type SuggestRelatedControlsOutput } from '@/ai/flows/suggest-related-controls';
+import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from '@/contexts/user-profile-context';
+// Simulação de adição a dados mockados - em uma app real, seria uma chamada de API
+import { mockChangeRequests } from '@/data/mock-data'; 
+import type { ChangeRequest } from '@/types';
+
+const newControlSchema = z.object({
+  proposedControlId: z.string().min(1, "ID do Controle é obrigatório."),
+  controlName: z.string().min(3, "Nome do controle é obrigatório."),
+  justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória."),
+  // Adicionar outros campos que o Dono do Controle preencheria para um novo controle
+  controlOwner: z.string().min(1, "Dono do controle é obrigatório."),
+  controlFrequency: z.string(), // Usar Select se valores fixos
+  controlType: z.string(), // Usar Select se valores fixos
+  processo: z.string().optional(),
+  subProcesso: z.string().optional(),
+  modalidade: z.string().optional(),
+});
+
+type NewControlFormValues = z.infer<typeof newControlSchema>;
 
 export default function NewControlPage() {
-  const [controlDescription, setControlDescription] = useState("");
+  const { toast } = useToast();
+  const { currentUser } = useUserProfile();
+  const [descriptionForAI, setDescriptionForAI] = useState("");
   const [suggestedControls, setSuggestedControls] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [errorSuggestions, setErrorSuggestions] = useState<string | null>(null);
 
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<NewControlFormValues>({
+    resolver: zodResolver(newControlSchema),
+    defaultValues: {
+      controlOwner: currentUser.name, // Preencher com usuário atual se aplicável
+    }
+  });
+
   const handleSuggestControls = async () => {
-    if (!controlDescription.trim()) {
-      setErrorSuggestions("Por favor, insira uma descrição para o controle primeiro.");
+    if (!descriptionForAI.trim()) {
+      setErrorSuggestions("Por favor, insira uma descrição/justificativa para o controle primeiro.");
       return;
     }
     setIsLoadingSuggestions(true);
     setErrorSuggestions(null);
     setSuggestedControls([]);
     try {
-      const input: SuggestRelatedControlsInput = { controlDescription };
+      const input: SuggestRelatedControlsInput = { controlDescription: descriptionForAI };
       const result: SuggestRelatedControlsOutput = await suggestRelatedControls(input);
       setSuggestedControls(result.relatedControls);
     } catch (error) {
@@ -37,12 +68,42 @@ export default function NewControlPage() {
     }
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    // TODO: Implementar lógica de submissão do formulário
-    // Isso envolveria criar uma nova ChangeRequest com status "Pendente" para um novo controle.
-    console.log("Formulário enviado com os dados:", new FormData(event.currentTarget));
-    // Mostrar notificação de toast em caso de sucesso/falha
+  const onSubmit: SubmitHandler<NewControlFormValues> = async (data) => {
+    // Simulação de envio
+    const newRequestId = `cr-new-${Date.now()}`;
+    const newChangeRequest: ChangeRequest = {
+      id: newRequestId,
+      controlId: `NEW-CTRL-${data.proposedControlId.toUpperCase().replace(/\s+/g, '-')}`, // ID temporário baseado na proposta
+      requestedBy: currentUser.name,
+      requestDate: new Date().toISOString(),
+      changes: { // Estes são os campos que o Admin vai usar para criar o SoxControl
+        controlId: data.proposedControlId, // O ID que o usuário sugeriu
+        controlName: data.controlName,
+        description: data.justificativa, // A justificativa se torna a descrição principal
+        justificativa: data.justificativa, // Mantemos a justificativa também se necessário
+        controlOwner: data.controlOwner,
+        controlFrequency: data.controlFrequency as any, // Cast pois o form é string
+        controlType: data.controlType as any, // Cast
+        processo: data.processo,
+        subProcesso: data.subProcesso,
+        modalidade: data.modalidade as any, // Cast
+        status: "Rascunho", // Status inicial para o objeto SoxControl
+      },
+      status: "Pendente",
+      comments: `Proposta de novo controle: ${data.controlName}`,
+    };
+
+    // Adicionar à lista mockada (simulando chamada de API)
+    mockChangeRequests.unshift(newChangeRequest); 
+
+    toast({
+      title: "Proposta Enviada!",
+      description: `Sua proposta para o controle "${data.controlName}" foi enviada para aprovação.`,
+      variant: "default",
+    });
+    reset(); // Limpar formulário
+    setDescriptionForAI("");
+    setSuggestedControls([]);
   };
 
   return (
@@ -51,116 +112,80 @@ export default function NewControlPage() {
         <CardHeader>
           <CardTitle>Propor Novo Controle</CardTitle>
           <CardDescription>
-            Preencha os detalhes para o novo controle. Todos os novos controles estão sujeitos à aprovação.
+            Preencha os detalhes para o novo controle. Sua proposta será enviada para análise do Administrador de Controles Internos.
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="controlId">ID do Controle</Label>
-                <Input id="controlId" name="controlId" placeholder="Ex: FIN-00X, IT-00Y" required />
-              </div>
-              <div>
-                <Label htmlFor="controlName">Nome do Controle</Label>
-                <Input id="controlName" name="controlName" placeholder="Nome do controle" required />
-              </div>
+            <div>
+              <Label htmlFor="proposedControlId">ID do Controle (Sugerido)</Label>
+              <Input id="proposedControlId" {...register("proposedControlId")} placeholder="Ex: FIN-010, IT-ABC" />
+              {errors.proposedControlId && <p className="text-sm text-destructive mt-1">{errors.proposedControlId.message}</p>}
             </div>
             <div>
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="controlName">Nome do Controle</Label>
+              <Input id="controlName" {...register("controlName")} placeholder="Nome conciso e claro para o controle" />
+              {errors.controlName && <p className="text-sm text-destructive mt-1">{errors.controlName.message}</p>}
+            </div>
+            <div>
+              <Label htmlFor="justificativa">Descrição / Justificativa do Controle</Label>
               <Textarea 
-                id="description" 
-                name="description"
-                placeholder="Descrição detalhada do objetivo e atividades do controle." 
-                value={controlDescription}
-                onChange={(e) => setControlDescription(e.target.value)}
-                required 
+                id="justificativa" 
+                {...register("justificativa")}
+                placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário." 
+                rows={5}
+                onChange={(e) => setDescriptionForAI(e.target.value)} 
               />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="controlOwner">Dono do Controle</Label>
-                <Input id="controlOwner" name="controlOwner" placeholder="Nome ou departamento" required />
-              </div>
-              <div>
-                <Label htmlFor="controlFrequency">Frequência do Controle</Label>
-                <Select name="controlFrequency" required>
-                  <SelectTrigger id="controlFrequency">
-                    <SelectValue placeholder="Selecione a frequência" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Diário">Diário</SelectItem>
-                    <SelectItem value="Semanal">Semanal</SelectItem>
-                    <SelectItem value="Mensal">Mensal</SelectItem>
-                    <SelectItem value="Trimestral">Trimestral</SelectItem>
-                    <SelectItem value="Anual">Anual</SelectItem>
-                    <SelectItem value="Ad-hoc">Ad-hoc</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="controlType">Tipo de Controle</Label>
-                 <Select name="controlType" required>
-                  <SelectTrigger id="controlType">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Preventivo">Preventivo</SelectItem>
-                    <SelectItem value="Detectivo">Detectivo</SelectItem>
-                    <SelectItem value="Corretivo">Corretivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <Label htmlFor="processo">Processo</Label>
-                    <Input id="processo" name="processo" placeholder="Ex: Relatórios Financeiros" />
-                </div>
-                <div>
-                    <Label htmlFor="subProcesso">Subprocesso</Label>
-                    <Input id="subProcesso" name="subProcesso" placeholder="Ex: Fechamento Mensal" />
-                </div>
-            </div>
-             <div>
-                <Label htmlFor="modalidade">Modalidade do Controle</Label>
-                <Select name="modalidade">
-                  <SelectTrigger id="modalidade">
-                    <SelectValue placeholder="Selecione a modalidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Manual">Manual</SelectItem>
-                    <SelectItem value="Automático">Automático</SelectItem>
-                    <SelectItem value="Híbrido">Híbrido</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            <div>
-                <Label htmlFor="relatedRisks">Riscos Relacionados (separados por vírgula)</Label>
-                <Input id="relatedRisks" name="relatedRisks" placeholder="Ex: Demonstração Financeira Incorreta, Acesso Não Autorizado" />
-            </div>
-            <div>
-                <Label htmlFor="testProcedures">Procedimentos de Teste</Label>
-                <Textarea id="testProcedures" name="testProcedures" placeholder="Descreva como este controle é testado." />
-            </div>
-            <div>
-                <Label htmlFor="evidenceRequirements">Requisitos de Evidência</Label>
-                <Textarea id="evidenceRequirements" name="evidenceRequirements" placeholder="Qual evidência é necessária para provar a operação do controle?" />
+              {errors.justificativa && <p className="text-sm text-destructive mt-1">{errors.justificativa.message}</p>}
             </div>
 
-            {/* Seção de Sugestão de Controles por IA */}
+            {/* Campos adicionais que o Dono do Controle pode preencher */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                    <Label htmlFor="controlOwner">Dono do Controle (Sugerido)</Label>
+                    <Input id="controlOwner" {...register("controlOwner")} defaultValue={currentUser.name} />
+                    {errors.controlOwner && <p className="text-sm text-destructive mt-1">{errors.controlOwner.message}</p>}
+                </div>
+                <div>
+                    <Label htmlFor="controlFrequency">Frequência (Sugerida)</Label>
+                    {/* TODO: Substituir por Select component */}
+                    <Input id="controlFrequency" {...register("controlFrequency")} placeholder="Ex: Mensal, Diário, Ad-hoc" />
+                </div>
+            </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div>
+                    <Label htmlFor="controlType">Tipo (P/D) (Sugerido)</Label>
+                    {/* TODO: Substituir por Select component */}
+                    <Input id="controlType" {...register("controlType")} placeholder="Ex: Preventivo, Detectivo" />
+                </div>
+                 <div>
+                    <Label htmlFor="processo">Processo (Sugerido)</Label>
+                    <Input id="processo" {...register("processo")} placeholder="Ex: Contas a Pagar" />
+                </div>
+                <div>
+                    <Label htmlFor="subProcesso">Subprocesso (Sugerido)</Label>
+                    <Input id="subProcesso" {...register("subProcesso")} placeholder="Ex: Pagamento de Fornecedores" />
+                </div>
+            </div>
+            <div>
+                <Label htmlFor="modalidade">Modalidade (Sugerida)</Label>
+                {/* TODO: Substituir por Select component */}
+                <Input id="modalidade" {...register("modalidade")} placeholder="Ex: Manual, Automático, Híbrido" />
+            </div>
+
+
             <Card className="bg-accent/20 border-accent/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Lightbulb className="w-5 h-5 text-accent-foreground" />
-                  Controles Relacionados Sugeridos por IA
+                  Sugestões de Controles Relacionados (IA)
                 </CardTitle>
                 <CardDescription>
-                  Com base na descrição do controle, aqui estão alguns controles potencialmente relacionados.
+                  Com base na descrição/justificativa, a IA pode sugerir controles existentes que podem ser semelhantes ou complementares.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button type="button" onClick={handleSuggestControls} disabled={isLoadingSuggestions || !controlDescription.trim()} className="mb-4">
+                <Button type="button" onClick={handleSuggestControls} disabled={isLoadingSuggestions || !descriptionForAI.trim()} className="mb-4">
                   {isLoadingSuggestions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sugerir Controles Relacionados
                 </Button>
@@ -173,13 +198,16 @@ export default function NewControlPage() {
                   </ul>
                 )}
                 {suggestedControls.length === 0 && !isLoadingSuggestions && !errorSuggestions && (
-                  <p className="text-sm text-muted-foreground">Insira uma descrição e clique em sugerir para ver controles relacionados.</p>
+                  <p className="text-sm text-muted-foreground">Insira uma descrição e clique em sugerir.</p>
                 )}
               </CardContent>
             </Card>
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button type="submit">Enviar para Aprovação</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Enviar Proposta para Análise
+            </Button>
           </CardFooter>
         </form>
       </Card>

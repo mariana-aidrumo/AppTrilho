@@ -8,11 +8,11 @@ export const mockSoxControls: SoxControl[] = [
     controlId: "FIN-001",
     controlName: "Revisão de Conciliação Bancária",
     description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil.",
-    controlOwner: "Alice Wonderland",
+    controlOwner: "Alice Wonderland", // Pertence ao Usuário Dono (ownerUser em user-profile-context)
     controlFrequency: "Mensal",
     controlType: "Detectivo",
     status: "Ativo",
-    lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 dias atrás
+    lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(),
     relatedRisks: ["Demonstração Financeira Incorreta", "Transações Fraudulentas", "Passivos Não Registrados"],
     testProcedures: "Verificar se as conciliações bancárias são realizadas mensalmente, revisadas independentemente e todos os itens de conciliação são investigados e compensados adequadamente. Obter uma amostra das conciliações bancárias concluídas e verificar as assinaturas e datas do preparador e revisor.",
     evidenceRequirements: "Relatório de conciliação bancária assinado, cronogramas de suporte para itens de conciliação e evidência de acompanhamento de itens pendentes.",
@@ -42,10 +42,10 @@ export const mockSoxControls: SoxControl[] = [
     controlId: "PRO-012",
     controlName: "Due Diligence de Integridade",
     description: "Contagens cíclicas regulares de estoque para garantir a precisão.",
-    controlOwner: "Charlie Brown",
+    controlOwner: "Usuário Dono", // Pertence ao Usuário Dono (ownerUser em user-profile-context)
     controlFrequency: "Por Novo Fornecedor",
     controlType: "Preventivo",
-    status: "Pendente Aprovação",
+    status: "Ativo", // Mudado para Ativo para estar na lista de "Meus Controles"
     lastUpdated: new Date().toISOString(),
     relatedRisks: ["Perda de Estoque", "Erros de Avaliação de Estoque"],
     testProcedures: "Realizar contagens cíclicas e investigar discrepâncias.",
@@ -54,59 +54,116 @@ export const mockSoxControls: SoxControl[] = [
     subProcesso: "Gerenciamento de Fornecedores",
     modalidade: "Manual",
   },
+  {
+    id: "4",
+    controlId: "SEC-002",
+    controlName: "Revisão de Logs de Segurança",
+    description: "Revisão diária de logs de segurança para identificar atividades suspeitas.",
+    controlOwner: "Usuário Admin",
+    controlFrequency: "Diário",
+    controlType: "Detectivo",
+    status: "Ativo",
+    lastUpdated: new Date(Date.now() - 86400000 * 2).toISOString(),
+    relatedRisks: ["Acesso não autorizado", "Violação de dados"],
+    testProcedures: "Examinar logs de sistemas críticos em busca de anomalias.",
+    evidenceRequirements: "Relatórios de revisão de logs com ações tomadas.",
+    processo: "Segurança da Informação",
+    subProcesso: "Monitoramento de Segurança",
+    modalidade: "Híbrido",
+  },
 ];
 
 export const mockChangeRequests: ChangeRequest[] = [
   {
     id: "cr1",
-    controlId: "FIN-001", // ID do controle existente
-    requestedBy: "John Doe",
-    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(),
+    controlId: "FIN-001",
+    requestedBy: "Usuário Dono", // John Doe é o Dono do Controle para este item
+    requestDate: new Date(Date.now() - 86400000 * 10).toISOString(),
     changes: {
-      description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão. Quaisquer discrepâncias identificadas devem ser resolvidas em 5 dias úteis.",
-      controlOwner: "Departamento Financeiro (Gerente)", // Mudança de Dono
-      testProcedures: "Verificar a aprovação da conciliação e acompanhar as discrepâncias com mais de 5 dias." // Mudança nos procedimentos
+      description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro. Quaisquer discrepâncias identificadas devem ser resolvidas em 3 dias úteis.",
+      controlFrequency: "Semanal",
     },
     status: "Pendente",
-    comments: "Solicitação inicial para atualizar detalhes do controle com base na nova política.",
+    comments: "Atualização da frequência e prazo de resolução.",
   },
   {
     id: "cr2",
-    controlId: "ITG-005", // ID do controle existente
-    requestedBy: "Usuário Dono", // Nome do usuário do contexto 'ownerUser'
-    requestDate: new Date(Date.now() - 86400000).toISOString(),
+    controlId: "ITG-005",
+    requestedBy: "Bob The Builder",
+    requestDate: new Date(Date.now() - 86400000 * 8).toISOString(),
     changes: { controlOwner: "Peter Pan" },
-    status: "Pendente",
+    status: "Em Análise",
+    comments: "Transferência de propriedade do controle.",
+    reviewedBy: "Usuário Admin", // Admin está analisando
+    reviewDate: new Date(Date.now() - 86400000 * 1).toISOString(),
   },
   {
-    id: "cr3",
-    controlId: "NEW-CTRL-001", // ID temporário para um novo controle
-    requestedBy: "Alice Brown",
-    requestDate: new Date().toISOString(),
-    changes: { // Todos os campos necessários para um novo controle
+    id: "cr3-new-pending", // Novo controle proposto pelo Dono do Controle
+    controlId: "NEW-CTRL-OPS010", // ID temporário para um novo controle
+    requestedBy: "Usuário Dono",
+    requestDate: new Date(Date.now() - 86400000 * 5).toISOString(),
+    changes: {
         controlId: "OPS-010", // ID definitivo proposto
-        controlName: "Novo Controle Operacional de Teste",
-        description: "Detalhes abrangentes para o novo controle operacional proposto.",
-        controlOwner: "Equipe de Operações",
-        controlFrequency: "Diário",
+        controlName: "Validação de Entrada de Pedidos",
+        description: "Verificação automática de todos os campos obrigatórios e formatos de dados na entrada de novos pedidos de clientes para garantir a integridade dos dados antes do processamento.",
+        justificativa: "Necessário para reduzir erros de processamento de pedidos e melhorar a qualidade dos dados do cliente.",
+        controlOwner: "Usuário Dono", // Proposto
+        controlFrequency: "Ad-hoc", // Por transação
         controlType: "Preventivo",
-        status: "Rascunho", // Status inicial de um novo controle proposto
-        lastUpdated: new Date().toISOString(),
-        relatedRisks: ["Risco Operacional X", "Risco de Conformidade Y"],
-        testProcedures: "Procedimentos de teste a serem definidos após aprovação.",
-        evidenceRequirements: "Requisitos de evidência a serem definidos.",
-        processo: "Operações Diárias",
-        subProcesso: "Monitoramento de Produção",
-        modalidade: "Híbrido",
+        processo: "Vendas",
+        subProcesso: "Processamento de Pedidos",
+        modalidade: "Automático",
     },
     status: "Pendente",
-    comments: "Proposta de novo controle para monitoramento de produção."
+    comments: "Proposta de novo controle para validação de pedidos."
   },
-  { // Solicitação pendente para o controle FIN-001, para ser usada na página de detalhes do controle
-    id: "cr-fin001-pending",
-    controlId: "FIN-001",
-    requestedBy: "Carlos Pereira",
-    requestDate: new Date(Date.now() - 86400000 * 1).toISOString(), // 1 dia atrás
+  {
+    id: "cr4-feedback", // Solicitação que requer feedback do Dono
+    controlId: "FIN-001", // Alteração em controle existente do Dono
+    requestedBy: "Usuário Dono",
+    requestDate: new Date(Date.now() - 86400000 * 15).toISOString(),
+    changes: {
+      testProcedures: "Incluir verificação de transações acima de R$10.000 com dupla aprovação.",
+    },
+    status: "Aguardando Feedback do Dono",
+    comments: "Tentativa de atualização dos procedimentos de teste.",
+    reviewedBy: "Usuário Admin",
+    reviewDate: new Date(Date.now() - 86400000 * 3).toISOString(),
+    adminFeedback: "A proposta é boa, mas precisamos detalhar melhor como a 'dupla aprovação' será evidenciada. Por favor, revise e adicione detalhes sobre o sistema ou formulário de aprovação a ser usado.",
+  },
+  {
+    id: "cr5-approved", // Solicitação aprovada
+    controlId: "PRO-012", // Controle PRO-012 agora pertence ao Usuário Dono
+    requestedBy: "Usuário Dono",
+    requestDate: new Date(Date.now() - 86400000 * 20).toISOString(),
+    changes: {
+      controlFrequency: "Semanal",
+      description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente.",
+    },
+    status: "Aprovado",
+    comments: "Ajuste na frequência do controle PRO-012.",
+    reviewedBy: "Usuário Admin",
+    reviewDate: new Date(Date.now() - 86400000 * 18).toISOString(),
+  },
+   {
+    id: "cr6-rejected", // Solicitação rejeitada
+    controlId: "ITG-005",
+    requestedBy: "Bob The Builder",
+    requestDate: new Date(Date.now() - 86400000 * 25).toISOString(),
+    changes: {
+      relatedRisks: ["Risco de performance do sistema"], // Tentativa de adicionar risco
+    },
+    status: "Rejeitado",
+    comments: "Adição de risco não justificada.",
+    reviewedBy: "Usuário Admin",
+    reviewDate: new Date(Date.now() - 86400000 * 22).toISOString(),
+    adminFeedback: "O risco de performance do sistema não é diretamente mitigado por este controle de acesso. Por favor, crie um controle específico se necessário.",
+  },
+   { // Solicitação pendente para o controle FIN-001 (diferente de cr1) para teste
+    id: "cr-fin001-pending-details",
+    controlId: "FIN-001", // Este ID corresponde ao mockSoxControls[0].controlId
+    requestedBy: "Alice Wonderland", // Dono original do FIN-001
+    requestDate: new Date(Date.now() - 86400000 * 1).toISOString(),
     changes: {
         description: "Nova descrição proposta: Revisão e aprovação DIÁRIA das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil, com foco em transações de alto valor.",
         controlFrequency: "Diário",
@@ -118,20 +175,30 @@ export const mockChangeRequests: ChangeRequest[] = [
 
 
 export const mockVersionHistory: VersionHistoryEntry[] = [
-  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle criado.", previousValues: {}, newValues: { controlName: "Revisão de Conciliação Bancária" } },
-  { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 7).toISOString(), changedBy: "Maria Santos", summaryOfChanges: "Descrição e dono atualizados.", previousValues: { description: "Desc. inicial", controlOwner: "Dono Antigo" }, newValues: { description: mockSoxControls.find(c => c.id === "1")?.description, controlOwner: "João Silva" } },
-  { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 8).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle ITG-005 criado.", previousValues: {}, newValues: { controlName: "Aprovação de Acesso ao Sistema" } },
-  { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 2).toISOString(), changedBy: "Carlos Pereira", summaryOfChanges: "Status alterado para Pendente Aprovação.", previousValues: { status: "Rascunho" }, newValues: { status: "Pendente Aprovação" } },
+  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle FIN-001 Criado.", newValues: { controlName: "Revisão de Conciliação Bancária", status: "Ativo" } },
+  { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "Alice Wonderland", summaryOfChanges: "Solicitação de alteração cr1 enviada.", relatedChangeRequestId: "cr1" },
+  { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 28).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle ITG-005 Criado.", newValues: { controlName: "Aprovação de Acesso ao Sistema", status: "Ativo" } },
+  { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 26).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle PRO-012 Criado.", newValues: { controlName: "Due Diligence de Integridade", status: "Ativo" } },
+  {
+    id: "vh5",
+    controlId: "3", // PRO-012
+    changeDate: new Date(Date.now() - 86400000 * 18).toISOString(), // Data da aprovação de cr5-approved
+    changedBy: "Usuário Admin",
+    summaryOfChanges: "Alterações da solicitação cr5-approved aplicadas.",
+    previousValues: { controlFrequency: "Por Novo Fornecedor", description: "Contagens cíclicas regulares de estoque para garantir a precisão." },
+    newValues: { controlFrequency: "Semanal", description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente." },
+    relatedChangeRequestId: "cr5-approved"
+  },
 ];
 
 export const mockEvidenceFiles: EvidenceFile[] = [
-  { id: "ev1", controlId: "1", fileName: "Q1_Conciliacao_Bancaria_Assinada.pdf", fileType: "application/pdf", fileSize: 1024 * 250, uploadDate: new Date(Date.now() - 86400000 * 3).toISOString(), uploadedBy: "João Silva", storageUrl: "#" },
-  { id: "ev2", controlId: "1", fileName: "Itens_Conciliacao_Q1.xlsx", fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileSize: 1024 * 80, uploadDate: new Date(Date.now() - 86400000 * 3).toISOString(), uploadedBy: "João Silva", storageUrl: "#" },
+  { id: "ev1", controlId: "1", fileName: "Q1_Conciliacao_Bancaria_Assinada.pdf", fileType: "application/pdf", fileSize: 1024 * 250, uploadDate: new Date(Date.now() - 86400000 * 90).toISOString(), uploadedBy: "Alice Wonderland", storageUrl: "#" },
+  { id: "ev2", controlId: "1", fileName: "Itens_Conciliacao_Q1.xlsx", fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileSize: 1024 * 80, uploadDate: new Date(Date.now() - 86400000 * 90).toISOString(), uploadedBy: "Alice Wonderland", storageUrl: "#" },
   { id: "ev3", controlId: "2", fileName: "Aprovacao_Acesso_Q3.docx", fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileSize: 1024 * 120, uploadDate: new Date(Date.now() - 86400000 * 5).toISOString(), uploadedBy: "Bob The Builder", storageUrl: "#" },
+  { id: "ev4", controlId: "3", fileName: "Evidencia_Contagem_Ciclica_Semana1.pdf", fileType: "application/pdf", fileSize: 1024 * 300, uploadDate: new Date(Date.now() - 86400000 * 7).toISOString(), uploadedBy: "Usuário Dono", storageUrl: "#" },
 ];
 
 // Mock data for filters in sox-matrix page
-export const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias"];
-export const mockSubProcessos = ["Todos", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção"];
-export const mockDonos = ["Todos", "Alice Wonderland", "Bob The Builder", "Charlie Brown", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Peter Pan"];
-
+export const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
+export const mockSubProcessos = ["Todos", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção", "Monitoramento de Segurança", "Processamento de Pedidos"];
+export const mockDonos = ["Todos", "Alice Wonderland", "Bob The Builder", "Charlie Brown", "Usuário Dono", "Usuário Admin", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Peter Pan"];
