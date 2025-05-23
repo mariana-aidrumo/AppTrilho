@@ -59,3 +59,14 @@ export interface EvidenceFile {
   uploadedBy: string; // ID ou nome do usuário
   storageUrl: string; // URL para o arquivo no armazenamento
 }
+
+// --- Novas Tipagens para Perfis de Usuário ---
+export type UserProfileType = "Dono do Controle" | "Administrador de Controles Internos";
+
+export interface UserProfile {
+  name: string;
+  profile: UserProfileType;
+  // Lista de IDs de SoxControl (e.g., "1", "2") que o usuário "possui"
+  // Usado para simular a filtragem de controles para "Dono do Controle"
+  controlsOwned?: string[]; 
+}

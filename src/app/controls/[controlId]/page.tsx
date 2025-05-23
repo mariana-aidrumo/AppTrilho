@@ -1,21 +1,22 @@
-// Esta página provavelmente precisará ser um client component ou ter client components
-// para partes interativas como formulários, seletores de histórico de versão, uploads de evidência.
-// Por enquanto, é um server component exibindo dados mocados.
+// src/app/controls/[controlId]/page.tsx
+"use client"; 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest } from "@/types";
-import { ArrowLeft, Edit2, History, Paperclip, PlusCircle } from "lucide-react";
+import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { useUserProfile } from "@/contexts/user-profile-context";
+import { useSearchParams } from 'next/navigation'; // Para ler query params como `?edit=true`
 
 // Dados mocados para um único controle
 const mockControl: SoxControl = {
-  id: "1",
+  id: "1", // Corresponde ao ID usado em `ownerUser.controlsOwned` e `mockControlsFull`
   controlId: "FIN-001",
   controlName: "Revisão de Conciliação Bancária",
   description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil.",
-  controlOwner: "João Silva, Departamento Financeiro",
+  controlOwner: "Alice Wonderland", // Mesmo dono que em mockControlsFull
   controlFrequency: "Mensal",
   controlType: "Detectivo",
   status: "Ativo",
@@ -38,36 +39,102 @@ const mockEvidence: EvidenceFile[] = [
   { id: "ev2", controlId: "1", fileName: "Itens_Conciliacao_Q1.xlsx", fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileSize: 1024 * 80, uploadDate: new Date(Date.now() - 86400000 * 3).toISOString(), uploadedBy: "João Silva", storageUrl: "#" },
 ];
 
-const mockPendingChangeForThisControl: ChangeRequest | null = null; 
+// Simula uma solicitação de mudança pendente para este controle específico.
+// Para fins de teste, você pode alternar entre null e um objeto ChangeRequest.
+const mockPendingChangeForThisControl: ChangeRequest | null = {
+    id: "cr-fin001-pending",
+    controlId: "FIN-001", // ou "1" se estiver usando o ID numérico
+    requestedBy: "Carlos Pereira",
+    requestDate: new Date(Date.now() - 86400000 * 1).toISOString(), // 1 dia atrás
+    changes: {
+        description: "Nova descrição proposta: Revisão e aprovação DIÁRIA das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil, com foco em transações de alto valor.",
+        controlFrequency: "Diário",
+    },
+    status: "Pendente",
+    comments: "Atualização para refletir a nova política de revisão diária e foco em transações de alto risco."
+};
+
 
 interface ControlDetailPageProps {
   params: {
-    controlId: string; // O ID do controle, que pode ser o 'id' numérico ou 'controlId' textual (ex: FIN-001)
+    controlId: string; 
   };
 }
 
 export default function ControlDetailPage({ params }: ControlDetailPageProps) {
-  // Em um aplicativo real, buscar dados do controle com base em params.controlId
-  // Aqui, estamos usando o controlId textual para encontrar no mock. Idealmente, seria o 'id'.
-  const control = mockControl; // mockControls.find(c => c.controlId === params.controlId || c.id === params.controlId);
+  const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+  const searchParams = useSearchParams();
+  const isEditMode = searchParams.get('edit') === 'true';
 
+
+  // Em um aplicativo real, buscar dados do controle com base em params.controlId
+  // Aqui, estamos usando o ID numérico do mockControl, mas a lógica pode precisar
+  // encontrar por `control.controlId` (ex: "FIN-001") se isso for passado na URL.
+  // Para esta simulação, assumimos que params.controlId é o 'id' numérico.
+  const control = mockControl.id === params.controlId ? mockControl : null; 
 
   if (!control) {
     return <p>Controle não encontrado.</p>;
   }
+
+  const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
+  const effectiveEditMode = isEditMode && canEditControl; // Modo de edição real só se permitido
+
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
           <Link href="/sox-matrix">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Matriz SOX
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() ? "Meus Controles" : "Matriz SOX"}
           </Link>
         </Button>
-        <Button>
-          <Edit2 className="mr-2 h-4 w-4" /> Solicitar Alteração
-        </Button>
+        {/* Botão de Editar/Solicitar Alteração */}
+        {canEditControl && !mockPendingChangeForThisControl && (
+          <Button asChild={!effectiveEditMode} onClick={effectiveEditMode ? undefined : () => { /* Lógica para solicitar alteração se não estiver em edit mode */}}>
+            {effectiveEditMode ? (
+                 <Link href={`/controls/${control.id}`}> {/* Link para sair do modo edição */}
+                    <Edit2 className="mr-2 h-4 w-4" /> Salvar Alterações (Simulado)
+                 </Link>
+            ) : (
+                 <Link href={`/controls/${control.id}?edit=true`}>
+                    <Edit2 className="mr-2 h-4 w-4" /> {isUserAdmin() ? "Editar Controle" : "Solicitar Alteração"}
+                 </Link>
+            )}
+          </Button>
+        )}
       </div>
+
+      {mockPendingChangeForThisControl && (
+        <Card className="border-yellow-400 bg-yellow-50/70 shadow-md">
+            <CardHeader>
+                <CardTitle className="text-lg text-yellow-800 flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5" />
+                    Solicitação de Alteração Pendente para Este Controle
+                </CardTitle>
+                <CardDescription className="text-yellow-700">
+                    Existe uma solicitação de alteração para este controle que aguarda aprovação. 
+                    {isUserAdmin() ? " Você pode revisá-la abaixo ou ir para a página de aprovações." : " Aguardando revisão do administrador."}
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm">
+                <p><strong>Solicitado por:</strong> {mockPendingChangeForThisControl.requestedBy} em {new Date(mockPendingChangeForThisControl.requestDate).toLocaleDateString('pt-BR')}</p>
+                <p className="mt-1"><strong>Resumo das alterações propostas:</strong></p>
+                <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                    {Object.entries(mockPendingChangeForThisControl.changes).map(([key, value]) = (
+                        <li key={key}><strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {String(value)}</li>
+                    ))}
+                </ul>
+                 <div className="mt-4 flex justify-end">
+                    <Button variant="outline" size="sm" asChild className="border-yellow-600 text-yellow-700 hover:bg-yellow-100">
+                        <Link href={`/change-requests/${mockPendingChangeForThisControl.id}`}>
+                            Ver Detalhes da Solicitação
+                        </Link>
+                    </Button>
+                 </div>
+            </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -87,6 +154,13 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {effectiveEditMode && (
+            <div className="p-4 border-2 border-dashed border-primary rounded-md bg-primary/5 mb-6">
+              <p className="text-sm font-semibold text-primary text-center">
+                Modo de Edição Ativado (Simulado). Aqui você poderia ter campos de formulário para editar os detalhes do controle.
+              </p>
+            </div>
+          )}
           <div>
             <h3 className="font-semibold text-muted-foreground">Descrição</h3>
             <p className="text-sm">{control.description}</p>
@@ -107,7 +181,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             </div>
           </div>
            <Separator />
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <h3 className="font-semibold text-muted-foreground">Processo</h3>
                 <p className="text-sm">{control.processo || "N/A"}</p>
@@ -143,28 +217,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         </CardContent>
       </Card>
 
-      {mockPendingChangeForThisControl && (
-        <Card className="border-yellow-400 bg-yellow-50">
-            <CardHeader>
-                <CardTitle className="text-lg text-yellow-700">Solicitação de Alteração Pendente</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-sm"><strong>Solicitado por:</strong> {mockPendingChangeForThisControl.requestedBy} em {new Date(mockPendingChangeForThisControl.requestDate).toLocaleDateString('pt-BR')}</p>
-                <p className="text-sm mt-1"><strong>Alterações:</strong></p>
-                <ul className="list-disc list-inside text-sm ml-4">
-                    {Object.entries(mockPendingChangeForThisControl.changes).map(([key, value]) => (
-                        <li key={key}><strong>{key}:</strong> {String(value)}</li>
-                    ))}
-                </ul>
-                 <div className="mt-4 flex justify-end">
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={`/pending-approvals?requestId=${mockPendingChangeForThisControl.id}`}>Ver Solicitação</Link>
-                    </Button>
-                 </div>
-            </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" /> Histórico de Versões</CardTitle>
@@ -188,7 +240,9 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2"><Paperclip className="w-5 h-5" /> Evidência</CardTitle>
-          <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência</Button>
+          {canEditControl && ( // Dono ou Admin podem carregar evidência
+            <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência</Button>
+          )}
         </CardHeader>
         <CardContent>
           {mockEvidence.length > 0 ? (

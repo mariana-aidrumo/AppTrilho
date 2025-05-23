@@ -1,3 +1,4 @@
+// src/components/layout/sidebar-nav-items.tsx
 "use client";
 
 import Link from "next/link";
@@ -9,34 +10,45 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import Icons from "@/components/icons";
+import { useUserProfile } from "@/contexts/user-profile-context";
 
 export function SidebarNavItems() {
   const pathname = usePathname();
+  const { currentUser } = useUserProfile();
+
+  const filteredNavItems = siteConfig.navItems.filter(item => {
+    if (!item.allowedProfiles || item.allowedProfiles.length === 0) {
+      return true; // Se não houver perfis especificados, o item é permitido para todos
+    }
+    return item.allowedProfiles.includes(currentUser.profile);
+  });
 
   return (
     <SidebarMenu>
-      {siteConfig.navItems.map((item) => (
-        <SidebarMenuItem key={item.href}>
-          <Link href={item.href} passHref legacyBehavior>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
-              className={cn(
-                "w-full justify-start",
-                item.disabled && "cursor-not-allowed opacity-80"
-              )}
-              disabled={item.disabled}
-              tooltip={{ children: item.title }}
-            >
-              <a>
-                <item.icon className="h-5 w-5" />
-                <span>{item.title}</span>
-              </a>
-            </SidebarMenuButton>
-          </Link>
-        </SidebarMenuItem>
-      ))}
+      {filteredNavItems.map((item) => {
+        const title = item.dynamicTitle ? item.dynamicTitle(currentUser.profile) : item.title;
+        return (
+          <SidebarMenuItem key={item.href + title}> {/* Adicionar title à key para garantir unicidade */}
+            <Link href={item.href} passHref legacyBehavior>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+                className={cn(
+                  "w-full justify-start",
+                  item.disabled && "cursor-not-allowed opacity-80"
+                )}
+                disabled={item.disabled}
+                tooltip={{ children: title }}
+              >
+                <a>
+                  <item.icon className="h-5 w-5" />
+                  <span>{title}</span>
+                </a>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+        );
+      })}
     </SidebarMenu>
   );
 }

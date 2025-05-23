@@ -1,16 +1,20 @@
+// src/app/change-requests/[requestId]/page.tsx
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { ChangeRequest, SoxControl } from "@/types";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
+import { useUserProfile } from "@/contexts/user-profile-context";
 
 // Dados mocados para uma única solicitação de alteração
 const mockChangeRequest: ChangeRequest = {
-  id: "cr1",
+  id: "cr1", // Este ID será parte da URL
   controlId: "FIN-001",
   requestedBy: "John Doe",
-  requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 dias atrás
+  requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), 
   changes: { 
     description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão. Quaisquer discrepâncias identificadas devem ser resolvidas em 5 dias úteis.",
     controlOwner: "Departamento Financeiro (Gerente)",
@@ -25,7 +29,7 @@ const mockCurrentControl: Partial<SoxControl> = {
   controlId: "FIN-001",
   controlName: "Revisão de Conciliação Bancária",
   description: "Revisão mensal e aprovação das conciliações bancárias.",
-  controlOwner: "John Doe",
+  controlOwner: "John Doe", // Para mostrar mudança
   testProcedures: "Verificar a aprovação da conciliação."
 };
 
@@ -37,9 +41,12 @@ interface ChangeRequestDetailPageProps {
 }
 
 export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailPageProps) {
+  const { isUserAdmin } = useUserProfile();
+  
   // Em um aplicativo real, buscar dados da solicitação de alteração com base em params.requestId
   // e potencialmente os dados do controle atual para comparação.
-  const request = mockChangeRequest;
+  // Para a simulação, usamos o mock se o ID corresponder, senão tratamos como não encontrado.
+  const request = params.requestId === mockChangeRequest.id ? mockChangeRequest : null;
   const currentControl = mockCurrentControl; // Para mostrar diferenças
 
   if (!request) {
@@ -48,19 +55,20 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
 
   const getChangedFields = () => {
     const changed: { field: string; oldValue?: string; newValue: string }[] = [];
-    for (const key in request.changes) {
-      if (Object.prototype.hasOwnProperty.call(request.changes, key)) {
-        const typedKey = key as keyof SoxControl; // Assume que as chaves em 'changes' são chaves de SoxControl
-        const newValue = request.changes[typedKey];
-        const oldValue = currentControl[typedKey];
-        
-        // Adiciona apenas se o valor realmente mudou ou se é um campo novo (oldValue não existe)
-        if (newValue !== oldValue || (newValue && oldValue === undefined)) {
-          changed.push({
-            field: typedKey,
-            oldValue: oldValue as string | undefined,
-            newValue: newValue as string, // Convertendo para string para exibição simples
-          });
+    if (request.changes) {
+      for (const key in request.changes) {
+        if (Object.prototype.hasOwnProperty.call(request.changes, key)) {
+          const typedKey = key as keyof SoxControl;
+          const newValue = request.changes[typedKey];
+          const oldValue = currentControl[typedKey];
+          
+          if (newValue !== oldValue || (newValue && oldValue === undefined)) {
+            changed.push({
+              field: typedKey,
+              oldValue: oldValue as string | undefined,
+              newValue: newValue as string,
+            });
+          }
         }
       }
     }
@@ -69,7 +77,6 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
 
   const changedFields = getChangedFields();
 
-  // Função para traduzir nomes de campos para exibição
   const translateFieldName = (fieldName: string): string => {
     const translations: Record<string, string> = {
       controlId: "ID do Controle",
@@ -96,7 +103,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href="/pending-approvals">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Aprovações Pendentes
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações"}
           </Link>
         </Button>
       </div>
@@ -107,7 +114,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
             <div>
               <CardTitle className="text-2xl">Detalhes da Solicitação de Alteração</CardTitle>
               <CardDescription>
-                Revise as alterações propostas para o controle: <Link href={`/controls/${request.controlId}`} className="text-primary hover:underline">{request.controlId}</Link>
+                Revise as alterações propostas para o controle: <Link href={`/controls/${request.controlId.startsWith("NEW-CTRL") ? request.changes.controlId : request.controlId }`} className="text-primary hover:underline">{request.controlId.startsWith("NEW-CTRL") ? `Novo Controle Proposto (${request.changes.controlId || 'ID pendente'})` : request.controlId}</Link>
               </CardDescription>
             </div>
             <span className={`px-3 py-1.5 text-sm font-semibold rounded-full ${
@@ -143,7 +150,6 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
           
           <div>
             <h3 className="font-semibold text-muted-foreground mb-2">Alterações Propostas</h3>
-            {/* Caso seja um novo controle (ID começa com "NEW-CTRL") */}
             {request.controlId.startsWith("NEW-CTRL") && Object.keys(request.changes).length > 0 ? (
                  <div className="mt-4 p-3 border rounded-md bg-blue-50">
                     <p className="text-sm font-medium text-blue-700">Detalhes do Novo Controle Proposto:</p>
@@ -153,7 +159,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
                         ))}
                     </ul>
                  </div>
-            ) : changedFields.length > 0 ? ( // Caso seja uma alteração em controle existente
+            ) : changedFields.length > 0 ? ( 
               <div className="space-y-3">
                 {changedFields.map(change => (
                   <div key={change.field} className="p-3 border rounded-md bg-muted/30">
@@ -170,12 +176,12 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Nenhuma alteração de campo específica listada (possivelmente um pedido de criação de novo controle sem campos detalhados ou sem alterações).</p>
+              <p className="text-sm text-muted-foreground">Nenhuma alteração de campo específica listada.</p>
             )}
           </div>
 
         </CardContent>
-        {request.status === "Pendente" && (
+        {request.status === "Pendente" && isUserAdmin() && ( // Apenas Admin pode aprovar/rejeitar
             <CardFooter className="flex justify-end space-x-2">
                 <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600">
                 <XCircle className="mr-2 h-4 w-4" /> Rejeitar

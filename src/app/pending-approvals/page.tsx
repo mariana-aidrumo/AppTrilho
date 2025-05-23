@@ -1,50 +1,66 @@
+// src/app/pending-approvals/page.tsx
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Eye } from "lucide-react";
 import Link from "next/link";
+import { useUserProfile } from "@/contexts/user-profile-context";
 
 // Dados mocados para demonstração
 const mockChangeRequests: ChangeRequest[] = [
   {
     id: "cr1",
     controlId: "FIN-001",
-    requestedBy: "John Doe",
-    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 dias atrás
+    requestedBy: "John Doe", // Simula que foi solicitado por outro usuário
+    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), 
     changes: { description: "Descrição atualizada para conciliação bancária." },
     status: "Pendente",
   },
   {
     id: "cr2",
     controlId: "IT-005",
-    requestedBy: "Jane Smith",
-    requestDate: new Date(Date.now() - 86400000).toISOString(), // 1 dia atrás
+    requestedBy: "Usuário Dono", // Simula que foi solicitado pelo "Dono do Controle" atual
+    requestDate: new Date(Date.now() - 86400000).toISOString(), 
     changes: { controlOwner: "Peter Pan" },
     status: "Pendente",
   },
   {
     id: "cr3",
-    controlId: "NEW-CTRL-001", // Pode ser uma solicitação de novo controle
+    controlId: "NEW-CTRL-001", 
     requestedBy: "Alice Brown",
     requestDate: new Date().toISOString(),
-    changes: { controlName: "Novo Controle Operacional", description: "Detalhes para novo controle...", controlId: "OPS-010" }, // Exemplo de submissão de novo controle
+    changes: { controlName: "Novo Controle Operacional", description: "Detalhes para novo controle...", controlId: "OPS-010" },
     status: "Pendente",
   }
 ];
 
 export default function PendingApprovalsPage() {
+  const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+
+  const pageTitle = isUserControlOwner() ? "Minhas Solicitações Pendentes" : "Solicitações de Alteração Pendentes";
+  const pageDescription = isUserControlOwner()
+    ? "Visualize e acompanhe suas solicitações de alteração para controles internos."
+    : "Revise e aprove ou rejeite as solicitações de alteração pendentes para controles internos.";
+
+  // Para Dono do Controle, idealmente filtraríamos para mostrar apenas suas solicitações.
+  // Para esta simulação, mostramos todas, mas desabilitamos ações.
+  const displayedRequests = isUserControlOwner()
+    ? mockChangeRequests.filter(req => req.requestedBy === currentUser.name) // Simples filtro por nome
+    : mockChangeRequests;
+
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Solicitações Pendentes</CardTitle>
-          <CardDescription>
-            Revise e aprove ou rejeite as solicitações de alteração pendentes para controles internos.
-          </CardDescription>
+          <CardTitle>{pageTitle}</CardTitle>
+          <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <CardContent>
-          {mockChangeRequests.length > 0 ? (
+          {displayedRequests.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -57,7 +73,7 @@ export default function PendingApprovalsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockChangeRequests.map((request) => (
+                  {displayedRequests.map((request) => (
                     <TableRow key={request.id}>
                       <TableCell className="font-medium">
                         <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline">
@@ -68,19 +84,25 @@ export default function PendingApprovalsPage() {
                       <TableCell>{request.requestedBy}</TableCell>
                       <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
                       <TableCell className="max-w-xs truncate">
-                        {Object.keys(request.changes).join(', ')}
+                        {Object.keys(request.changes).map(key => 
+                            key === 'controlId' && request.controlId.startsWith("NEW-CTRL") ? 'Novo Controle' : key
+                        ).join(', ')}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
                           <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
                             <Link href={`/change-requests/${request.id}`}><Eye className="h-4 w-4" /></Link>
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar">
-                            <CheckCircle2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar">
-                            <XCircle className="h-4 w-4" />
-                          </Button>
+                          {isUserAdmin() && ( // Apenas Admin pode aprovar/rejeitar diretamente aqui
+                            <>
+                              <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar">
+                                <CheckCircle2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar">
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -89,7 +111,9 @@ export default function PendingApprovalsPage() {
               </Table>
             </div>
           ) : (
-            <p className="mt-4 text-center text-muted-foreground">Nenhuma solicitação pendente.</p>
+            <p className="mt-4 text-center text-muted-foreground">
+                {isUserControlOwner() ? "Você não tem solicitações pendentes." : "Nenhuma solicitação pendente."}
+            </p>
           )}
         </CardContent>
       </Card>

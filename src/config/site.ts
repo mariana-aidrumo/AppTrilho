@@ -1,11 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { Table2, ListChecks, FilePlus2, Home, FileEdit, History, Settings, LogOut } from "lucide-react";
+import { ListChecks, FilePlus2, Home, History, CheckSquare } from "lucide-react";
+import type { UserProfileType } from "@/types";
 
 export type NavItem = {
   title: string;
   href: string;
   icon: LucideIcon;
   disabled?: boolean;
+  allowedProfiles?: UserProfileType[]; 
+  dynamicTitle?: (profile: UserProfileType) => string;
 };
 
 export type SiteConfig = {
@@ -19,42 +22,44 @@ export const siteConfig: SiteConfig = {
   description: "Hub de Controles SOX.",
   navItems: [
     {
-      title: "Painel",
+      title: "Painel", 
       href: "/sox-matrix",
       icon: Home,
+      dynamicTitle: (profile) => profile === "Dono do Controle" ? "Meus Controles" : "Painel da Matriz SOX",
+      allowedProfiles: ["Administrador de Controles Internos", "Dono do Controle"],
     },
     {
-      title: "Controles", // Lista de Controles
-      href: "/sox-matrix", 
-      icon: ListChecks,
-    },
-    {
-      title: "Minhas Solicitações", // Pending Approvals
+      title: "Aprovações Pendentes",
       href: "/pending-approvals",
-      icon: FileEdit,
+      icon: CheckSquare, // Ícone mais apropriado para aprovações
+      allowedProfiles: ["Administrador de Controles Internos"],
+    },
+     {
+      title: "Minhas Solicitações",
+      href: "/pending-approvals", 
+      icon: ListChecks, // Usando ListChecks para solicitações do usuário
+      allowedProfiles: ["Dono do Controle"],
     },
     {
       title: "Propor Novo Controle",
       href: "/new-control",
       icon: FilePlus2,
+      allowedProfiles: ["Administrador de Controles Internos", "Dono do Controle"],
     },
     {
-        title: "Histórico de Versões",
-        href: "/version-history",
+        title: "Histórico da Matriz",
+        href: "/matrix-history",
         icon: History,
+        allowedProfiles: ["Administrador de Controles Internos"],
     },
-    // Itens de rodapé como "Configurações" e "Sair" podem exigir um tratamento de layout diferente.
-    // Por enquanto, eles seriam adicionados aqui se desejado.
-    // Exemplo:
-    // {
-    //   title: "Configurações",
-    //   href: "/settings",
-    //   icon: Settings,
-    // },
-    // {
-    //   title: "Sair",
-    //   href: "/logout",
-    //   icon: LogOut,
-    // },
+    {
+        title: "Histórico de Controles", 
+        href: "/version-history",
+        icon: History, 
+        allowedProfiles: ["Administrador de Controles Internos"],
+    },
+    // Dono do Controle pode ver o histórico dos *seus* controles, 
+    // idealmente acessado de dentro da página de detalhes do controle ou "Meus Controles".
+    // Para manter a barra lateral concisa, não adicionaremos um item específico aqui por enquanto.
   ],
 };
