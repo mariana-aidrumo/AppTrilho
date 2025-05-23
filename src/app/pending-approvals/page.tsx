@@ -5,15 +5,91 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ChangeRequest } from "@/types";
+import type { ChangeRequest, SoxControl, VersionHistoryEntry } from "@/types";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Eye, MessageSquareWarning, Edit2, HistoryIcon } from "lucide-react";
+import { CheckCircle2, XCircle, Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockChangeRequests } from "@/data/mock-data";
+import { mockChangeRequests, mockSoxControls, mockVersionHistory } from "@/data/mock-data";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+  const { toast } = useToast();
+  // Estado para forçar re-renderização após mutação de mock data
+  const [dataVersion, setDataVersion] = useState(0);
+
+  const forceRerender = () => setDataVersion(prev => prev + 1);
+
+
+  const handleQuickAdminAction = (requestId: string, action: "approve" | "reject") => {
+    const requestIndex = mockChangeRequests.findIndex(r => r.id === requestId);
+    if (requestIndex === -1) {
+      toast({ title: "Erro", description: "Solicitação não encontrada.", variant: "destructive" });
+      return;
+    }
+
+    const request = mockChangeRequests[requestIndex];
+    let toastMessage = "";
+
+    if (action === "approve") {
+      mockChangeRequests[requestIndex].status = "Aprovado";
+      mockChangeRequests[requestIndex].reviewedBy = currentUser.name;
+      mockChangeRequests[requestIndex].reviewDate = new Date().toISOString();
+      toastMessage = `Solicitação ${requestId} aprovada rapidamente.`;
+
+      // Lógica simplificada para aprovação rápida da tabela
+      if (request.controlId.startsWith("NEW-CTRL-")) {
+        const newControlIdNumber = mockSoxControls.length + 1;
+        const newSoxControl: SoxControl = {
+          id: String(newControlIdNumber),
+          controlId: request.changes.controlId || `CTRL-QUICK-${newControlIdNumber}`,
+          controlName: request.changes.controlName || "Novo Controle (Aprovação Rápida)",
+          description: request.changes.description || "Detalhes na solicitação.",
+          controlOwner: request.changes.controlOwner || request.requestedBy,
+          controlFrequency: request.changes.controlFrequency || "Ad-hoc",
+          controlType: request.changes.controlType || "Preventivo",
+          status: "Ativo",
+          lastUpdated: new Date().toISOString(),
+          relatedRisks: [], testProcedures: "", evidenceRequirements: "",
+          processo: request.changes.processo,
+          subProcesso: request.changes.subProcesso,
+          modalidade: request.changes.modalidade
+        };
+        mockSoxControls.push(newSoxControl);
+        mockVersionHistory.unshift({
+          id: `vh-quick-new-${newSoxControl.id}-${Date.now()}`, controlId: newSoxControl.id,
+          changeDate: new Date().toISOString(), changedBy: currentUser.name,
+          summaryOfChanges: `Controle ${newSoxControl.controlId} criado via aprovação rápida da solicitação ${request.id}.`,
+          newValues: { controlId: newSoxControl.controlId, controlName: newSoxControl.controlName, status: "Ativo" },
+          relatedChangeRequestId: request.id
+        });
+      } else {
+        const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
+        if (controlIndex !== -1) {
+          mockSoxControls[controlIndex] = { ...mockSoxControls[controlIndex], ...request.changes, lastUpdated: new Date().toISOString() };
+           mockVersionHistory.unshift({
+            id: `vh-quick-update-${mockSoxControls[controlIndex].id}-${Date.now()}`, controlId: mockSoxControls[controlIndex].id,
+            changeDate: new Date().toISOString(), changedBy: currentUser.name,
+            summaryOfChanges: `Alterações rápidas da solicitação ${request.id} aplicadas ao controle ${mockSoxControls[controlIndex].controlId}.`,
+            relatedChangeRequestId: request.id
+          });
+        }
+      }
+
+    } else { // reject
+      mockChangeRequests[requestIndex].status = "Rejeitado";
+      mockChangeRequests[requestIndex].reviewedBy = currentUser.name;
+      mockChangeRequests[requestIndex].reviewDate = new Date().toISOString();
+      mockChangeRequests[requestIndex].adminFeedback = "Rejeitado via ação rápida da tabela. Ver detalhes da solicitação para mais informações se necessário.";
+      toastMessage = `Solicitação ${requestId} rejeitada rapidamente.`;
+    }
+    
+    toast({ title: "Sucesso!", description: toastMessage });
+    forceRerender(); // Força o re-render para atualizar a lista
+  };
+
 
   const adminPendingRequests = mockChangeRequests.filter(req => req.status === "Pendente");
 
@@ -27,18 +103,18 @@ export default function PendingApprovalsPage() {
     req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
   );
 
-  const pageTitle = isUserAdmin() ? "Solicitações de Alteração Pendentes" : "Minhas Solicitações";
+  const pageTitle = isUserAdmin() ? "Solicitações de Mudança" : "Minhas Solicitações";
   const pageDescription = isUserAdmin()
-    ? "Revise e aprove ou rejeite as solicitações de alteração pendentes para controles internos."
+    ? "Revise e aprove ou rejeite as solicitações de mudança para controles internos."
     : "Acompanhe o status das suas propostas e alterações de controles internos.";
 
   const renderRequestTable = (requests: ChangeRequest[], context: "admin" | "owner-pending" | "owner-feedback" | "owner-history") => {
     if (requests.length === 0) {
       let message = "Nenhuma solicitação encontrada para esta categoria.";
-      if (context === "admin") message = "Nenhuma solicitação pendente no momento.";
-      if (context === "owner-pending") message = "Você não possui solicitações pendentes de aprovação.";
-      if (context === "owner-feedback") message = "Nenhuma solicitação aguardando sua ação.";
-      if (context === "owner-history") message = "Nenhuma solicitação no seu histórico.";
+      if (context === "admin" && isUserAdmin()) message = "Nenhuma solicitação pendente de aprovação no momento.";
+      else if (context === "owner-pending") message = "Você não possui solicitações pendentes de aprovação.";
+      else if (context === "owner-feedback") message = "Nenhuma solicitação aguardando sua ação.";
+      else if (context === "owner-history") message = "Nenhuma solicitação no seu histórico.";
       return <p className="mt-4 text-center text-muted-foreground">{message}</p>;
     }
 
@@ -70,7 +146,7 @@ export default function PendingApprovalsPage() {
               <TableRow key={request.id}>
                 <TableCell className="font-medium">
                   <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline">
-                    {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'ID Pendente'}` : request.controlId}
+                    {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'ID pendente'}` : request.controlId}
                   </Link>
                   <div className="text-xs text-muted-foreground">ID Sol.: {request.id}</div>
                 </TableCell>
@@ -82,7 +158,7 @@ export default function PendingApprovalsPage() {
                 {context === "owner-pending" && (
                   <>
                     <TableCell className="max-w-xs truncate">
-                      {request.controlId.startsWith("NEW-CTRL-") ? "Proposta de Novo Controle" : 
+                      {request.controlId.startsWith("NEW-CTRL") ? "Proposta de Novo Controle" : 
                        Object.keys(request.changes).map(key => key).join(', ')}
                     </TableCell>
                     <TableCell>
@@ -100,6 +176,9 @@ export default function PendingApprovalsPage() {
                 {context === "owner-feedback" && (
                   <TableCell className="max-w-xs italic text-sm">
                     {request.adminFeedback || "Nenhum feedback específico."}
+                     <div className="mt-1">
+                        <Link href={`/change-requests/${request.id}`} className="text-xs text-primary hover:underline">Ver detalhes e responder</Link>
+                    </div>
                   </TableCell>
                 )}
 
@@ -132,19 +211,20 @@ export default function PendingApprovalsPage() {
                     <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
                       <Link href={`/change-requests/${request.id}`}><Eye className="h-4 w-4" /></Link>
                     </Button>
-                    {context === "admin" && (
+                    {context === "admin" && request.status === "Pendente" && (
                       <>
-                        <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar (Simulado)">
+                        <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "approve")}>
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar (Simulado)">
+                        <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "reject")}>
                           <XCircle className="h-4 w-4" />
                         </Button>
                       </>
                     )}
                     {context === "owner-feedback" && (
-                         <Button variant="outline" size="sm" asChild title="Revisar e Reenviar (Simulado)">
-                            <Link href={`/change-requests/${request.id}?edit=true`}> <Edit2 className="h-4 w-4 mr-1" /> Revisar</Link>
+                         <Button variant="outline" size="sm" asChild title="Revisar e Reenviar" 
+                            className="border-orange-500 text-orange-600 hover:bg-orange-100 hover:text-orange-700">
+                            <Link href={`/change-requests/${request.id}`}> <Edit2 className="h-4 w-4 mr-1" /> Revisar</Link>
                          </Button>
                     )}
                   </div>
@@ -170,12 +250,12 @@ export default function PendingApprovalsPage() {
           
           {isUserControlOwner() && (
             <Tabs defaultValue="pendentes">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                 <TabsTrigger value="pendentes">
                   <CheckCircle2 className="mr-2 h-4 w-4 text-yellow-600" /> Pendentes de Aprovação ({ownerPendingApprovalRequests.length})
                 </TabsTrigger>
                 <TabsTrigger value="feedback">
-                  <MessageSquareWarning className="mr-2 h-4 w-4 text-blue-600" />Aguardando Minha Ação ({ownerAwaitingFeedbackRequests.length})
+                  <AlertTriangle className="mr-2 h-4 w-4 text-orange-600" />Aguardando Minha Ação ({ownerAwaitingFeedbackRequests.length})
                 </TabsTrigger>
                 <TabsTrigger value="historico">
                   <HistoryIcon className="mr-2 h-4 w-4 text-gray-600" />Histórico ({ownerRequestsHistory.length})
