@@ -1,3 +1,4 @@
+
 // src/components/layout/app-layout.tsx
 "use client";
 
@@ -35,8 +36,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarProvider defaultOpen>
       <div className="flex flex-col min-h-screen">
-        <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center gap-2">
+        <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 md:px-6 border-b bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
             <SidebarTrigger className="md:hidden" />
             <NextLink href="/" className="flex items-center gap-2 text-primary hover:no-underline">
               <Icons.AppLogo className="w-7 h-7" />
@@ -45,8 +46,8 @@ export function AppLayout({ children }: AppLayoutProps) {
               </h1>
             </NextLink>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-5 md:gap-6">
+            <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-muted-foreground" />
               <Select value={currentUser.profile} onValueChange={handleProfileChange}>
                 <SelectTrigger className="w-[230px] text-sm h-9">
@@ -58,7 +59,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <User className="h-5 w-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground hidden md:inline">{currentUser.name}</span>
               <Avatar className="h-8 w-8">
@@ -70,11 +71,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
         <div className="flex flex-1">
           <Sidebar collapsible="icon" side="left" variant="sidebar" className="border-r">
-            <SidebarHeader className="flex items-center justify-center p-3 group-data-[collapsible=icon]:p-2">
-              <Icons.AppLogo className="w-8 h-8 text-sidebar-foreground transition-all duration-300 group-data-[collapsible=icon]:w-6 group-data-[collapsible=icon]:h-6" />
-              <span className="ml-2 text-lg font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-                Navegação
-              </span>
+            <SidebarHeader className="flex items-center justify-center p-4 group-data-[collapsible=icon]:p-3">
+              <Icons.AppLogo className="w-8 h-8 text-sidebar-foreground transition-all duration-300 group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:h-7" />
             </SidebarHeader>
             <SidebarContent className="p-2">
               <SidebarNavItems />

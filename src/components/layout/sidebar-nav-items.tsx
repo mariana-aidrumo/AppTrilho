@@ -1,3 +1,4 @@
+
 // src/components/layout/sidebar-nav-items.tsx
 "use client";
 
@@ -27,14 +28,16 @@ export function SidebarNavItems() {
     <SidebarMenu>
       {filteredNavItems.map((item) => {
         const title = item.dynamicTitle ? item.dynamicTitle(currentUser.profile) : item.title;
+        const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
         return (
           <SidebarMenuItem key={item.href + title}> {/* Adicionar title à key para garantir unicidade */}
             <Link href={item.href} passHref legacyBehavior>
               <SidebarMenuButton
                 asChild
-                isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+                isActive={isActive}
                 className={cn(
                   "w-full justify-start",
+                  isActive ? "border-l-4 border-primary pl-[calc(0.5rem-4px)]" : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   item.disabled && "cursor-not-allowed opacity-80"
                 )}
                 disabled={item.disabled}
