@@ -5,31 +5,31 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Eye } from "lucide-react";
 import Link from "next/link";
 
-// Mock data for demonstration
+// Dados mocados para demonstração
 const mockChangeRequests: ChangeRequest[] = [
   {
     id: "cr1",
     controlId: "FIN-001",
     requestedBy: "John Doe",
-    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
-    changes: { controlDescription: "Updated description for bank reconciliation." },
-    status: "Pending",
+    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 dias atrás
+    changes: { description: "Descrição atualizada para conciliação bancária." },
+    status: "Pendente",
   },
   {
     id: "cr2",
     controlId: "IT-005",
     requestedBy: "Jane Smith",
-    requestDate: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+    requestDate: new Date(Date.now() - 86400000).toISOString(), // 1 dia atrás
     changes: { controlOwner: "Peter Pan" },
-    status: "Pending",
+    status: "Pendente",
   },
   {
     id: "cr3",
-    controlId: "NEW-CTRL-001", // Could be a new control request
+    controlId: "NEW-CTRL-001", // Pode ser uma solicitação de novo controle
     requestedBy: "Alice Brown",
     requestDate: new Date().toISOString(),
-    changes: { controlName: "New Operational Control", description: "Details for new control...", controlId: "OPS-010" }, // Example of a new control submission
-    status: "Pending",
+    changes: { controlName: "Novo Controle Operacional", description: "Detalhes para novo controle...", controlId: "OPS-010" }, // Exemplo de submissão de novo controle
+    status: "Pendente",
   }
 ];
 
@@ -38,9 +38,9 @@ export default function PendingApprovalsPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Pending Approvals</CardTitle>
+          <CardTitle>Solicitações Pendentes</CardTitle>
           <CardDescription>
-            Review and action pending change requests for internal controls.
+            Revise e aprove ou rejeite as solicitações de alteração pendentes para controles internos.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -49,11 +49,11 @@ export default function PendingApprovalsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Control ID / Request ID</TableHead>
-                    <TableHead>Requested By</TableHead>
-                    <TableHead>Request Date</TableHead>
-                    <TableHead>Summary of Change</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>ID Controle / Solicitação</TableHead>
+                    <TableHead>Solicitado Por</TableHead>
+                    <TableHead>Data da Solicitação</TableHead>
+                    <TableHead>Resumo da Mudança</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -61,24 +61,24 @@ export default function PendingApprovalsPage() {
                     <TableRow key={request.id}>
                       <TableCell className="font-medium">
                         <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline">
-                          {request.controlId.startsWith("NEW-CTRL") ? `New: ${request.changes.controlId || 'N/A'}` : request.controlId}
+                          {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'N/A'}` : request.controlId}
                         </Link>
                         <div className="text-xs text-muted-foreground">ID: {request.id}</div>
                       </TableCell>
                       <TableCell>{request.requestedBy}</TableCell>
-                      <TableCell>{new Date(request.requestDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
                       <TableCell className="max-w-xs truncate">
                         {Object.keys(request.changes).join(', ')}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
-                          <Button variant="ghost" size="icon" asChild title="View Details">
+                          <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
                             <Link href={`/change-requests/${request.id}`}><Eye className="h-4 w-4" /></Link>
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Approve">
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar">
                             <CheckCircle2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Reject">
+                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar">
                             <XCircle className="h-4 w-4" />
                           </Button>
                         </div>
@@ -89,7 +89,7 @@ export default function PendingApprovalsPage() {
               </Table>
             </div>
           ) : (
-            <p className="mt-4 text-center text-muted-foreground">No pending approvals.</p>
+            <p className="mt-4 text-center text-muted-foreground">Nenhuma solicitação pendente.</p>
           )}
         </CardContent>
       </Card>

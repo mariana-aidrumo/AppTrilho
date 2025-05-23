@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'HUB CONTROLES INTERNOS',
-  description: 'Plataforma para gestão de controles internos SOX.',
+  title: 'SOX Hub',
+  description: 'Hub de Controles SOX.',
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppLayout>{children}</AppLayout>
         <Toaster />

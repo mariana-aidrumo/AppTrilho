@@ -1,4 +1,4 @@
-// TODO: This page will be client component for form handling and AI interaction
+// TODO: Este componente será um client component para manipulação de formulário e interação com IA
 "use client"; 
 
 import { useState } from 'react';
@@ -19,7 +19,7 @@ export default function NewControlPage() {
 
   const handleSuggestControls = async () => {
     if (!controlDescription.trim()) {
-      setErrorSuggestions("Please enter a control description first.");
+      setErrorSuggestions("Por favor, insira uma descrição para o controle primeiro.");
       return;
     }
     setIsLoadingSuggestions(true);
@@ -30,8 +30,8 @@ export default function NewControlPage() {
       const result: SuggestRelatedControlsOutput = await suggestRelatedControls(input);
       setSuggestedControls(result.relatedControls);
     } catch (error) {
-      console.error("Error fetching suggestions:", error);
-      setErrorSuggestions("Failed to fetch suggestions. Please try again.");
+      console.error("Erro ao buscar sugestões:", error);
+      setErrorSuggestions("Falha ao buscar sugestões. Por favor, tente novamente.");
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -39,39 +39,39 @@ export default function NewControlPage() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // TODO: Implement form submission logic
-    // This would involve creating a new ChangeRequest with status "Pending" for a new control.
-    console.log("Form submitted with data:", new FormData(event.currentTarget));
-    // Show toast notification on success/failure
+    // TODO: Implementar lógica de submissão do formulário
+    // Isso envolveria criar uma nova ChangeRequest com status "Pendente" para um novo controle.
+    console.log("Formulário enviado com os dados:", new FormData(event.currentTarget));
+    // Mostrar notificação de toast em caso de sucesso/falha
   };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Create New Control</CardTitle>
+          <CardTitle>Propor Novo Controle</CardTitle>
           <CardDescription>
-            Fill in the details for the new control. All new controls are subject to approval.
+            Preencha os detalhes para o novo controle. Todos os novos controles estão sujeitos à aprovação.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="controlId">Control ID</Label>
-                <Input id="controlId" name="controlId" placeholder="e.g., FIN-00X, IT-00Y" required />
+                <Label htmlFor="controlId">ID do Controle</Label>
+                <Input id="controlId" name="controlId" placeholder="Ex: FIN-00X, IT-00Y" required />
               </div>
               <div>
-                <Label htmlFor="controlName">Control Name</Label>
-                <Input id="controlName" name="controlName" placeholder="Name of the control" required />
+                <Label htmlFor="controlName">Nome do Controle</Label>
+                <Input id="controlName" name="controlName" placeholder="Nome do controle" required />
               </div>
             </div>
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Descrição</Label>
               <Textarea 
                 id="description" 
                 name="description"
-                placeholder="Detailed description of the control objective and activities." 
+                placeholder="Descrição detalhada do objetivo e atividades do controle." 
                 value={controlDescription}
                 onChange={(e) => setControlDescription(e.target.value)}
                 required 
@@ -79,67 +79,90 @@ export default function NewControlPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="controlOwner">Control Owner</Label>
-                <Input id="controlOwner" name="controlOwner" placeholder="Name or department" required />
+                <Label htmlFor="controlOwner">Dono do Controle</Label>
+                <Input id="controlOwner" name="controlOwner" placeholder="Nome ou departamento" required />
               </div>
               <div>
-                <Label htmlFor="controlFrequency">Control Frequency</Label>
+                <Label htmlFor="controlFrequency">Frequência do Controle</Label>
                 <Select name="controlFrequency" required>
                   <SelectTrigger id="controlFrequency">
-                    <SelectValue placeholder="Select frequency" />
+                    <SelectValue placeholder="Selecione a frequência" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Daily">Daily</SelectItem>
-                    <SelectItem value="Weekly">Weekly</SelectItem>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                    <SelectItem value="Quarterly">Quarterly</SelectItem>
-                    <SelectItem value="Annually">Annually</SelectItem>
+                    <SelectItem value="Diário">Diário</SelectItem>
+                    <SelectItem value="Semanal">Semanal</SelectItem>
+                    <SelectItem value="Mensal">Mensal</SelectItem>
+                    <SelectItem value="Trimestral">Trimestral</SelectItem>
+                    <SelectItem value="Anual">Anual</SelectItem>
                     <SelectItem value="Ad-hoc">Ad-hoc</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="controlType">Control Type</Label>
+                <Label htmlFor="controlType">Tipo de Controle</Label>
                  <Select name="controlType" required>
                   <SelectTrigger id="controlType">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Preventive">Preventive</SelectItem>
-                    <SelectItem value="Detective">Detective</SelectItem>
-                    <SelectItem value="Corrective">Corrective</SelectItem>
+                    <SelectItem value="Preventivo">Preventivo</SelectItem>
+                    <SelectItem value="Detectivo">Detectivo</SelectItem>
+                    <SelectItem value="Corretivo">Corretivo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="processo">Processo</Label>
+                    <Input id="processo" name="processo" placeholder="Ex: Relatórios Financeiros" />
+                </div>
+                <div>
+                    <Label htmlFor="subProcesso">Subprocesso</Label>
+                    <Input id="subProcesso" name="subProcesso" placeholder="Ex: Fechamento Mensal" />
+                </div>
+            </div>
+             <div>
+                <Label htmlFor="modalidade">Modalidade do Controle</Label>
+                <Select name="modalidade">
+                  <SelectTrigger id="modalidade">
+                    <SelectValue placeholder="Selecione a modalidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Manual">Manual</SelectItem>
+                    <SelectItem value="Automático">Automático</SelectItem>
+                    <SelectItem value="Híbrido">Híbrido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             <div>
-                <Label htmlFor="relatedRisks">Related Risks (comma-separated)</Label>
-                <Input id="relatedRisks" name="relatedRisks" placeholder="e.g., Financial Misstatement, Unauthorized Access" />
+                <Label htmlFor="relatedRisks">Riscos Relacionados (separados por vírgula)</Label>
+                <Input id="relatedRisks" name="relatedRisks" placeholder="Ex: Demonstração Financeira Incorreta, Acesso Não Autorizado" />
             </div>
             <div>
-                <Label htmlFor="testProcedures">Test Procedures</Label>
-                <Textarea id="testProcedures" name="testProcedures" placeholder="Describe how this control is tested." />
+                <Label htmlFor="testProcedures">Procedimentos de Teste</Label>
+                <Textarea id="testProcedures" name="testProcedures" placeholder="Descreva como este controle é testado." />
             </div>
             <div>
-                <Label htmlFor="evidenceRequirements">Evidence Requirements</Label>
-                <Textarea id="evidenceRequirements" name="evidenceRequirements" placeholder="What evidence is required to prove control operation?" />
+                <Label htmlFor="evidenceRequirements">Requisitos de Evidência</Label>
+                <Textarea id="evidenceRequirements" name="evidenceRequirements" placeholder="Qual evidência é necessária para provar a operação do controle?" />
             </div>
 
-            {/* AI-Driven Control Suggestion Section */}
+            {/* Seção de Sugestão de Controles por IA */}
             <Card className="bg-accent/20 border-accent/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Lightbulb className="w-5 h-5 text-accent-foreground" />
-                  AI-Suggested Related Controls
+                  Controles Relacionados Sugeridos por IA
                 </CardTitle>
                 <CardDescription>
-                  Based on the control description, here are some potentially related controls.
+                  Com base na descrição do controle, aqui estão alguns controles potencialmente relacionados.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button type="button" onClick={handleSuggestControls} disabled={isLoadingSuggestions || !controlDescription.trim()} className="mb-4">
                   {isLoadingSuggestions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Suggest Related Controls
+                  Sugerir Controles Relacionados
                 </Button>
                 {errorSuggestions && <p className="text-sm text-destructive">{errorSuggestions}</p>}
                 {suggestedControls.length > 0 && (
@@ -150,13 +173,13 @@ export default function NewControlPage() {
                   </ul>
                 )}
                 {suggestedControls.length === 0 && !isLoadingSuggestions && !errorSuggestions && (
-                  <p className="text-sm text-muted-foreground">Enter a description and click suggest to see related controls.</p>
+                  <p className="text-sm text-muted-foreground">Insira uma descrição e clique em sugerir para ver controles relacionados.</p>
                 )}
               </CardContent>
             </Card>
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button type="submit">Submit for Approval</Button>
+            <Button type="submit">Enviar para Aprovação</Button>
           </CardFooter>
         </form>
       </Card>

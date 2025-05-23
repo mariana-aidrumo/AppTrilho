@@ -5,28 +5,28 @@ import type { ChangeRequest, SoxControl } from "@/types";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 
-// Mock data for a single change request
+// Dados mocados para uma única solicitação de alteração
 const mockChangeRequest: ChangeRequest = {
   id: "cr1",
   controlId: "FIN-001",
   requestedBy: "John Doe",
-  requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+  requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 dias atrás
   changes: { 
-    description: "Monthly review and approval of bank reconciliations by the finance manager to ensure all transactions are accurately recorded. Any discrepancies identified must be resolved within 5 business days.",
-    controlOwner: "Finance Department (Manager)",
-    testProcedures: "Verify reconciliation sign-off and follow up on discrepancies older than 5 days."
+    description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão. Quaisquer discrepâncias identificadas devem ser resolvidas em 5 dias úteis.",
+    controlOwner: "Departamento Financeiro (Gerente)",
+    testProcedures: "Verificar a aprovação da conciliação e acompanhar as discrepâncias com mais de 5 dias."
   },
-  status: "Pending",
-  comments: "Initial request for updating control details based on new policy.",
+  status: "Pendente",
+  comments: "Solicitação inicial para atualizar detalhes do controle com base na nova política.",
 };
 
-// Mock current control data (for comparison)
+// Dados mocados do controle atual (para comparação)
 const mockCurrentControl: Partial<SoxControl> = {
   controlId: "FIN-001",
-  controlName: "Bank Reconciliation Review",
-  description: "Monthly review and approval of bank reconciliations.",
+  controlName: "Revisão de Conciliação Bancária",
+  description: "Revisão mensal e aprovação das conciliações bancárias.",
   controlOwner: "John Doe",
-  testProcedures: "Verify reconciliation sign-off."
+  testProcedures: "Verificar a aprovação da conciliação."
 };
 
 
@@ -37,25 +37,31 @@ interface ChangeRequestDetailPageProps {
 }
 
 export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailPageProps) {
-  // In a real app, fetch change request data based on params.requestId
-  // and potentially the current control data for comparison.
+  // Em um aplicativo real, buscar dados da solicitação de alteração com base em params.requestId
+  // e potencialmente os dados do controle atual para comparação.
   const request = mockChangeRequest;
-  const currentControl = mockCurrentControl; // For showing diffs
+  const currentControl = mockCurrentControl; // Para mostrar diferenças
 
   if (!request) {
-    return <p>Change Request not found.</p>;
+    return <p>Solicitação de Alteração não encontrada.</p>;
   }
 
   const getChangedFields = () => {
     const changed: { field: string; oldValue?: string; newValue: string }[] = [];
     for (const key in request.changes) {
       if (Object.prototype.hasOwnProperty.call(request.changes, key)) {
-        const typedKey = key as keyof SoxControl;
-        changed.push({
-          field: typedKey,
-          oldValue: currentControl[typedKey] as string | undefined,
-          newValue: request.changes[typedKey] as string,
-        });
+        const typedKey = key as keyof SoxControl; // Assume que as chaves em 'changes' são chaves de SoxControl
+        const newValue = request.changes[typedKey];
+        const oldValue = currentControl[typedKey];
+        
+        // Adiciona apenas se o valor realmente mudou ou se é um campo novo (oldValue não existe)
+        if (newValue !== oldValue || (newValue && oldValue === undefined)) {
+          changed.push({
+            field: typedKey,
+            oldValue: oldValue as string | undefined,
+            newValue: newValue as string, // Convertendo para string para exibição simples
+          });
+        }
       }
     }
     return changed;
@@ -63,12 +69,34 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
 
   const changedFields = getChangedFields();
 
+  // Função para traduzir nomes de campos para exibição
+  const translateFieldName = (fieldName: string): string => {
+    const translations: Record<string, string> = {
+      controlId: "ID do Controle",
+      controlName: "Nome do Controle",
+      description: "Descrição",
+      controlOwner: "Dono do Controle",
+      controlFrequency: "Frequência do Controle",
+      controlType: "Tipo de Controle",
+      status: "Status",
+      lastUpdated: "Última Atualização",
+      relatedRisks: "Riscos Relacionados",
+      testProcedures: "Procedimentos de Teste",
+      evidenceRequirements: "Requisitos de Evidência",
+      processo: "Processo",
+      subProcesso: "Subprocesso",
+      modalidade: "Modalidade",
+    };
+    return translations[fieldName] || fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href="/pending-approvals">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Pending Approvals
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Aprovações Pendentes
           </Link>
         </Button>
       </div>
@@ -77,14 +105,14 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="text-2xl">Change Request Details</CardTitle>
+              <CardTitle className="text-2xl">Detalhes da Solicitação de Alteração</CardTitle>
               <CardDescription>
-                Review the proposed changes for control: <Link href={`/controls/${request.controlId}`} className="text-primary hover:underline">{request.controlId}</Link>
+                Revise as alterações propostas para o controle: <Link href={`/controls/${request.controlId}`} className="text-primary hover:underline">{request.controlId}</Link>
               </CardDescription>
             </div>
             <span className={`px-3 py-1.5 text-sm font-semibold rounded-full ${
-              request.status === "Pending" ? "bg-yellow-100 text-yellow-700" :
-              request.status === "Approved" ? "bg-green-100 text-green-700" :
+              request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
+              request.status === "Aprovado" ? "bg-green-100 text-green-700" :
               "bg-red-100 text-red-700"
             }`}>
               {request.status}
@@ -93,68 +121,67 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h3 className="font-semibold text-muted-foreground">Request ID</h3>
+            <h3 className="font-semibold text-muted-foreground">ID da Solicitação</h3>
             <p className="text-sm">{request.id}</p>
           </div>
           <Separator />
           <div>
-            <h3 className="font-semibold text-muted-foreground">Requested By</h3>
+            <h3 className="font-semibold text-muted-foreground">Solicitado Por</h3>
             <p className="text-sm">{request.requestedBy}</p>
           </div>
           <Separator />
           <div>
-            <h3 className="font-semibold text-muted-foreground">Request Date</h3>
-            <p className="text-sm">{new Date(request.requestDate).toLocaleString()}</p>
+            <h3 className="font-semibold text-muted-foreground">Data da Solicitação</h3>
+            <p className="text-sm">{new Date(request.requestDate).toLocaleString('pt-BR')}</p>
           </div>
           <Separator />
           <div>
-            <h3 className="font-semibold text-muted-foreground">Requester Comments</h3>
-            <p className="text-sm italic">{request.comments || "No comments provided."}</p>
+            <h3 className="font-semibold text-muted-foreground">Comentários do Solicitante</h3>
+            <p className="text-sm italic">{request.comments || "Nenhum comentário fornecido."}</p>
           </div>
           <Separator />
           
           <div>
-            <h3 className="font-semibold text-muted-foreground mb-2">Proposed Changes</h3>
-            {changedFields.length > 0 ? (
+            <h3 className="font-semibold text-muted-foreground mb-2">Alterações Propostas</h3>
+            {/* Caso seja um novo controle (ID começa com "NEW-CTRL") */}
+            {request.controlId.startsWith("NEW-CTRL") && Object.keys(request.changes).length > 0 ? (
+                 <div className="mt-4 p-3 border rounded-md bg-blue-50">
+                    <p className="text-sm font-medium text-blue-700">Detalhes do Novo Controle Proposto:</p>
+                    <ul className="list-disc list-inside text-sm ml-4 mt-1 text-blue-600 space-y-1">
+                         {Object.entries(request.changes).map(([key, value]) => (
+                            <li key={key}><strong>{translateFieldName(key)}:</strong> {String(value)}</li>
+                        ))}
+                    </ul>
+                 </div>
+            ) : changedFields.length > 0 ? ( // Caso seja uma alteração em controle existente
               <div className="space-y-3">
                 {changedFields.map(change => (
                   <div key={change.field} className="p-3 border rounded-md bg-muted/30">
-                    <p className="text-sm font-medium capitalize">{change.field.replace(/([A-Z])/g, ' $1')}</p>
+                    <p className="text-sm font-medium">{translateFieldName(change.field)}</p>
                     {change.oldValue && (
                         <div className="mt-1 p-2 rounded-sm bg-red-50 text-red-700 text-xs">
-                            <strong>Old:</strong> <span className="line-through">{change.oldValue}</span>
+                            <strong>Antigo:</strong> <span className="line-through">{change.oldValue}</span>
                         </div>
                     )}
                     <div className={`mt-1 p-2 rounded-sm bg-green-50 text-green-700 text-xs ${change.oldValue ? '' : 'mt-0'}`}>
-                        <strong>New:</strong> {change.newValue}
+                        <strong>Novo:</strong> {change.newValue}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No specific field changes listed (possibly a new control creation request).</p>
-            )}
-             {/* For new controls, list all fields */}
-            {request.controlId.startsWith("NEW-CTRL") && Object.keys(request.changes).length > 0 && (
-                 <div className="mt-4 p-3 border rounded-md bg-blue-50">
-                    <p className="text-sm font-medium text-blue-700">New Control Details:</p>
-                    <ul className="list-disc list-inside text-sm ml-4 mt-1 text-blue-600">
-                         {Object.entries(request.changes).map(([key, value]) => (
-                            <li key={key}><strong>{key.replace(/([A-Z])/g, ' $1').trim()}:</strong> {String(value)}</li>
-                        ))}
-                    </ul>
-                 </div>
+              <p className="text-sm text-muted-foreground">Nenhuma alteração de campo específica listada (possivelmente um pedido de criação de novo controle sem campos detalhados ou sem alterações).</p>
             )}
           </div>
 
         </CardContent>
-        {request.status === "Pending" && (
+        {request.status === "Pendente" && (
             <CardFooter className="flex justify-end space-x-2">
                 <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600">
-                <XCircle className="mr-2 h-4 w-4" /> Reject
+                <XCircle className="mr-2 h-4 w-4" /> Rejeitar
                 </Button>
                 <Button className="bg-green-600 hover:bg-green-700 text-white">
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Aprovar
                 </Button>
             </CardFooter>
         )}
