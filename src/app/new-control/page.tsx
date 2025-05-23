@@ -3,7 +3,7 @@
 "use client"; 
 
 import { useState } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form'; // Adicionado Controller
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -27,11 +27,11 @@ const ownerNewControlSchema = z.object({
   justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória (mínimo 10 caracteres)."),
   // Campos adicionais que o Dono pode sugerir (opcionais para ele)
   controlOwner: z.string().optional(),
-  controlFrequency: z.string().optional(), // será validado como enum no submit se admin
-  controlType: z.string().optional(), // será validado como enum no submit se admin
+  controlFrequency: z.string().optional(), 
+  controlType: z.string().optional(), 
   processo: z.string().optional(),
   subProcesso: z.string().optional(),
-  modalidade: z.string().optional(), // será validado como enum no submit se admin
+  modalidade: z.string().optional(), 
 });
 
 // Esquema para Administrador (criação direta)
@@ -484,3 +484,5 @@ export default function NewControlPage() {
     </div>
   );
 }
+
+    
