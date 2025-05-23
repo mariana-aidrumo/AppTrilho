@@ -15,11 +15,12 @@ export interface SoxControl {
   lastUpdated: string; // Data ISO
   relatedRisks: string[];
   testProcedures: string;
-  // evidenceRequirements: string; // Removido
   processo?: string;
   subProcesso?: string;
   modalidade?: ControlModalidade;
   justificativa?: string; // Para novos controles propostos
+  responsavel?: string;
+  n3Responsavel?: string;
 }
 
 export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono";
@@ -43,22 +44,10 @@ export interface VersionHistoryEntry {
   changeDate: string; // Data ISO
   changedBy: string; // ID ou nome do usuário
   summaryOfChanges: string; // Resumo das alterações
-  previousValues?: Partial<SoxControl>; // Use ? para criação de controle
-  newValues?: Partial<SoxControl>; // Use ? para deleção ou apenas status
+  previousValues?: Partial<SoxControl>;
+  newValues?: Partial<SoxControl>;
   relatedChangeRequestId?: string; // ID da ChangeRequest que originou esta versão
 }
-
-// Removida a interface EvidenceFile
-// export interface EvidenceFile {
-//   id: string;
-//   controlId: string;
-//   fileName: string;
-//   fileType: string;
-//   fileSize: number; // em bytes
-//   uploadDate: string; // Data ISO
-//   uploadedBy: string; // ID ou nome do usuário
-//   storageUrl: string; // URL para o arquivo no armazenamento
-// }
 
 export type UserProfileType = "Dono do Controle" | "Administrador de Controles Internos";
 
@@ -68,7 +57,6 @@ export interface UserProfile {
   controlsOwned?: string[];
 }
 
-// Novo tipo para histórico unificado
 export type UnifiedHistoryEventType =
   | "CONTROL_CREATED"
   | "CONTROL_UPDATED"
@@ -76,13 +64,12 @@ export type UnifiedHistoryEventType =
   | "CHANGE_REQUEST_APPROVED"
   | "CHANGE_REQUEST_REJECTED"
   | "CHANGE_REQUEST_FEEDBACK_REQUESTED";
-  // | "EVIDENCE_UPLOADED"; // Removido
 
 export interface UnifiedHistoryItem {
-  id: string; // ID original do item de origem (vh.id, cr.id, ev.id)
-  date: string; // Data ISO para ordenação
+  id: string;
+  date: string;
   type: UnifiedHistoryEventType;
-  description: string; // Descrição formatada do evento
-  actor: string; // Quem realizou a ação
-  sourceId?: string; // ID da ChangeRequest ou outro ID relevante
+  description: string;
+  actor: string;
+  sourceId?: string;
 }

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, FileEdit, ChevronRight, ArrowLeft, ExternalLink, FilePlus2 } from "lucide-react";
+import { Eye, FileEdit, ArrowLeft, ExternalLink, FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockChangeRequests } from "@/data/mock-data";
@@ -39,7 +39,7 @@ export default function MyControlsPage() {
 
   const userOwnedControlIds = currentUser.controlsOwned || [];
 
-  const myActiveControls = useMemo(() => 
+  const myActiveControls = useMemo(() =>
     mockSoxControls.filter(control =>
       userOwnedControlIds.includes(control.id) &&
       control.status === "Ativo" &&
@@ -64,12 +64,12 @@ export default function MyControlsPage() {
     });
     return pendingChanges;
   }, [userOwnedControlIds, currentUser.name, mockChangeRequests, mockSoxControls]);
-  
-  const myPendingNewControlRequests = useMemo(() => 
+
+  const myPendingNewControlRequests = useMemo(() =>
     mockChangeRequests.filter(
       req => req.requestedBy === currentUser.name &&
-             req.controlId.startsWith("NEW-CTRL-") && 
-             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") 
+             req.controlId.startsWith("NEW-CTRL-") &&
+             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
     ), [currentUser.name, mockChangeRequests]);
 
 
@@ -77,7 +77,7 @@ export default function MyControlsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
-          <Link href="/sox-matrix"> 
+          <Link href="/sox-matrix">
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel (Visão Geral)
           </Link>
         </Button>
@@ -105,6 +105,8 @@ export default function MyControlsPage() {
                     <TableHead>Subprocesso</TableHead>
                     <TableHead className="w-[100px]">Código</TableHead>
                     <TableHead>Nome</TableHead>
+                    <TableHead>Responsável</TableHead>
+                    <TableHead>N3 Responsável</TableHead>
                     <TableHead>Frequência</TableHead>
                     <TableHead>Modalidade</TableHead>
                     <TableHead>P/D</TableHead>
@@ -122,6 +124,8 @@ export default function MyControlsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>{control.controlName}</TableCell>
+                      <TableCell>{control.responsavel || "N/A"}</TableCell>
+                      <TableCell>{control.n3Responsavel || "N/A"}</TableCell>
                       <TableCell>{control.controlFrequency}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -262,4 +266,3 @@ export default function MyControlsPage() {
     </div>
   );
 }
-

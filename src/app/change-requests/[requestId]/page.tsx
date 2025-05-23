@@ -72,7 +72,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
          setChangedFields(newControlFields);
       }
     }
-  }, [params.requestId]); // mockChangeRequests and mockSoxControls removed from dependencies to avoid stale closures if they change
+  }, [params.requestId]);
 
 
   const translateFieldName = (fieldName: string): string => {
@@ -80,9 +80,9 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
       controlOwner: "Dono do Controle", controlFrequency: "Frequência do Controle", controlType: "Tipo de Controle",
       status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-      testProcedures: "Procedimentos de Teste", 
-      // evidenceRequirements: "Requisitos de Evidência", // Removido
-      processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade", justificativa: "Justificativa"
+      testProcedures: "Procedimentos de Teste",
+      processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade", justificativa: "Justificativa",
+      responsavel: "Responsável", n3Responsavel: "N3 Responsável"
     };
     return translations[fieldName] || fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
   };
@@ -102,7 +102,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
       ...request,
       reviewedBy: currentUser.name,
       reviewDate: new Date().toISOString(),
-      adminFeedback: action === "approve" ? request.adminFeedback : adminComment || request.adminFeedback, 
+      adminFeedback: action === "approve" ? request.adminFeedback : adminComment || request.adminFeedback,
     };
 
     let toastMessage = "";
@@ -121,15 +121,16 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
           controlOwner: request.changes.controlOwner || "Não definido",
           controlFrequency: request.changes.controlFrequency || "Ad-hoc",
           controlType: request.changes.controlType || "Preventivo",
-          status: "Ativo", // Novo controle já nasce ativo
+          status: "Ativo",
           lastUpdated: new Date().toISOString(),
           relatedRisks: request.changes.relatedRisks || [],
           testProcedures: request.changes.testProcedures || "Não definido",
-          // evidenceRequirements: request.changes.evidenceRequirements || "Não definido", // Removido
           processo: request.changes.processo,
           subProcesso: request.changes.subProcesso,
           modalidade: request.changes.modalidade,
           justificativa: request.changes.justificativa,
+          responsavel: request.changes.responsavel,
+          n3Responsavel: request.changes.n3Responsavel,
         };
         mockSoxControls.push(newSoxControl);
         mockVersionHistory.unshift({
@@ -142,7 +143,6 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
           relatedChangeRequestId: request.id,
         });
       } else {
-        // Atualizar controle existente
         const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
         if (controlIndex !== -1) {
           const originalControl = mockSoxControls[controlIndex];
@@ -154,13 +154,13 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
             changeDate: new Date().toISOString(),
             changedBy: currentUser.name,
             summaryOfChanges: `Alterações da solicitação ${request.id} aplicadas ao controle ${originalControl.controlId}.`,
-            previousValues: { ...originalControl }, 
+            previousValues: { ...originalControl },
             newValues: { ...request.changes },
             relatedChangeRequestId: request.id,
           });
         } else {
           toastMessage = `Controle ${request.controlId} não encontrado para atualização.`;
-           updatedRequest.status = "Pendente"; 
+           updatedRequest.status = "Pendente";
         }
       }
     } else if (action === "reject") {
@@ -184,7 +184,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     }
 
     mockChangeRequests[requestIndex] = updatedRequest;
-    setRequest(updatedRequest); 
+    setRequest(updatedRequest);
 
     toast({
       title: "Sucesso!",
@@ -192,7 +192,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     });
     setAdminComment("");
     setIsProcessing(false);
-    router.refresh(); // Força a atualização dos dados na UI se estiver usando server components ou para listas dinâmicas
+    router.refresh();
   };
 
   if (!request) {
@@ -263,12 +263,12 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
             <p className="text-sm italic">{request.comments || "Nenhum comentário fornecido."}</p>
           </div>
           <Separator />
-          
+
           <div>
             <h3 className="font-semibold text-muted-foreground mb-2">
               {isNewControlRequest ? "Detalhes do Novo Controle Proposto" : "Alterações Propostas"}
             </h3>
-            {changedFields.length > 0 ? ( 
+            {changedFields.length > 0 ? (
               <div className="space-y-3">
                 {changedFields.map(change => (
                   <div key={change.field} className={`p-3 border rounded-md ${isNewControlRequest ? 'bg-blue-50' : 'bg-muted/30'}`}>
@@ -317,13 +317,13 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
           )}
 
         </CardContent>
-        {request.status === "Pendente" && isUserAdmin() && ( 
+        {request.status === "Pendente" && isUserAdmin() && (
             <CardFooter className="flex flex-col space-y-4 items-stretch pt-4 border-t">
                 <div>
                     <Label htmlFor="adminComment" className="text-sm font-medium text-muted-foreground">Comentário do Administrador (para Rejeição ou Solicitação de Ajustes)</Label>
-                    <Textarea 
-                        id="adminComment" 
-                        value={adminComment} 
+                    <Textarea
+                        id="adminComment"
+                        value={adminComment}
                         onChange={(e) => setAdminComment(e.target.value)}
                         placeholder="Forneça um feedback claro para o solicitante..."
                         rows={3}
@@ -331,24 +331,24 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
                     />
                 </div>
                 <div className="flex justify-end space-x-2">
-                    <Button 
-                        variant="outline" 
-                        onClick={() => handleAdminAction("request_changes")} 
+                    <Button
+                        variant="outline"
+                        onClick={() => handleAdminAction("request_changes")}
                         disabled={isProcessing || !adminComment.trim()}
                         className="border-orange-500 text-orange-500 hover:bg-orange-50 hover:text-orange-600"
                     >
                         <MessageSquareReply className="mr-2 h-4 w-4" /> Solicitar Ajustes
                     </Button>
-                    <Button 
-                        variant="outline" 
-                        onClick={() => handleAdminAction("reject")} 
+                    <Button
+                        variant="outline"
+                        onClick={() => handleAdminAction("reject")}
                         disabled={isProcessing || !adminComment.trim()}
                         className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
                     >
                         <XCircle className="mr-2 h-4 w-4" /> Rejeitar
                     </Button>
-                    <Button 
-                        onClick={() => handleAdminAction("approve")} 
+                    <Button
+                        onClick={() => handleAdminAction("approve")}
                         disabled={isProcessing}
                         className="bg-green-600 hover:bg-green-700 text-white"
                     >

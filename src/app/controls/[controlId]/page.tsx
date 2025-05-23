@@ -1,22 +1,22 @@
 
 // src/app/controls/[controlId]/page.tsx
-"use client"; 
+"use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { SoxControl, UnifiedHistoryItem, UnifiedHistoryEventType } from "@/types"; // EvidenceFile removido
-import { ArrowLeft, Edit2, History, PlusCircle, ShieldAlert, ListOrdered } from "lucide-react"; // Paperclip removido
+import type { SoxControl, UnifiedHistoryItem, UnifiedHistoryEventType, ChangeRequest } from "@/types";
+import { ArrowLeft, Edit2, History, PlusCircle, ShieldAlert, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useSearchParams } from 'next/navigation';
-import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockChangeRequests } from "@/data/mock-data"; // mockEvidenceFiles removido
+import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockChangeRequests } from "@/data/mock-data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo } from "react";
 
 interface ControlDetailPageProps {
   params: {
-    controlId: string; 
+    controlId: string;
   };
 }
 
@@ -26,9 +26,9 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   const isEditMode = searchParams.get('edit') === 'true';
 
   const control = mockSoxControls.find(c => c.id === params.controlId);
-  
-  const mockPendingChangeForThisControl = control 
-    ? mockChangeRequests.find(req => req.controlId === control.controlId && req.status === "Pendente")
+
+  const mockPendingChangeForThisControl = control
+    ? mockChangeRequests.find(req => req.controlId === control.controlId && (req.status === "Pendente" || req.status === "Em Análise"))
     : undefined;
 
   const unifiedHistory = useMemo(() => {
@@ -36,7 +36,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
     const historyItems: UnifiedHistoryItem[] = [];
 
-    // 1. Version History (Criação/Alterações diretas - já refletem aprovações de CR)
     allMockVersionHistory
       .filter(vh => vh.controlId === control.id)
       .forEach(vh => {
@@ -61,7 +60,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         });
       });
 
-    // 2. Change Requests (Submissão, Rejeição, Feedback Solicitado - que não geram VersionHistoryEntry)
     mockChangeRequests
       .filter(cr => cr.controlId === control.controlId || (cr.changes.controlId === control.controlId && cr.controlId.startsWith("NEW-CTRL")))
       .forEach(cr => {
@@ -105,50 +103,39 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             }
         }
       });
-    
-    // 3. Evidence Files - Removido
-    // allMockEvidenceFiles
-    //   .filter(ev => ev.controlId === control.id)
-    //   .forEach(ev => {
-    //     historyItems.push({
-    //       id: ev.id,
-    //       date: ev.uploadDate,
-    //       type: "EVIDENCE_UPLOADED",
-    //       description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
-    //       actor: ev.uploadedBy,
-    //     });
-    //   });
 
     return historyItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [control, allMockVersionHistory, mockChangeRequests]);
-
 
   const renderPendingChangesList = () => {
     if (!mockPendingChangeForThisControl || !mockPendingChangeForThisControl.changes || Object.keys(mockPendingChangeForThisControl.changes).length === 0) {
       return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
     }
     const items: JSX.Element[] = [];
-    
-    Object.keys(mockPendingChangeForThisControl.changes).forEach(key => {
-        const value = (mockPendingChangeForThisControl.changes as any)[key];
+    const changes = mockPendingChangeForThisControl.changes;
+
+    for (const key in changes) {
+      if (Object.prototype.hasOwnProperty.call(changes, key)) {
+        const value = (changes as any)[key];
         const fieldTranslations: Record<string, string> = {
             controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
             controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
             status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-            testProcedures: "Procedimentos de Teste", 
-            // evidenceRequirements: "Requisitos de Evidência", // Removido
+            testProcedures: "Procedimentos de Teste",
             processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
-            justificativa: "Justificativa"
+            justificativa: "Justificativa", responsavel: "Responsável", n3Responsavel: "N3 Responsável"
         };
         const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
         items.push(
           <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
         );
-    });
+      }
+    }
 
     if (items.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
     return <ul className="list-disc list-inside ml-4 mt-1 space-y-1">{items}</ul>;
   };
+
 
   if (!control) {
     return (
@@ -173,7 +160,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   }
 
   const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
-  const effectiveEditMode = isEditMode && canEditControl; 
+  const effectiveEditMode = isEditMode && canEditControl;
 
   const getEventTypeLabel = (type: UnifiedHistoryEventType) => {
     switch (type) {
@@ -183,7 +170,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       case "CHANGE_REQUEST_APPROVED": return "Solicitação Aprovada";
       case "CHANGE_REQUEST_REJECTED": return "Solicitação Rejeitada";
       case "CHANGE_REQUEST_FEEDBACK_REQUESTED": return "Feedback Solicitado";
-      // case "EVIDENCE_UPLOADED": return "Evidência Enviada"; // Removido
       default: return "Evento";
     }
   };
@@ -200,7 +186,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         {canEditControl && (!mockPendingChangeForThisControl || mockPendingChangeForThisControl.controlId !== control.controlId) && (
           <Button asChild={!effectiveEditMode} onClick={effectiveEditMode ? undefined : () => { /* Lógica para solicitar alteração se não estiver em edit mode */}}>
             {effectiveEditMode ? (
-                 <Link href={`/controls/${control.id}`}> 
+                 <Link href={`/controls/${control.id}`}>
                     <Edit2 className="mr-2 h-4 w-4" /> Salvar Alterações (Simulado)
                  </Link>
             ) : (
@@ -220,7 +206,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                     Solicitação de Alteração Pendente para Este Controle
                 </CardTitle>
                 <CardDescription className="text-yellow-700">
-                    Existe uma solicitação de alteração para este controle que aguarda aprovação. 
+                    Existe uma solicitação de alteração para este controle que aguarda aprovação.
                     {isUserAdmin() ? " Você pode revisá-la abaixo ou ir para a página de aprovações." : " Aguardando revisão do administrador."}
                 </CardDescription>
             </CardHeader>
@@ -299,6 +285,17 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                 <p className="text-sm">{control.modalidade || "N/A"}</p>
             </div>
            </div>
+           <Separator />
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <h3 className="font-semibold text-muted-foreground">Responsável</h3>
+                <p className="text-sm">{control.responsavel || "N/A"}</p>
+            </div>
+            <div>
+                <h3 className="font-semibold text-muted-foreground">N3 Responsável</h3>
+                <p className="text-sm">{control.n3Responsavel || "N/A"}</p>
+            </div>
+           </div>
           <Separator />
            <div>
             <h3 className="font-semibold text-muted-foreground">Riscos Relacionados</h3>
@@ -313,19 +310,13 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <h3 className="font-semibold text-muted-foreground">Procedimentos de Teste</h3>
             <p className="text-sm whitespace-pre-wrap">{control.testProcedures}</p>
           </div>
-          {/* Seção Requisitos de Evidência Removida */}
-          {/* <Separator />
-          <div>
-            <h3 className="font-semibold text-muted-foreground">Requisitos de Evidência</h3>
-            <p className="text-sm whitespace-pre-wrap">{control.evidenceRequirements}</p>
-          </div> */}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
-             <History className="w-5 h-5" /> 
+             <History className="w-5 h-5" />
              <CardTitle>Histórico do Controle</CardTitle>
           </div>
         </CardHeader>
@@ -366,38 +357,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* Card de Evidência Removido */}
-      {/* <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Paperclip className="w-5 h-5" />
-            <CardTitle>Evidência</CardTitle>
-          </div>
-          {canEditControl && ( 
-            <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência (Simulado)</Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {allMockEvidenceFiles.filter(ev => ev.controlId === control.id).length > 0 ? (
-            <ul className="space-y-2">
-              {allMockEvidenceFiles.filter(ev => ev.controlId === control.id).map(file => (
-                <li key={file.id} className="text-sm flex justify-between items-center p-2 border rounded-md hover:bg-muted/50">
-                  <div>
-                    <Link href={file.storageUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{file.fileName}</Link>
-                    <p className="text-xs text-muted-foreground">
-                      {(file.fileSize / (1024*1024)).toFixed(2)} MB - Carregado por {file.uploadedBy} em {new Date(file.uploadDate).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" disabled>Baixar (Simulado)</Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma evidência carregada para este controle.</p>
-          )}
-        </CardContent>
-      </Card> */}
     </div>
   );
 }

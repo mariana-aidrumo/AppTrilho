@@ -1,6 +1,6 @@
 
 // src/app/new-control/page.tsx
-"use client"; 
+"use client";
 
 import { useState } from 'react';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
@@ -16,17 +16,15 @@ import { Loader2, Lightbulb, ArrowLeft } from "lucide-react";
 import { suggestRelatedControls, type SuggestRelatedControlsInput, type SuggestRelatedControlsOutput } from '@/ai/flows/suggest-related-controls';
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { mockChangeRequests, mockSoxControls, mockVersionHistory, mockProcessos, mockSubProcessos, mockDonos } from '@/data/mock-data'; 
+import { mockChangeRequests, mockSoxControls, mockVersionHistory, mockProcessos, mockSubProcessos, mockDonos, mockResponsaveis, mockN3Responsaveis } from '@/data/mock-data';
 import type { ChangeRequest, SoxControl, VersionHistoryEntry, ControlFrequency, ControlType, ControlModalidade } from '@/types';
 import Link from 'next/link';
 
-// Esquema para Dono do Controle (proposta básica SIMPLIFICADA)
 const ownerNewControlSchema = z.object({
   controlName: z.string().min(3, "Nome do controle é obrigatório (mínimo 3 caracteres)."),
   justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória (mínimo 10 caracteres)."),
 });
 
-// Esquema para Administrador (criação direta)
 const adminNewControlSchema = z.object({
   controlId: z.string().min(3, "ID do Controle é obrigatório."),
   controlName: z.string().min(3, "Nome do controle é obrigatório."),
@@ -43,20 +41,22 @@ const adminNewControlSchema = z.object({
   modalidade: z.enum(["Manual", "Automático", "Híbrido"], {
     errorMap: () => ({ message: "Selecione uma modalidade válida." }),
   }).optional(),
-  relatedRisks: z.string().optional(), 
+  responsavel: z.string().optional(),
+  n3Responsavel: z.string().optional(),
+  relatedRisks: z.string().optional(),
   testProcedures: z.string().optional(),
-  // evidenceRequirements: z.string().optional(), // Removido
 });
 
 type OwnerFormValues = z.infer<typeof ownerNewControlSchema>;
 type AdminFormValues = z.infer<typeof adminNewControlSchema>;
 type FormValues = OwnerFormValues | AdminFormValues;
 
-
 const controlFrequencies: ControlFrequency[] = ["Diário", "Semanal", "Mensal", "Trimestral", "Anual", "Ad-hoc"];
 const controlTypes: ControlType[] = ["Preventivo", "Detectivo", "Corretivo"];
 const controlModalidades: ControlModalidade[] = ["Manual", "Automático", "Híbrido"];
 const filteredDonos = mockDonos.filter(dono => dono !== "Todos");
+const filteredResponsaveis = mockResponsaveis.filter(r => r !== "Todos");
+const filteredN3Responsaveis = mockN3Responsaveis.filter(n3 => n3 !== "Todos");
 
 
 export default function NewControlPage() {
@@ -71,11 +71,11 @@ export default function NewControlPage() {
 
   const { register, handleSubmit, control, formState: { errors, isSubmitting }, reset, setValue } = useForm<FormValues>({
     resolver: zodResolver(currentSchema),
-    defaultValues: isUserAdmin() ? 
-      { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined } : 
+    defaultValues: isUserAdmin() ?
+      { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined, responsavel: undefined, n3Responsavel: undefined } :
       {}
   });
-  
+
 
   const handleSuggestControls = async () => {
     if (!descriptionForAI.trim()) {
@@ -113,10 +113,11 @@ export default function NewControlPage() {
         lastUpdated: new Date().toISOString(),
         relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
         testProcedures: adminData.testProcedures || "",
-        // evidenceRequirements: adminData.evidenceRequirements || "", // Removido
         processo: adminData.processo,
         subProcesso: adminData.subProcesso,
         modalidade: adminData.modalidade,
+        responsavel: adminData.responsavel,
+        n3Responsavel: adminData.n3Responsavel,
       };
       mockSoxControls.push(newSoxControl);
       mockVersionHistory.unshift({
@@ -133,40 +134,40 @@ export default function NewControlPage() {
         variant: "default",
       });
 
-    } else { 
+    } else {
       const ownerData = data as OwnerFormValues;
       const newRequestId = `cr-new-${Date.now()}`;
-      const tempProposedId = `TEMP-${Date.now()}`; 
-      
+      const tempProposedId = `TEMP-${Date.now()}`;
+
       const newChangeRequest: ChangeRequest = {
         id: newRequestId,
-        controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`, 
+        controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`,
         requestedBy: currentUser.name,
         requestDate: new Date().toISOString(),
-        changes: { 
+        changes: {
           controlName: ownerData.controlName,
-          description: ownerData.justificativa, 
           justificativa: ownerData.justificativa,
-          controlOwner: currentUser.name, 
-          status: "Rascunho", 
+          description: ownerData.justificativa, // Usando justificativa como descrição inicial
+          controlOwner: currentUser.name, // Dono pode sugerir a si mesmo
+          status: "Rascunho", // Novo controle proposto começa como rascunho
         },
         status: "Pendente",
         comments: `Proposta de novo controle: ${ownerData.controlName}.`,
       };
-      mockChangeRequests.unshift(newChangeRequest); 
+      mockChangeRequests.unshift(newChangeRequest);
       toast({
         title: "Proposta Enviada!",
         description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
         variant: "default",
       });
-      setDescriptionForAI(""); 
-      setSuggestedControls([]); 
+      setDescriptionForAI("");
+      setSuggestedControls([]);
     }
-    reset(); 
+    reset();
   };
 
   const pageTitle = isUserAdmin() ? "Criar Novo Controle" : "Solicitar Novo Controle";
-  const pageDescription = isUserAdmin() 
+  const pageDescription = isUserAdmin()
     ? "Preencha todos os detalhes para criar um novo controle diretamente na matriz."
     : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise do Administrador.";
 
@@ -305,6 +306,40 @@ export default function NewControlPage() {
                         {errors.subProcesso && <p className="text-sm text-destructive mt-1">{(errors.subProcesso as any).message}</p>}
                     </div>
                 </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="responsavel">Responsável</Label>
+                         <Controller
+                            name="responsavel"
+                            control={control}
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
+                                    <SelectContent>
+                                        {filteredResponsaveis.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
+                        {errors.responsavel && <p className="text-sm text-destructive mt-1">{(errors.responsavel as any).message}</p>}
+                    </div>
+                    <div>
+                        <Label htmlFor="n3Responsavel">N3 Responsável</Label>
+                        <Controller
+                            name="n3Responsavel"
+                            control={control}
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger><SelectValue placeholder="Selecione o N3 responsável" /></SelectTrigger>
+                                    <SelectContent>
+                                        {filteredN3Responsaveis.map(n3 => <SelectItem key={n3} value={n3}>{n3}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
+                        {errors.n3Responsavel && <p className="text-sm text-destructive mt-1">{(errors.n3Responsavel as any).message}</p>}
+                    </div>
+                </div>
                 <div>
                   <Label htmlFor="relatedRisks">Riscos Relacionados (separados por vírgula)</Label>
                   <Input id="relatedRisks" {...register("relatedRisks")} placeholder="Risco A, Risco B" />
@@ -313,11 +348,6 @@ export default function NewControlPage() {
                   <Label htmlFor="testProcedures">Procedimentos de Teste</Label>
                   <Textarea id="testProcedures" {...register("testProcedures")} placeholder="Descreva os procedimentos de teste." rows={3} />
                 </div>
-                {/* Campo Requisitos de Evidência Removido */}
-                {/* <div>
-                  <Label htmlFor="evidenceRequirements">Requisitos de Evidência</Label>
-                  <Textarea id="evidenceRequirements" {...register("evidenceRequirements")} placeholder="Descreva os requisitos de evidência." rows={3} />
-                </div> */}
               </>
             ) : (
               <> {/* Campos SIMPLIFICADOS para Dono do Controle */}
@@ -328,15 +358,15 @@ export default function NewControlPage() {
                 </div>
                 <div>
                   <Label htmlFor="justificativa">Descrição / Justificativa do Controle</Label>
-                  <Textarea 
-                    id="justificativa" 
+                  <Textarea
+                    id="justificativa"
                     {...register("justificativa")}
-                    placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário." 
+                    placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário."
                     rows={5}
                     onChange={(e) => {
                         const { onChange } = register("justificativa");
-                        onChange(e); 
-                        setDescriptionForAI(e.target.value);      
+                        onChange(e);
+                        setDescriptionForAI(e.target.value);
                     }}
                   />
                   {errors.justificativa && <p className="text-sm text-destructive mt-1">{(errors.justificativa as any).message}</p>}
