@@ -22,7 +22,7 @@ export default function PendingApprovalsPage() {
   const forceRerender = () => setDataVersion(prev => prev + 1);
 
 
-  const handleQuickAdminAction = (requestId: string, action: "approve" | "reject") => {
+  const handleQuickAdminAction = (requestId: string, action: "approve") => { // Removed "reject"
     const requestIndex = mockChangeRequests.findIndex(r => r.id === requestId);
     if (requestIndex === -1) {
       toast({ title: "Erro", description: "Solicitação não encontrada.", variant: "destructive" });
@@ -48,7 +48,7 @@ export default function PendingApprovalsPage() {
           controlOwner: request.changes.controlOwner || request.requestedBy,
           controlFrequency: request.changes.controlFrequency || "Ad-hoc",
           controlType: request.changes.controlType || "Preventivo",
-          status: "Ativo", // Novo controle aprovado fica ativo
+          status: "Ativo", 
           lastUpdated: new Date().toISOString(),
           relatedRisks: request.changes.relatedRisks || [], 
           testProcedures: request.changes.testProcedures || "", 
@@ -62,14 +62,14 @@ export default function PendingApprovalsPage() {
           id: `vh-quick-new-${newSoxControl.id}-${Date.now()}`, controlId: newSoxControl.id,
           changeDate: new Date().toISOString(), changedBy: currentUser.name,
           summaryOfChanges: `Controle ${newSoxControl.controlId} criado via aprovação rápida da solicitação ${request.id}.`,
-          newValues: { ...newSoxControl }, // Guarda todos os valores do novo controle
+          newValues: { ...newSoxControl }, 
           relatedChangeRequestId: request.id
         });
       } else {
         const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
         if (controlIndex !== -1) {
           const originalControl = { ...mockSoxControls[controlIndex] };
-          mockSoxControls[controlIndex] = { ...originalControl, ...request.changes, lastUpdated: new Date().toISOString(), status: "Ativo" }; // Garante que o controle alterado está Ativo
+          mockSoxControls[controlIndex] = { ...originalControl, ...request.changes, lastUpdated: new Date().toISOString(), status: "Ativo" }; 
            mockVersionHistory.unshift({
             id: `vh-quick-update-${mockSoxControls[controlIndex].id}-${Date.now()}`, controlId: mockSoxControls[controlIndex].id,
             changeDate: new Date().toISOString(), changedBy: currentUser.name,
@@ -80,14 +80,8 @@ export default function PendingApprovalsPage() {
           });
         }
       }
-
-    } else { // reject
-      mockChangeRequests[requestIndex].status = "Rejeitado";
-      mockChangeRequests[requestIndex].reviewedBy = currentUser.name;
-      mockChangeRequests[requestIndex].reviewDate = new Date().toISOString();
-      mockChangeRequests[requestIndex].adminFeedback = "Rejeitado via ação rápida da tabela. Ver detalhes da solicitação para mais informações se necessário.";
-      toastMessage = `Solicitação ${requestId} rejeitada rapidamente.`;
     }
+    // Removed "reject" logic from quick actions
     
     toast({ title: "Sucesso!", description: toastMessage });
     forceRerender(); 
@@ -224,9 +218,11 @@ export default function PendingApprovalsPage() {
                         <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" title="Aprovar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "approve")}>
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>
+                        {/* Botão de Rejeitar Rapidamente Removido 
                         <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" title="Rejeitar Rapidamente" onClick={() => handleQuickAdminAction(request.id, "reject")}>
                           <XCircle className="h-4 w-4" />
                         </Button>
+                        */}
                       </>
                     )}
                     {context === "owner-feedback" && (
