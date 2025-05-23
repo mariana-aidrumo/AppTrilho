@@ -127,15 +127,15 @@ export default function SoxMatrixPage() {
                 </Card>
                 <Card className="shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-medium">Solicitar Novo Controle</CardTitle>
-                         <Link href="/new-control"><FilePlus2 className="h-5 w-5 text-primary" /></Link>
+                        <CardTitle className="text-base font-medium">Meus Controles</CardTitle>
+                         <Link href="/my-registered-controls"><Layers className="h-5 w-5 text-primary" /></Link>
                     </CardHeader>
                     <CardContent>
                         <p className="text-xs text-muted-foreground">
-                            Proponha um novo controle interno para análise.
+                            Acesse e gerencie seus controles e solicitações.
                         </p>
                          <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                            <Link href="/new-control">Solicitar Controle</Link>
+                            <Link href="/my-registered-controls">Acessar Meus Controles</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -276,10 +276,10 @@ export default function SoxMatrixPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div className="md:col-span-1">
-                  <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar Controle</label>
+                  <label htmlFor="searchControlAdmin" className="text-sm font-medium text-muted-foreground">Pesquisar Controle</label>
                   <div className="relative">
                     <Input 
-                        id="searchControl" 
+                        id="searchControlAdmin" 
                         placeholder="Código, Nome, Descrição..." 
                         className="pr-10" 
                         value={searchTerm}
@@ -289,27 +289,27 @@ export default function SoxMatrixPage() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="processo" className="text-sm font-medium text-muted-foreground">Processo</label>
+                  <label htmlFor="processoAdmin" className="text-sm font-medium text-muted-foreground">Processo</label>
                   <Select value={selectedProcess} onValueChange={setSelectedProcess}>
-                    <SelectTrigger id="processo"><SelectValue placeholder="Selecionar Processo" /></SelectTrigger>
+                    <SelectTrigger id="processoAdmin"><SelectValue placeholder="Selecionar Processo" /></SelectTrigger>
                     <SelectContent>
                       {mockProcessos.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label htmlFor="subprocesso" className="text-sm font-medium text-muted-foreground">Subprocesso</label>
+                  <label htmlFor="subprocessoAdmin" className="text-sm font-medium text-muted-foreground">Subprocesso</label>
                   <Select value={selectedSubProcess} onValueChange={setSelectedSubProcess}>
-                    <SelectTrigger id="subprocesso"><SelectValue placeholder="Selecionar Subprocesso" /></SelectTrigger>
+                    <SelectTrigger id="subprocessoAdmin"><SelectValue placeholder="Selecionar Subprocesso" /></SelectTrigger>
                     <SelectContent>
                       {mockSubProcessos.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label htmlFor="dono" className="text-sm font-medium text-muted-foreground">Dono do Controle</label>
+                  <label htmlFor="donoAdmin" className="text-sm font-medium text-muted-foreground">Dono do Controle</label>
                   <Select value={selectedOwner} onValueChange={setSelectedOwner}>
-                    <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono" /></SelectTrigger>
+                    <SelectTrigger id="donoAdmin"><SelectValue placeholder="Selecionar Dono" /></SelectTrigger>
                     <SelectContent>
                       {mockDonos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                     </SelectContent>
@@ -401,3 +401,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+
