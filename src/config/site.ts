@@ -36,16 +36,10 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
-      title: "Criar Novo Controle", // Renomeado e agora é um item de menu
+      title: "Criar Novo Controle",
       href: "/new-control",
       icon: FilePlus2,
       allowedProfiles: ["Administrador de Controles Internos"],
-    },
-    {
-        title: "Histórico da Matriz",
-        href: "/matrix-history",
-        icon: History,
-        allowedProfiles: ["Administrador de Controles Internos"],
     },
 
     // Itens para Dono do Controle
@@ -62,7 +56,7 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Dono do Controle"],
     },
      {
-      title: "Solicitar Novo Controle", // Mantém o nome para o Dono
+      title: "Solicitar Novo Controle",
       href: "/new-control",
       icon: FilePlus2,
       allowedProfiles: ["Dono do Controle"],
@@ -75,3 +69,4 @@ export const siteConfig: SiteConfig = {
     },
   ],
 };
+

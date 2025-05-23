@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest } from "@/types";
-import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert, ListFilter, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert, ListFilter, ExternalLinkIcon, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useSearchParams } from 'next/navigation';
@@ -24,27 +24,22 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   const searchParams = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
 
-  // Busca o controle pelo ID da URL (mockSoxControls usa 'id' como string "1", "2", etc.)
   const control = mockSoxControls.find(c => c.id === params.controlId);
   
-  // Busca uma solicitação de mudança pendente para ESTE controle específico
   const mockPendingChangeForThisControl = control 
     ? mockChangeRequests.find(req => req.controlId === control.controlId && req.status === "Pendente")
     : undefined;
 
-  // Filtra o histórico de versões para ESTE controle
   const versionHistoryForThisControl = control 
-    ? allMockVersionHistory.filter(vh => vh.controlId === control.id) // usa control.id (e.g. "1")
+    ? allMockVersionHistory.filter(vh => vh.controlId === control.id) 
     : [];
   
-  // Filtra evidências para ESTE controle
   const evidenceForThisControl = control
-    ? allMockEvidenceFiles.filter(ev => ev.controlId === control.id) // usa control.id
+    ? allMockEvidenceFiles.filter(ev => ev.controlId === control.id) 
     : [];
 
-  // Filtra todas as ChangeRequests para ESTE controle (para o novo Card de histórico de solicitações)
   const changeRequestsForThisControl = control
-    ? mockChangeRequests.filter(req => req.controlId === control.controlId || req.changes.controlId === control.controlId)
+    ? mockChangeRequests.filter(req => req.controlId === control.controlId || (req.changes.controlId === control.controlId && req.controlId.startsWith("NEW-CTRL")))
     : [];
 
 
@@ -60,23 +55,24 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
     }
     const items: JSX.Element[] = [];
-    // Usar Object.entries para iterar sobre o objeto changes
-    Object.entries(mockPendingChangeForThisControl.changes).forEach(([key, value]) => {
-        const typedKey = key as keyof SoxControl; // Cast para o tipo correto se necessário
-        // Tradução de chaves para nomes amigáveis
-        const fieldTranslations: Record<string, string> = {
-            controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
-            controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
-            status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-            testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
-            processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
-            justificativa: "Justificativa"
-        };
-        const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
-        items.push(
-          <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
-        );
-    });
+    
+    for (const key in mockPendingChangeForThisControl.changes) {
+        if (Object.prototype.hasOwnProperty.call(mockPendingChangeForThisControl.changes, key)) {
+            const value = (mockPendingChangeForThisControl.changes as any)[key];
+            const fieldTranslations: Record<string, string> = {
+                controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
+                controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
+                status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
+                testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
+                processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
+                justificativa: "Justificativa"
+            };
+            const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+            items.push(
+              <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
+            );
+        }
+    }
     if (items.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
     return <ul className="list-disc list-inside ml-4 mt-1 space-y-1">{items}</ul>;
   };
@@ -276,19 +272,34 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" /> Histórico de Versões do Controle</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+             <History className="w-5 h-5" /> 
+             <CardTitle>Histórico de Versões do Controle</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           {versionHistoryForThisControl.length > 0 ? (
-            <ul className="space-y-3">
-              {versionHistoryForThisControl.map(entry => (
-                <li key={entry.id} className="text-sm border-l-2 pl-3 border-primary/50">
-                  <p><strong>{new Date(entry.changeDate).toLocaleString('pt-BR')}</strong> por {entry.changedBy}</p>
-                  <p className="text-muted-foreground">{entry.summaryOfChanges}</p>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-3">
+                {versionHistoryForThisControl.slice(0, 3).map(entry => (
+                  <li key={entry.id} className="text-sm border-l-2 pl-3 border-primary/50">
+                    <p><strong>{new Date(entry.changeDate).toLocaleString('pt-BR')}</strong> por {entry.changedBy}</p>
+                    <p className="text-muted-foreground">{entry.summaryOfChanges}</p>
+                  </li>
+                ))}
+              </ul>
+              {versionHistoryForThisControl.length > 3 && (
+                <div className="mt-4 flex justify-end">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/controls/${control.id}/history`}>
+                      <ListOrdered className="mr-2 h-4 w-4" />
+                      Ver Histórico Completo do Controle
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">Nenhum histórico de versões disponível para este controle.</p>
           )}
@@ -297,7 +308,10 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2"><Paperclip className="w-5 h-5" /> Evidência</CardTitle>
+          <div className="flex items-center gap-2">
+            <Paperclip className="w-5 h-5" />
+            <CardTitle>Evidência</CardTitle>
+          </div>
           {canEditControl && ( 
             <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência</Button>
           )}
@@ -325,4 +339,3 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     </div>
   );
 }
-
