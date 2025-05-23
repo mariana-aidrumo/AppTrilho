@@ -66,3 +66,22 @@ export interface UserProfile {
   profile: UserProfileType;
   controlsOwned?: string[];
 }
+
+// Novo tipo para histórico unificado
+export type UnifiedHistoryEventType =
+  | "CONTROL_CREATED"
+  | "CONTROL_UPDATED"
+  | "CHANGE_REQUEST_SUBMITTED"
+  | "CHANGE_REQUEST_APPROVED"
+  | "CHANGE_REQUEST_REJECTED"
+  | "CHANGE_REQUEST_FEEDBACK_REQUESTED"
+  | "EVIDENCE_UPLOADED";
+
+export interface UnifiedHistoryItem {
+  id: string; // ID original do item de origem (vh.id, cr.id, ev.id)
+  date: string; // Data ISO para ordenação
+  type: UnifiedHistoryEventType;
+  description: string; // Descrição formatada do evento
+  actor: string; // Quem realizou a ação
+  sourceId?: string; // ID da ChangeRequest ou outro ID relevante
+}

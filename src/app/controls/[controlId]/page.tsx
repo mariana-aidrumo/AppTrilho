@@ -5,13 +5,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest } from "@/types";
+import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest, UnifiedHistoryItem, UnifiedHistoryEventType } from "@/types";
 import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert, ListFilter, ExternalLinkIcon, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useSearchParams } from 'next/navigation';
 import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockEvidenceFiles as allMockEvidenceFiles, mockChangeRequests } from "@/data/mock-data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useMemo } from "react";
 
 interface ControlDetailPageProps {
   params: {
@@ -30,25 +31,99 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     ? mockChangeRequests.find(req => req.controlId === control.controlId && req.status === "Pendente")
     : undefined;
 
-  const versionHistoryForThisControl = control 
-    ? allMockVersionHistory.filter(vh => vh.controlId === control.id) 
-    : [];
-  
-  const evidenceForThisControl = control
-    ? allMockEvidenceFiles.filter(ev => ev.controlId === control.id) 
-    : [];
+  const unifiedHistory = useMemo(() => {
+    if (!control) return [];
 
-  const changeRequestsForThisControl = control
-    ? mockChangeRequests.filter(req => req.controlId === control.controlId || (req.changes.controlId === control.controlId && req.controlId.startsWith("NEW-CTRL")))
-    : [];
+    const historyItems: UnifiedHistoryItem[] = [];
 
+    // 1. Version History (Criação/Alterações diretas - já refletem aprovações de CR)
+    allMockVersionHistory
+      .filter(vh => vh.controlId === control.id)
+      .forEach(vh => {
+        let eventType: UnifiedHistoryEventType = vh.summaryOfChanges.toLowerCase().includes("criado") ? "CONTROL_CREATED" : "CONTROL_UPDATED";
+        let description = vh.summaryOfChanges;
+        if (vh.relatedChangeRequestId) {
+          const relatedCR = mockChangeRequests.find(cr => cr.id === vh.relatedChangeRequestId);
+          if (relatedCR) {
+            if (relatedCR.status === "Aprovado") {
+                 description = `Solicitação de mudança ${vh.relatedChangeRequestId} aprovada, ${vh.summaryOfChanges.toLowerCase().replace(`controle ${control.controlId}`, '').trim()}`;
+                 eventType = "CHANGE_REQUEST_APPROVED";
+            }
+          }
+        }
+        historyItems.push({
+          id: vh.id,
+          date: vh.changeDate,
+          type: eventType,
+          description: description,
+          actor: vh.changedBy,
+          sourceId: vh.relatedChangeRequestId,
+        });
+      });
 
-  if (!control) {
-    return <p>Controle não encontrado.</p>;
-  }
+    // 2. Change Requests (Submissão, Rejeição, Feedback Solicitado - que não geram VersionHistoryEntry)
+    mockChangeRequests
+      .filter(cr => cr.controlId === control.controlId || (cr.changes.controlId === control.controlId && cr.controlId.startsWith("NEW-CTRL")))
+      .forEach(cr => {
+        // Adicionar apenas se não houver um VersionHistoryEntry correspondente para aprovação
+        const alreadyCoveredByVH = historyItems.some(hi => hi.type === "CHANGE_REQUEST_APPROVED" && hi.sourceId === cr.id);
 
-  const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
-  const effectiveEditMode = isEditMode && canEditControl; 
+        if (!alreadyCoveredByVH) {
+            let eventType: UnifiedHistoryEventType | null = null;
+            let description = "";
+            let eventDate = cr.requestDate;
+            let actor = cr.requestedBy;
+
+            switch (cr.status) {
+                case "Pendente":
+                case "Em Análise":
+                    eventType = "CHANGE_REQUEST_SUBMITTED";
+                    description = `Solicitação de mudança ${cr.id} enviada por ${cr.requestedBy}.`;
+                    break;
+                case "Rejeitado":
+                    eventType = "CHANGE_REQUEST_REJECTED";
+                    description = `Solicitação de mudança ${cr.id} rejeitada por ${cr.reviewedBy || 'Admin'}. Motivo: ${cr.adminFeedback || 'Não especificado'}`;
+                    eventDate = cr.reviewDate || cr.requestDate;
+                    actor = cr.reviewedBy || 'Admin';
+                    break;
+                case "Aguardando Feedback do Dono":
+                    eventType = "CHANGE_REQUEST_FEEDBACK_REQUESTED";
+                    description = `Feedback solicitado pelo admin para ${cr.id}: "${cr.adminFeedback || 'Revisar proposta.'}"`;
+                    eventDate = cr.reviewDate || cr.requestDate;
+                    actor = cr.reviewedBy || 'Admin';
+                    break;
+                // Aprovado já é coberto por VersionHistory, mas pode haver casos. Aqui é mais para o evento de submissão em si.
+            }
+
+            if (eventType) {
+                historyItems.push({
+                    id: cr.id,
+                    date: eventDate,
+                    type: eventType,
+                    description: description,
+                    actor: actor,
+                    sourceId: cr.id,
+                });
+            }
+        }
+      });
+    
+    // 3. Evidence Files
+    allMockEvidenceFiles
+      .filter(ev => ev.controlId === control.id)
+      .forEach(ev => {
+        historyItems.push({
+          id: ev.id,
+          date: ev.uploadDate,
+          type: "EVIDENCE_UPLOADED",
+          description: `Evidência "${ev.fileName}" enviada por ${ev.uploadedBy}.`,
+          actor: ev.uploadedBy,
+        });
+      });
+
+    return historyItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [control, allMockVersionHistory, mockChangeRequests, allMockEvidenceFiles]);
+
 
   const renderPendingChangesList = () => {
     if (!mockPendingChangeForThisControl || !mockPendingChangeForThisControl.changes || Object.keys(mockPendingChangeForThisControl.changes).length === 0) {
@@ -56,25 +131,63 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     }
     const items: JSX.Element[] = [];
     
-    for (const key in mockPendingChangeForThisControl.changes) {
-        if (Object.prototype.hasOwnProperty.call(mockPendingChangeForThisControl.changes, key)) {
-            const value = (mockPendingChangeForThisControl.changes as any)[key];
-            const fieldTranslations: Record<string, string> = {
-                controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
-                controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
-                status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
-                testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
-                processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
-                justificativa: "Justificativa"
-            };
-            const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
-            items.push(
-              <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
-            );
-        }
-    }
+    // Usar Object.keys e depois acessar o valor para evitar o erro do Turbopack
+    Object.keys(mockPendingChangeForThisControl.changes).forEach(key => {
+        const value = (mockPendingChangeForThisControl.changes as any)[key];
+        const fieldTranslations: Record<string, string> = {
+            controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
+            controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
+            status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
+            testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
+            processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade",
+            justificativa: "Justificativa"
+        };
+        const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+        items.push(
+          <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
+        );
+    });
+
     if (items.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma mudança específica proposta.</p>;
     return <ul className="list-disc list-inside ml-4 mt-1 space-y-1">{items}</ul>;
+  };
+
+  if (!control) {
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center">
+            <Button variant="outline" asChild>
+                <Link href="/sox-matrix">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel
+                </Link>
+            </Button>
+            </div>
+            <Card>
+            <CardHeader>
+                <CardTitle>Erro</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Controle não encontrado.</p>
+            </CardContent>
+            </Card>
+      </div>
+    );
+  }
+
+  const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
+  const effectiveEditMode = isEditMode && canEditControl; 
+
+  const getEventTypeLabel = (type: UnifiedHistoryEventType) => {
+    switch (type) {
+      case "CONTROL_CREATED": return "Criação";
+      case "CONTROL_UPDATED": return "Atualização";
+      case "CHANGE_REQUEST_SUBMITTED": return "Solicitação Enviada";
+      case "CHANGE_REQUEST_APPROVED": return "Solicitação Aprovada";
+      case "CHANGE_REQUEST_REJECTED": return "Solicitação Rejeitada";
+      case "CHANGE_REQUEST_FEEDBACK_REQUESTED": return "Feedback Solicitado";
+      case "EVIDENCE_UPLOADED": return "Evidência Enviada";
+      default: return "Evento";
+    }
   };
 
 
@@ -82,14 +195,14 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
-          <Link href="/sox-matrix">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() ? (currentUser.controlsOwned?.includes(control.id) ? "Meus Controles Registrados" : "Painel (Visão Geral)") : "Painel da Matriz SOX"}
+          <Link href={isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "/my-registered-controls" : "/sox-matrix"}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "Meus Controles Registrados" : "Painel da Matriz SOX"}
           </Link>
         </Button>
         {canEditControl && (!mockPendingChangeForThisControl || mockPendingChangeForThisControl.controlId !== control.controlId) && (
           <Button asChild={!effectiveEditMode} onClick={effectiveEditMode ? undefined : () => { /* Lógica para solicitar alteração se não estiver em edit mode */}}>
             {effectiveEditMode ? (
-                 <Link href={`/controls/${control.id}`}> {/* Link para sair do modo edição */}
+                 <Link href={`/controls/${control.id}`}> 
                     <Edit2 className="mr-2 h-4 w-4" /> Salvar Alterações (Simulado)
                  </Link>
             ) : (
@@ -211,85 +324,34 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ListFilter className="w-5 h-5" /> Solicitações de Mudança para Este Controle</CardTitle>
-          <CardDescription>Histórico de todas as solicitações de mudança (novas, alterações, aprovadas, rejeitadas) para o controle {control.controlId}.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {changeRequestsForThisControl.length > 0 ? (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID Solicitação</TableHead>
-                    <TableHead>Data Solicitação</TableHead>
-                    <TableHead>Solicitado Por</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Data Revisão</TableHead>
-                    <TableHead>Revisado Por</TableHead>
-                    <TableHead className="text-right">Detalhes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {changeRequestsForThisControl.map(req => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-medium">
-                        <Link href={`/change-requests/${req.id}`} className="text-primary hover:underline">
-                          {req.id}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{new Date(req.requestDate).toLocaleDateString('pt-BR')}</TableCell>
-                      <TableCell>{req.requestedBy}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          req.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
-                          req.status === "Aprovado" ? "bg-green-100 text-green-700" :
-                          req.status === "Rejeitado" ? "bg-red-100 text-red-700" :
-                          req.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
-                          req.status === "Aguardando Feedback do Dono" ? "bg-orange-100 text-orange-700" :
-                          "bg-gray-100 text-gray-700"
-                        }`}>
-                          {req.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{req.reviewDate ? new Date(req.reviewDate).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
-                      <TableCell>{req.reviewedBy || 'N/A'}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" asChild title="Ver Detalhes da Solicitação">
-                          <Link href={`/change-requests/${req.id}`}><ExternalLinkIcon className="h-4 w-4" /></Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma solicitação de mudança encontrada para este controle.</p>
-          )}
-        </CardContent>
-      </Card>
-
-
-      <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
              <History className="w-5 h-5" /> 
-             <CardTitle>Histórico de Versões do Controle</CardTitle>
+             <CardTitle>Histórico do Controle</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          {versionHistoryForThisControl.length > 0 ? (
+          {unifiedHistory.length > 0 ? (
             <>
               <ul className="space-y-3">
-                {versionHistoryForThisControl.slice(0, 3).map(entry => (
+                {unifiedHistory.slice(0, 3).map(entry => (
                   <li key={entry.id} className="text-sm border-l-2 pl-3 border-primary/50">
-                    <p><strong>{new Date(entry.changeDate).toLocaleString('pt-BR')}</strong> por {entry.changedBy}</p>
-                    <p className="text-muted-foreground">{entry.summaryOfChanges}</p>
+                    <p className="flex justify-between items-center">
+                      <span className="font-semibold">{getEventTypeLabel(entry.type)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por {entry.actor}
+                      </span>
+                    </p>
+                    <p className="text-muted-foreground">{entry.description}</p>
+                    {entry.sourceId && entry.type !== "CONTROL_CREATED" && entry.type !== "CONTROL_UPDATED" && entry.type !== "EVIDENCE_UPLOADED" && (
+                       <Link href={`/change-requests/${entry.sourceId}`} className="text-xs text-primary hover:underline">
+                         Ver Solicitação {entry.sourceId}
+                       </Link>
+                    )}
                   </li>
                 ))}
               </ul>
-              {versionHistoryForThisControl.length > 3 && (
+              {unifiedHistory.length > 3 && (
                 <div className="mt-4 flex justify-end">
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/controls/${control.id}/history`}>
@@ -301,7 +363,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
               )}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum histórico de versões disponível para este controle.</p>
+            <p className="text-sm text-muted-foreground">Nenhum histórico disponível para este controle.</p>
           )}
         </CardContent>
       </Card>
@@ -313,13 +375,13 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <CardTitle>Evidência</CardTitle>
           </div>
           {canEditControl && ( 
-            <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência</Button>
+            <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência (Simulado)</Button>
           )}
         </CardHeader>
         <CardContent>
-          {evidenceForThisControl.length > 0 ? (
+          {allMockEvidenceFiles.filter(ev => ev.controlId === control.id).length > 0 ? (
             <ul className="space-y-2">
-              {evidenceForThisControl.map(file => (
+              {allMockEvidenceFiles.filter(ev => ev.controlId === control.id).map(file => (
                 <li key={file.id} className="text-sm flex justify-between items-center p-2 border rounded-md hover:bg-muted/50">
                   <div>
                     <Link href={file.storageUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{file.fileName}</Link>
@@ -327,7 +389,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                       {(file.fileSize / (1024*1024)).toFixed(2)} MB - Carregado por {file.uploadedBy} em {new Date(file.uploadDate).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
-                  <Button variant="ghost" size="sm">Baixar</Button>
+                  <Button variant="ghost" size="sm" disabled>Baixar (Simulado)</Button>
                 </li>
               ))}
             </ul>
@@ -339,3 +401,4 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     </div>
   );
 }
+
