@@ -24,7 +24,7 @@ interface ChangeRequestDetailPageProps {
 }
 
 export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailPageProps) {
-  const { currentUser, isUserAdmin }_ = useUserProfile();
+  const { currentUser, isUserAdmin } = useUserProfile();
   const { toast } = useToast();
   const router = useRouter();
   const [request, setRequest] = useState<ChangeRequest | undefined>(undefined);
@@ -363,4 +363,3 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     </div>
   );
 }
-
