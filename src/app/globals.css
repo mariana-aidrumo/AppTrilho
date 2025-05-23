@@ -14,19 +14,26 @@ body {
     --card-foreground: 0 0% 20%; /* Dark Gray */
     --popover: 0 0% 100%; /* White */
     --popover-foreground: 0 0% 20%; /* Dark Gray */
-    --primary: 267 45% 56%; /* Purple #825AC7 */
-    --primary-foreground: 0 0% 100%; /* White */
+    
+    /* Roxo mais claro como primário */
+    --primary: 258 90% 76%; /* Lavanda/Lilás #A78BFA */
+    --primary-foreground: 0 0% 10%; /* Texto escuro para contraste com primário claro */
+    
     --secondary: 220 16% 90%; /* Lighter Gray-Blueish #E9EDF0 */
     --secondary-foreground: 0 0% 15%; /* Darker Gray for text on secondary */
     --muted: 220 16% 90%; /* Muted Gray-Blueish #E9EDF0 */
     --muted-foreground: 220 10% 45%; /* Grayish Blue #667085 */
-    --accent: 291 64% 68%; /* Light Lilac/Pink #D977E3 */
-    --accent-foreground: 291 50% 25%; /* Dark Purple for text on accent */
+    
+    /* Rosa claro como cor de destaque */
+    --accent: 336 80% 92%; /* Rosa Claro #FBCFE8 */
+    --accent-foreground: 336 60% 30%; /* Texto mais escuro para contraste com rosa claro */
+    
     --destructive: 0 72% 51%; /* Default Destructive Red (adjusted slightly) */
     --destructive-foreground: 0 0% 98%;
     --border: 220 15% 88%; /* Light Gray Border #DDE1E6 */
     --input: 220 15% 88%; /* Light Gray Input Border */
-    --ring: 267 45% 56%; /* Purple for Ring */
+    --ring: 258 90% 76%; /* Lavanda/Lilás para Ring (mesmo que primário) */
+    
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -34,15 +41,15 @@ body {
     --chart-5: 27 87% 67%;
     --radius: 0.75rem; /* Increased border radius */
 
-    /* Sidebar specific theme */
-    --sidebar-background: 267 45% 28%; /* Darker Purple */
-    --sidebar-foreground: 267 30% 92%; /* Off-white */
-    --sidebar-primary: 267 45% 56%; /* Primary Purple for active item background */
-    --sidebar-primary-foreground: 0 0% 100%; /* White for active item text */
-    --sidebar-accent: 267 45% 40%; /* Slightly lighter dark purple for hover */
-    --sidebar-accent-foreground: 267 30% 92%; /* Off-white for hover text */
-    --sidebar-border: 267 45% 20%; /* Even Darker Purple for borders */
-    --sidebar-ring: 267 45% 56%; /* Primary Purple for ring */
+    /* Sidebar specific theme - ajustado para roxo mais claro */
+    --sidebar-background: 258 60% 60%; /* Roxo médio-claro para sidebar */
+    --sidebar-foreground: 0 0% 100%; /* Texto branco para contraste */
+    --sidebar-primary: 258 90% 76%; /* Primário (lavanda) para item ativo */
+    --sidebar-primary-foreground: 0 0% 10%; /* Texto escuro para item ativo */
+    --sidebar-accent: 258 60% 70%; /* Roxo um pouco mais claro para hover */
+    --sidebar-accent-foreground: 0 0% 100%; /* Texto branco para hover */
+    --sidebar-border: 258 60% 50%; /* Roxo mais escuro para bordas da sidebar */
+    --sidebar-ring: 258 90% 76%; /* Primário (lavanda) para ring */
   }
 
   .dark {
@@ -52,34 +59,41 @@ body {
     --card-foreground: 220 10% 85%; /* Light Gray */
     --popover: 220 15% 15%; /* Darker Popover BG */
     --popover-foreground: 220 10% 85%; /* Light Gray */
-    --primary: 267 55% 65%; /* Brighter Purple #996AE3 */
-    --primary-foreground: 267 20% 15%; /* Dark text on primary */
+
+    /* Roxo mais claro para tema escuro */
+    --primary: 258 80% 80%; /* Lavanda/Lilás mais brilhante para escuro #C4B5FD */
+    --primary-foreground: 258 50% 15%; /* Texto bem escuro para contraste */
+
     --secondary: 220 15% 20%; /* Dark Secondary #292E33 */
     --secondary-foreground: 220 10% 85%; /* Light Gray */
     --muted: 220 15% 25%; /* Dark Muted #353B42 */
     --muted-foreground: 220 10% 60%; /* Medium Gray */
-    --accent: 291 70% 75%; /* Brighter Lilac/Pink #E396EE */
-    --accent-foreground: 291 50% 15%; /* Darker Purple text on accent */
+
+    /* Rosa claro/médio para tema escuro */
+    --accent: 336 70% 80%; /* Rosa mais brilhante para escuro #F9A8D4 */
+    --accent-foreground: 336 50% 20%; /* Texto escuro para contraste */
+    
     --destructive: 0 65% 55%; /* Adjusted Destructive Red for dark */
     --destructive-foreground: 0 0% 98%;
     --border: 220 15% 25%; /* Dark Border #353B42 */
     --input: 220 15% 25%; /* Dark Input Border */
-    --ring: 267 55% 65%; /* Brighter Purple Ring */
+    --ring: 258 80% 80%; /* Lavanda/Lilás mais brilhante para Ring */
+    
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    /* Dark Sidebar specific theme */
-    --sidebar-background: 220 15% 8%; /* Even Darker Sidebar BG #101214 */
-    --sidebar-foreground: 220 10% 80%; /* Light Gray text */
-    --sidebar-primary: 267 55% 65%; /* Dark mode primary for active item */
-    --sidebar-primary-foreground: 267 20% 15%; /* Dark text for active item */
-    --sidebar-accent: 220 15% 12%; /* Slightly lighter dark for hover */
-    --sidebar-accent-foreground: 220 10% 80%; /* Light Gray text for hover */
-    --sidebar-border: 220 15% 5%; /* Very Dark Border */
-    --sidebar-ring: 267 55% 65%; /* Dark mode primary for ring */
+    /* Dark Sidebar specific theme - ajustado para roxo mais claro */
+    --sidebar-background: 258 40% 25%; /* Roxo escuro, mas não tão intenso */
+    --sidebar-foreground: 258 30% 90%; /* Texto off-white/lavanda claro */
+    --sidebar-primary: 258 80% 80%; /* Primário do tema escuro (lavanda brilhante) */
+    --sidebar-primary-foreground: 258 50% 15%; /* Texto escuro para item ativo */
+    --sidebar-accent: 258 40% 35%; /* Roxo um pouco mais claro para hover */
+    --sidebar-accent-foreground: 258 30% 90%; /* Texto off-white para hover */
+    --sidebar-border: 258 40% 15%; /* Roxo bem escuro para bordas */
+    --sidebar-ring: 258 80% 80%; /* Primário do tema escuro para ring */
   }
 }
 
