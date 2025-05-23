@@ -1,3 +1,4 @@
+
 // src/app/controls/[controlId]/page.tsx
 "use client"; 
 
@@ -40,10 +41,9 @@ const mockEvidence: EvidenceFile[] = [
 ];
 
 // Simula uma solicitação de mudança pendente para este controle específico.
-// Para fins de teste, você pode alternar entre null e um objeto ChangeRequest.
 const mockPendingChangeForThisControl: ChangeRequest | null = {
     id: "cr-fin001-pending",
-    controlId: "FIN-001", // ou "1" se estiver usando o ID numérico
+    controlId: "FIN-001", // Corresponde a mockControl.controlId
     requestedBy: "Carlos Pereira",
     requestDate: new Date(Date.now() - 86400000 * 1).toISOString(), // 1 dia atrás
     changes: {
@@ -66,11 +66,6 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   const searchParams = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
 
-
-  // Em um aplicativo real, buscar dados do controle com base em params.controlId
-  // Aqui, estamos usando o ID numérico do mockControl, mas a lógica pode precisar
-  // encontrar por `control.controlId` (ex: "FIN-001") se isso for passado na URL.
-  // Para esta simulação, assumimos que params.controlId é o 'id' numérico.
   const control = mockControl.id === params.controlId ? mockControl : null; 
 
   if (!control) {
@@ -78,7 +73,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   }
 
   const canEditControl = isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id));
-  const effectiveEditMode = isEditMode && canEditControl; // Modo de edição real só se permitido
+  const effectiveEditMode = isEditMode && canEditControl; 
 
 
   return (
@@ -89,8 +84,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserControlOwner() ? "Meus Controles" : "Matriz SOX"}
           </Link>
         </Button>
-        {/* Botão de Editar/Solicitar Alteração */}
-        {canEditControl && !mockPendingChangeForThisControl && (
+        {canEditControl && (!mockPendingChangeForThisControl || mockPendingChangeForThisControl.controlId !== control.controlId) && (
           <Button asChild={!effectiveEditMode} onClick={effectiveEditMode ? undefined : () => { /* Lógica para solicitar alteração se não estiver em edit mode */}}>
             {effectiveEditMode ? (
                  <Link href={`/controls/${control.id}`}> {/* Link para sair do modo edição */}
@@ -105,7 +99,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         )}
       </div>
 
-      {mockPendingChangeForThisControl && (
+      {mockPendingChangeForThisControl && mockPendingChangeForThisControl.controlId === control.controlId && (
         <Card className="border-yellow-400 bg-yellow-50/70 shadow-md">
             <CardHeader>
                 <CardTitle className="text-lg text-yellow-800 flex items-center gap-2">
@@ -121,9 +115,14 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                 <p><strong>Solicitado por:</strong> {mockPendingChangeForThisControl.requestedBy} em {new Date(mockPendingChangeForThisControl.requestDate).toLocaleDateString('pt-BR')}</p>
                 <p className="mt-1"><strong>Resumo das alterações propostas:</strong></p>
                 <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                    {Object.entries(mockPendingChangeForThisControl.changes).map(([key, value]) = (
-                        <li key={key}><strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {String(value)}</li>
-                    ))}
+                    {Object.entries(mockPendingChangeForThisControl.changes).map((entry) => {
+                        const key = entry[0];
+                        const value = entry[1];
+                        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                        return (
+                            <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
+                        );
+                    })}
                 </ul>
                  <div className="mt-4 flex justify-end">
                     <Button variant="outline" size="sm" asChild className="border-yellow-600 text-yellow-700 hover:bg-yellow-100">
