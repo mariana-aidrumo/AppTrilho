@@ -1,3 +1,4 @@
+
 // src/app/new-control/page.tsx
 "use client"; 
 
@@ -10,25 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Lightbulb } from "lucide-react";
+import { Loader2, Lightbulb, ArrowLeft } from "lucide-react";
 import { suggestRelatedControls, type SuggestRelatedControlsInput, type SuggestRelatedControlsOutput } from '@/ai/flows/suggest-related-controls';
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-// Simulação de adição a dados mockados - em uma app real, seria uma chamada de API
 import { mockChangeRequests } from '@/data/mock-data'; 
 import type { ChangeRequest } from '@/types';
+import Link from 'next/link';
 
 const newControlSchema = z.object({
-  proposedControlId: z.string().min(1, "ID do Controle é obrigatório."),
+  proposedControlId: z.string().optional(), // ID do Controle Proposto (opcional)
   controlName: z.string().min(3, "Nome do controle é obrigatório."),
   justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória."),
-  // Adicionar outros campos que o Dono do Controle preencheria para um novo controle
-  controlOwner: z.string().min(1, "Dono do controle é obrigatório."),
-  controlFrequency: z.string(), // Usar Select se valores fixos
-  controlType: z.string(), // Usar Select se valores fixos
-  processo: z.string().optional(),
-  subProcesso: z.string().optional(),
-  modalidade: z.string().optional(),
 });
 
 type NewControlFormValues = z.infer<typeof newControlSchema>;
@@ -43,9 +37,6 @@ export default function NewControlPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<NewControlFormValues>({
     resolver: zodResolver(newControlSchema),
-    defaultValues: {
-      controlOwner: currentUser.name, // Preencher com usuário atual se aplicável
-    }
   });
 
   const handleSuggestControls = async () => {
@@ -69,31 +60,27 @@ export default function NewControlPage() {
   };
 
   const onSubmit: SubmitHandler<NewControlFormValues> = async (data) => {
-    // Simulação de envio
     const newRequestId = `cr-new-${Date.now()}`;
+    const proposedId = data.proposedControlId || `TEMP-${Date.now()}`; // ID temporário se não for fornecido
+    
     const newChangeRequest: ChangeRequest = {
       id: newRequestId,
-      controlId: `NEW-CTRL-${data.proposedControlId.toUpperCase().replace(/\s+/g, '-')}`, // ID temporário baseado na proposta
+      controlId: `NEW-CTRL-${proposedId.toUpperCase().replace(/\s+/g, '-')}`, 
       requestedBy: currentUser.name,
       requestDate: new Date().toISOString(),
-      changes: { // Estes são os campos que o Admin vai usar para criar o SoxControl
-        controlId: data.proposedControlId, // O ID que o usuário sugeriu
+      changes: { 
+        controlId: data.proposedControlId, // O ID que o usuário sugeriu (pode ser undefined)
         controlName: data.controlName,
-        description: data.justificativa, // A justificativa se torna a descrição principal
-        justificativa: data.justificativa, // Mantemos a justificativa também se necessário
-        controlOwner: data.controlOwner,
-        controlFrequency: data.controlFrequency as any, // Cast pois o form é string
-        controlType: data.controlType as any, // Cast
-        processo: data.processo,
-        subProcesso: data.subProcesso,
-        modalidade: data.modalidade as any, // Cast
-        status: "Rascunho", // Status inicial para o objeto SoxControl
+        description: data.justificativa, 
+        justificativa: data.justificativa,
+        // O Admin preencherá outros campos (owner, frequency, type, etc.) ao aprovar
+        controlOwner: currentUser.name, // Sugere o solicitante como dono
+        status: "Rascunho", 
       },
       status: "Pendente",
-      comments: `Proposta de novo controle: ${data.controlName}`,
+      comments: `Proposta de novo controle: ${data.controlName}. ID Sugerido: ${data.proposedControlId || 'N/A'}`,
     };
 
-    // Adicionar à lista mockada (simulando chamada de API)
     mockChangeRequests.unshift(newChangeRequest); 
 
     toast({
@@ -101,25 +88,33 @@ export default function NewControlPage() {
       description: `Sua proposta para o controle "${data.controlName}" foi enviada para aprovação.`,
       variant: "default",
     });
-    reset(); // Limpar formulário
+    reset(); 
     setDescriptionForAI("");
     setSuggestedControls([]);
   };
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center">
+        <Button variant="outline" asChild>
+          <Link href="/sox-matrix">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel
+          </Link>
+        </Button>
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle>Propor Novo Controle</CardTitle>
+          <CardTitle>Solicitar Novo Controle</CardTitle>
           <CardDescription>
-            Preencha os detalhes para o novo controle. Sua proposta será enviada para análise do Administrador de Controles Internos.
+            Preencha os detalhes básicos para o novo controle. Sua proposta será enviada para análise do Administrador de Controles Internos.
+            O Administrador completará os demais campos (como frequência, tipo, processo, etc.) durante a análise.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="proposedControlId">ID do Controle (Sugerido)</Label>
-              <Input id="proposedControlId" {...register("proposedControlId")} placeholder="Ex: FIN-010, IT-ABC" />
+              <Label htmlFor="proposedControlId">ID do Controle (Opcional - Sugestão)</Label>
+              <Input id="proposedControlId" {...register("proposedControlId")} placeholder="Ex: FIN-010, IT-ABC (O Admin pode definir outro)" />
               {errors.proposedControlId && <p className="text-sm text-destructive mt-1">{errors.proposedControlId.message}</p>}
             </div>
             <div>
@@ -138,41 +133,6 @@ export default function NewControlPage() {
               />
               {errors.justificativa && <p className="text-sm text-destructive mt-1">{errors.justificativa.message}</p>}
             </div>
-
-            {/* Campos adicionais que o Dono do Controle pode preencher */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                    <Label htmlFor="controlOwner">Dono do Controle (Sugerido)</Label>
-                    <Input id="controlOwner" {...register("controlOwner")} defaultValue={currentUser.name} />
-                    {errors.controlOwner && <p className="text-sm text-destructive mt-1">{errors.controlOwner.message}</p>}
-                </div>
-                <div>
-                    <Label htmlFor="controlFrequency">Frequência (Sugerida)</Label>
-                    {/* TODO: Substituir por Select component */}
-                    <Input id="controlFrequency" {...register("controlFrequency")} placeholder="Ex: Mensal, Diário, Ad-hoc" />
-                </div>
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <div>
-                    <Label htmlFor="controlType">Tipo (P/D) (Sugerido)</Label>
-                    {/* TODO: Substituir por Select component */}
-                    <Input id="controlType" {...register("controlType")} placeholder="Ex: Preventivo, Detectivo" />
-                </div>
-                 <div>
-                    <Label htmlFor="processo">Processo (Sugerido)</Label>
-                    <Input id="processo" {...register("processo")} placeholder="Ex: Contas a Pagar" />
-                </div>
-                <div>
-                    <Label htmlFor="subProcesso">Subprocesso (Sugerido)</Label>
-                    <Input id="subProcesso" {...register("subProcesso")} placeholder="Ex: Pagamento de Fornecedores" />
-                </div>
-            </div>
-            <div>
-                <Label htmlFor="modalidade">Modalidade (Sugerida)</Label>
-                {/* TODO: Substituir por Select component */}
-                <Input id="modalidade" {...register("modalidade")} placeholder="Ex: Manual, Automático, Híbrido" />
-            </div>
-
 
             <Card className="bg-accent/20 border-accent/50">
               <CardHeader>
@@ -214,3 +174,4 @@ export default function NewControlPage() {
     </div>
   );
 }
+

@@ -55,14 +55,14 @@ export default function SoxMatrixPage() {
     // Definição de "Propostas de Novos Controles Pendentes" pelo Dono
     ownerPendingNewControlRequests = mockChangeRequests.filter(
       req => req.requestedBy === currentUser.name &&
-             req.controlId.startsWith("NEW-CTRL-") && // É uma proposta de novo controle
-             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") // Status pendente
+             req.controlId.startsWith("NEW-CTRL-") && 
+             (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") 
     );
   }
 
   // Dados para Admin
   const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, [mockSoxControls]);
-  const adminTotalOwners = useMemo(() => Array.from(new Set(mockSoxControls.map(c => c.controlOwner))).length, [mockSoxControls]);
+  const adminTotalOwners = useMemo(() => (mockDonos.length > 1 ? mockDonos.length -1 : 0) , [mockDonos]); // Descontando "Todos"
   const adminTotalPendingRequests = useMemo(() => mockChangeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, [mockChangeRequests]);
 
 
@@ -75,7 +75,7 @@ export default function SoxMatrixPage() {
       const matchesProcess = selectedProcess === "Todos" || control.processo === selectedProcess;
       const matchesSubProcess = selectedSubProcess === "Todos" || control.subProcesso === selectedSubProcess;
       const matchesOwner = selectedOwner === "Todos" || control.controlOwner === selectedOwner;
-      const isActive = control.status === "Ativo"; // Filtro principal para admin
+      const isActive = control.status === "Ativo"; 
 
       return isActive && matchesSearch && matchesProcess && matchesSubProcess && matchesOwner;
     });
@@ -94,7 +94,7 @@ export default function SoxMatrixPage() {
     <div className="space-y-6">
       {/* Cards de Ação e KPIs - Admin */}
       {isUserAdmin() && (
-          <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"> {/* Ajustado para 4 colunas */}
+          <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"> 
             {/* Cards de Ação */}
             <Card className="shadow-md hover:shadow-lg transition-shadow col-span-1">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -175,7 +175,7 @@ export default function SoxMatrixPage() {
       {/* Visão Geral para Dono do Controle */}
       {isUserControlOwner() && (
         <div className="space-y-6">
-           <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2">
+           <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2"> {/* Apenas um card de ação aqui */}
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-lg font-medium">Minhas Solicitações</CardTitle>
@@ -183,27 +183,14 @@ export default function SoxMatrixPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground">
-                  Acompanhe o status das suas solicitações.
+                  Acompanhe o status das suas solicitações de alteração e de novos controles.
                 </p>
                 <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
                   <Link href="/pending-approvals">Ver Solicitações</Link>
                 </Button>
               </CardContent>
             </Card>
-            <Card className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-medium">Propor Novo Controle</CardTitle>
-                <Link href="/new-control"><FilePlus2 className="h-5 w-5 text-primary cursor-pointer" /></Link>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Envie uma proposta para um novo controle SOX.
-                </p>
-                <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                  <Link href="/new-control">Propor Controle</Link>
-                </Button>
-              </CardContent>
-            </Card>
+             {/* O card "Propor Novo Controle" foi movido para o menu lateral */}
           </div>
 
           <Card className="shadow-md">
@@ -269,7 +256,6 @@ export default function SoxMatrixPage() {
               {ownerControlsWithPendingChanges.length > 3 && (
                 <div className="mt-4 text-right">
                   <Button variant="link" asChild>
-                    {/* Link para a aba correta na página de solicitações */}
                     <Link href="/pending-approvals">Ver todas as alterações solicitadas ({ownerControlsWithPendingChanges.length})</Link>
                   </Button>
                 </div>
@@ -305,7 +291,6 @@ export default function SoxMatrixPage() {
               {ownerPendingNewControlRequests.length > 0 && ( 
                 <div className="mt-4 text-right">
                   <Button variant="link" asChild>
-                     {/* Link para a aba correta na página de solicitações */}
                     <Link href="/pending-approvals">Ver todas as propostas ({ownerPendingNewControlRequests.length})</Link>
                   </Button>
                 </div>
@@ -453,3 +438,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+

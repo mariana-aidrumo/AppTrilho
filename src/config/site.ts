@@ -26,7 +26,7 @@ export const siteConfig: SiteConfig = {
     {
       title: "Painel da Matriz SOX",
       href: "/sox-matrix",
-      icon: LayoutDashboard, // Ícone mais genérico para painel
+      icon: LayoutDashboard, 
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
@@ -36,7 +36,7 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
-        title: "Histórico da Matriz", // Terceiro item para Admin
+        title: "Histórico da Matriz", 
         href: "/matrix-history",
         icon: History,
         allowedProfiles: ["Administrador de Controles Internos"],
@@ -46,7 +46,7 @@ export const siteConfig: SiteConfig = {
     {
       title: "Painel (Visão Geral)",
       href: "/sox-matrix",
-      icon: Home, // Home para o dashboard principal do Dono
+      icon: Home, 
       allowedProfiles: ["Dono do Controle"],
     },
     {
@@ -56,13 +56,13 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Dono do Controle"],
     },
      {
-      title: "Minhas Solicitações", // Terceiro item para Dono do Controle
-      href: "/pending-approvals",
-      icon: ListChecks,
+      title: "Solicitar Novo Controle", 
+      href: "/new-control", // Rota para o formulário de novo controle
+      icon: FilePlus2,
       allowedProfiles: ["Dono do Controle"],
     },
-    // A página "Propor Novo Controle" será acessada por botões, não pelo menu lateral.
-    // A página "Histórico de Controles" (/version-history) foi removida da navegação principal do Admin
-    // para manter 3 itens, mas o código da página pode ser mantido.
+    // A página "Minhas Solicitações" será acessada através de um card/link no "Painel (Visão Geral)"
+    // A página de "Propor Novo Controle" agora é um item de menu direto para o Dono.
   ],
 };
+
