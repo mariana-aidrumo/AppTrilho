@@ -1,3 +1,4 @@
+
 // src/app/sox-matrix/page.tsx
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,70 +7,10 @@ import type { SoxControl } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, FileEdit, History, ChevronRight, Filter, RotateCcw, Search, CheckSquare, FilePlus2 } from "lucide-react";
+import { Eye, FileEdit, History, ChevronRight, Filter, RotateCcw, Search, CheckSquare, FilePlus2, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-
-// Dados mocados para demonstração
-const mockControlsFull: SoxControl[] = [
-  {
-    id: "1", // Este ID deve corresponder a um em `ownerUser.controlsOwned`
-    controlId: "FIN-001",
-    controlName: "Revisão de Conciliação Bancária",
-    description: "Revisão mensal e aprovação das conciliações bancárias.",
-    controlOwner: "Alice Wonderland", // Dono fictício para fins de exibição
-    controlFrequency: "Mensal",
-    controlType: "Detectivo",
-    status: "Ativo",
-    lastUpdated: new Date().toISOString(),
-    relatedRisks: ["Demonstração Financeira Incorreta"],
-    testProcedures: "Verificar assinatura da conciliação.",
-    evidenceRequirements: "Relatório de conciliação bancária assinado.",
-    processo: "Relatórios Financeiros",
-    subProcesso: "Fechamento Mensal",
-    modalidade: "Manual",
-  },
-  {
-    id: "2",
-    controlId: "ITG-005",
-    controlName: "Aprovação de Acesso ao Sistema",
-    description: "Revisão trimestral dos direitos de acesso do usuário a sistemas críticos.",
-    controlOwner: "Bob The Builder",
-    controlFrequency: "Por Solicitação",
-    controlType: "Preventivo",
-    status: "Ativo",
-    lastUpdated: new Date().toISOString(),
-    relatedRisks: ["Acesso Não Autorizado", "Violação de Dados"],
-    testProcedures: "Amostra de logs de acesso do usuário e comparação com funções aprovadas.",
-    evidenceRequirements: "Documentação de revisão de acesso do usuário com aprovações.",
-    processo: "Gerenciamento de Acesso de Usuário",
-    subProcesso: "Provisionamento de Usuário",
-    modalidade: "Automático",
-  },
-   {
-    id: "3", // Este ID deve corresponder a um em `ownerUser.controlsOwned`
-    controlId: "PRO-012",
-    controlName: "Due Diligence de Integridade",
-    description: "Contagens cíclicas regulares de estoque para garantir a precisão.",
-    controlOwner: "Charlie Brown",
-    controlFrequency: "Por Novo Fornecedor",
-    controlType: "Preventivo",
-    status: "Pendente Aprovação",
-    lastUpdated: new Date().toISOString(),
-    relatedRisks: ["Perda de Estoque", "Erros de Avaliação de Estoque"],
-    testProcedures: "Realizar contagens cíclicas e investigar discrepâncias.",
-    evidenceRequirements: "Folhas de contagem cíclica e relatórios de ajuste.",
-    processo: "Compras",
-    subProcesso: "Gerenciamento de Fornecedores",
-    modalidade: "Manual",
-  },
-];
-
-// Mock data for filters
-const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras"];
-const mockSubProcessos = ["Todos", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores"];
-const mockDonos = ["Todos", "Alice Wonderland", "Bob The Builder", "Charlie Brown"];
-
+import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos } from "@/data/mock-data";
 
 export default function SoxMatrixPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
@@ -77,13 +18,13 @@ export default function SoxMatrixPage() {
   const pageTitle = isUserControlOwner() ? "Meus Controles" : "Painel da Matriz SOX";
   
   const displayedControls = isUserControlOwner() 
-    ? mockControlsFull.filter(control => currentUser.controlsOwned?.includes(control.id))
-    : mockControlsFull;
+    ? mockSoxControls.filter(control => currentUser.controlsOwned?.includes(control.id))
+    : mockSoxControls;
 
   return (
     <div className="space-y-6">
       {/* Cards de Ação Condicionais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className={`grid grid-cols-1 gap-6 mb-6 ${isUserAdmin() ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         {isUserAdmin() && (
           <>
             <Card className="shadow-md hover:shadow-lg transition-shadow">
@@ -134,12 +75,12 @@ export default function SoxMatrixPage() {
           <>
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg font-medium">Minhas Solicitações Pendentes</CardTitle>
-                 <Link href="/pending-approvals"><FileEdit className="h-5 w-5 text-primary cursor-pointer" /></Link>
+                <CardTitle className="text-lg font-medium">Minhas Solicitações</CardTitle>
+                 <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary cursor-pointer" /></Link>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground">
-                  Visualize suas solicitações de mudança ou criação.
+                  Visualize suas solicitações de mudança ou criação de controles.
                 </p>
                 <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
                   <Link href="/pending-approvals">Ver Solicitações</Link>
@@ -160,7 +101,6 @@ export default function SoxMatrixPage() {
                 </Button>
               </CardContent>
             </Card>
-             {/* O Dono do Controle não vê o Histórico da Matriz aqui, mas pode ver histórico do *seu* controle na página de detalhes */}
           </>
         )}
       </div>
@@ -186,7 +126,7 @@ export default function SoxMatrixPage() {
               <Select>
                 <SelectTrigger id="processo"><SelectValue placeholder="Selecionar Processo" /></SelectTrigger>
                 <SelectContent>
-                  {mockProcessos.map(p => <SelectItem key={p} value={p.toLowerCase()}>{p}</SelectItem>)}
+                  {mockProcessos.map(p => <SelectItem key={p} value={p.toLowerCase().replace(/\s+/g, '-')}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -195,7 +135,7 @@ export default function SoxMatrixPage() {
               <Select>
                 <SelectTrigger id="subprocesso"><SelectValue placeholder="Selecionar Subprocesso" /></SelectTrigger>
                 <SelectContent>
-                  {mockSubProcessos.map(s => <SelectItem key={s} value={s.toLowerCase()}>{s}</SelectItem>)}
+                  {mockSubProcessos.map(s => <SelectItem key={s} value={s.toLowerCase().replace(/\s+/g, '-')}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -204,7 +144,7 @@ export default function SoxMatrixPage() {
               <Select>
                 <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono" /></SelectTrigger>
                 <SelectContent>
-                  {mockDonos.map(d => <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>)}
+                  {mockDonos.map(d => <SelectItem key={d} value={d.toLowerCase().replace(/\s+/g, '-')}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -299,3 +239,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+

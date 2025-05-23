@@ -9,51 +9,8 @@ import type { SoxControl, VersionHistoryEntry, EvidenceFile, ChangeRequest } fro
 import { ArrowLeft, Edit2, History, Paperclip, PlusCircle, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { useSearchParams } from 'next/navigation'; // Para ler query params como `?edit=true`
-
-// Dados mocados para um único controle
-const mockControl: SoxControl = {
-  id: "1", // Corresponde ao ID usado em `ownerUser.controlsOwned` e `mockControlsFull`
-  controlId: "FIN-001",
-  controlName: "Revisão de Conciliação Bancária",
-  description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil.",
-  controlOwner: "Alice Wonderland", // Mesmo dono que em mockControlsFull
-  controlFrequency: "Mensal",
-  controlType: "Detectivo",
-  status: "Ativo",
-  lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 dias atrás
-  relatedRisks: ["Demonstração Financeira Incorreta", "Transações Fraudulentas", "Passivos Não Registrados"],
-  testProcedures: "Verificar se as conciliações bancárias são realizadas mensalmente, revisadas independentemente e todos os itens de conciliação são investigados e compensados adequadamente. Obter uma amostra das conciliações bancárias concluídas e verificar as assinaturas e datas do preparador e revisor.",
-  evidenceRequirements: "Relatório de conciliação bancária assinado, cronogramas de suporte para itens de conciliação e evidência de acompanhamento de itens pendentes.",
-  processo: "Relatórios Financeiros",
-  subProcesso: "Fechamento Mensal",
-  modalidade: "Manual",
-};
-
-const mockVersionHistory: VersionHistoryEntry[] = [
-  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "Usuário Admin", summaryOfChanges: "Controle criado.", previousValues: {}, newValues: { controlName: "Revisão de Conciliação Bancária" } },
-  { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 7).toISOString(), changedBy: "Maria Santos", summaryOfChanges: "Descrição e dono atualizados.", previousValues: { description: "Desc. inicial", controlOwner: "Dono Antigo" }, newValues: { description: mockControl.description, controlOwner: "João Silva" } },
-];
-
-const mockEvidence: EvidenceFile[] = [
-  { id: "ev1", controlId: "1", fileName: "Q1_Conciliacao_Bancaria_Assinada.pdf", fileType: "application/pdf", fileSize: 1024 * 250, uploadDate: new Date(Date.now() - 86400000 * 3).toISOString(), uploadedBy: "João Silva", storageUrl: "#" },
-  { id: "ev2", controlId: "1", fileName: "Itens_Conciliacao_Q1.xlsx", fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileSize: 1024 * 80, uploadDate: new Date(Date.now() - 86400000 * 3).toISOString(), uploadedBy: "João Silva", storageUrl: "#" },
-];
-
-// Simula uma solicitação de mudança pendente para este controle específico.
-const mockPendingChangeForThisControl: ChangeRequest | null = {
-    id: "cr-fin001-pending",
-    controlId: "FIN-001", // Corresponde a mockControl.controlId
-    requestedBy: "Carlos Pereira",
-    requestDate: new Date(Date.now() - 86400000 * 1).toISOString(), // 1 dia atrás
-    changes: {
-        description: "Nova descrição proposta: Revisão e aprovação DIÁRIA das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil, com foco em transações de alto valor.",
-        controlFrequency: "Diário",
-    },
-    status: "Pendente",
-    comments: "Atualização para refletir a nova política de revisão diária e foco em transações de alto risco."
-};
-
+import { useSearchParams } from 'next/navigation';
+import { mockSoxControls, mockVersionHistory as allMockVersionHistory, mockEvidenceFiles as allMockEvidenceFiles, mockChangeRequests } from "@/data/mock-data";
 
 interface ControlDetailPageProps {
   params: {
@@ -66,7 +23,20 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
   const searchParams = useSearchParams();
   const isEditMode = searchParams.get('edit') === 'true';
 
-  const control = mockControl.id === params.controlId ? mockControl : null; 
+  const control = mockSoxControls.find(c => c.id === params.controlId);
+  
+  const mockPendingChangeForThisControl = control 
+    ? mockChangeRequests.find(req => req.controlId === control.controlId && req.status === "Pendente")
+    : null;
+
+  const versionHistoryForThisControl = control 
+    ? allMockVersionHistory.filter(vh => vh.controlId === control.id)
+    : [];
+  
+  const evidenceForThisControl = control
+    ? allMockEvidenceFiles.filter(ev => ev.controlId === control.id)
+    : [];
+
 
   if (!control) {
     return <p>Controle não encontrado.</p>;
@@ -84,7 +54,15 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       if (Object.prototype.hasOwnProperty.call(mockPendingChangeForThisControl.changes, key)) {
         const typedKey = key as keyof SoxControl;
         const value = mockPendingChangeForThisControl.changes[typedKey];
-        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+        // Tradução de chaves para nomes amigáveis
+        const fieldTranslations: Record<string, string> = {
+            controlId: "ID do Controle", controlName: "Nome do Controle", description: "Descrição",
+            controlOwner: "Dono do Controle", controlFrequency: "Frequência", controlType: "Tipo",
+            status: "Status", lastUpdated: "Última Atualização", relatedRisks: "Riscos Relacionados",
+            testProcedures: "Procedimentos de Teste", evidenceRequirements: "Requisitos de Evidência",
+            processo: "Processo", subProcesso: "Subprocesso", modalidade: "Modalidade"
+        };
+        const formattedKey = fieldTranslations[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
         items.push(
           <li key={key}><strong>{formattedKey}:</strong> {String(value)}</li>
         );
@@ -118,7 +96,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         )}
       </div>
 
-      {mockPendingChangeForThisControl && mockPendingChangeForThisControl.controlId === control.controlId && (
+      {mockPendingChangeForThisControl && (
         <Card className="border-yellow-400 bg-yellow-50/70 shadow-md">
             <CardHeader>
                 <CardTitle className="text-lg text-yellow-800 flex items-center gap-2">
@@ -231,9 +209,9 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
           <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" /> Histórico de Versões</CardTitle>
         </CardHeader>
         <CardContent>
-          {mockVersionHistory.length > 0 ? (
+          {versionHistoryForThisControl.length > 0 ? (
             <ul className="space-y-3">
-              {mockVersionHistory.map(entry => (
+              {versionHistoryForThisControl.map(entry => (
                 <li key={entry.id} className="text-sm border-l-2 pl-3 border-primary/50">
                   <p><strong>{new Date(entry.changeDate).toLocaleString('pt-BR')}</strong> por {entry.changedBy}</p>
                   <p className="text-muted-foreground">{entry.summaryOfChanges}</p>
@@ -249,14 +227,14 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2"><Paperclip className="w-5 h-5" /> Evidência</CardTitle>
-          {canEditControl && ( // Dono ou Admin podem carregar evidência
+          {canEditControl && ( 
             <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Carregar Evidência</Button>
           )}
         </CardHeader>
         <CardContent>
-          {mockEvidence.length > 0 ? (
+          {evidenceForThisControl.length > 0 ? (
             <ul className="space-y-2">
-              {mockEvidence.map(file => (
+              {evidenceForThisControl.map(file => (
                 <li key={file.id} className="text-sm flex justify-between items-center p-2 border rounded-md hover:bg-muted/50">
                   <div>
                     <Link href={file.storageUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{file.fileName}</Link>
@@ -276,3 +254,4 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     </div>
   );
 }
+

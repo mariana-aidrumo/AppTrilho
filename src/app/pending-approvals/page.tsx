@@ -1,3 +1,4 @@
+
 // src/app/pending-approvals/page.tsx
 "use client";
 
@@ -8,34 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Eye } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-
-// Dados mocados para demonstração
-const mockChangeRequests: ChangeRequest[] = [
-  {
-    id: "cr1",
-    controlId: "FIN-001",
-    requestedBy: "John Doe", // Simula que foi solicitado por outro usuário
-    requestDate: new Date(Date.now() - 86400000 * 2).toISOString(), 
-    changes: { description: "Descrição atualizada para conciliação bancária." },
-    status: "Pendente",
-  },
-  {
-    id: "cr2",
-    controlId: "IT-005",
-    requestedBy: "Usuário Dono", // Simula que foi solicitado pelo "Dono do Controle" atual
-    requestDate: new Date(Date.now() - 86400000).toISOString(), 
-    changes: { controlOwner: "Peter Pan" },
-    status: "Pendente",
-  },
-  {
-    id: "cr3",
-    controlId: "NEW-CTRL-001", 
-    requestedBy: "Alice Brown",
-    requestDate: new Date().toISOString(),
-    changes: { controlName: "Novo Controle Operacional", description: "Detalhes para novo controle...", controlId: "OPS-010" },
-    status: "Pendente",
-  }
-];
+import { mockChangeRequests } from "@/data/mock-data";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
@@ -45,11 +19,11 @@ export default function PendingApprovalsPage() {
     ? "Visualize e acompanhe suas solicitações de alteração para controles internos."
     : "Revise e aprove ou rejeite as solicitações de alteração pendentes para controles internos.";
 
-  // Para Dono do Controle, idealmente filtraríamos para mostrar apenas suas solicitações.
-  // Para esta simulação, mostramos todas, mas desabilitamos ações.
+  // Para Dono do Controle, filtramos para mostrar apenas suas solicitações.
+  // Para Admin, mostramos todas as pendentes.
   const displayedRequests = isUserControlOwner()
-    ? mockChangeRequests.filter(req => req.requestedBy === currentUser.name) // Simples filtro por nome
-    : mockChangeRequests;
+    ? mockChangeRequests.filter(req => req.requestedBy === currentUser.name && req.status === "Pendente")
+    : mockChangeRequests.filter(req => req.status === "Pendente");
 
 
   return (
@@ -79,7 +53,7 @@ export default function PendingApprovalsPage() {
                         <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline">
                           {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'N/A'}` : request.controlId}
                         </Link>
-                        <div className="text-xs text-muted-foreground">ID: {request.id}</div>
+                        <div className="text-xs text-muted-foreground">ID Sol.: {request.id}</div>
                       </TableCell>
                       <TableCell>{request.requestedBy}</TableCell>
                       <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
@@ -120,3 +94,4 @@ export default function PendingApprovalsPage() {
     </div>
   );
 }
+
