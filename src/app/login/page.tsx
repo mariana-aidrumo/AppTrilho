@@ -1,4 +1,3 @@
-typescriptreact
 "use client";
 
 import { useState } from 'react';
@@ -7,14 +6,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useUserProfile } from "@/contexts/user-profile-context"; // Precisaremos ajustar este contexto
+import { useUserProfile } from "@/contexts/user-profile-context";
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
-  const { login } = useUserProfile(); // Assumindo que o contexto terá uma função login
+  const { login } = useUserProfile();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
