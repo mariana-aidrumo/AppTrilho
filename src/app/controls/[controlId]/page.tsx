@@ -198,7 +198,8 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         )}
       </div>
 
-      {mockPendingChangeForThisControl && mockPendingChangeForThisControl.controlId === control.controlId && (
+      {mockPendingChangeForThisControl && mockPendingChangeForThisControl.controlId === control.controlId &&
+       (isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id))) && ( // Adicionada a condição de verificação de propriedade/admin
         <Card className="border-yellow-400 bg-yellow-50/70 shadow-md">
             <CardHeader>
                 <CardTitle className="text-lg text-yellow-800 flex items-center gap-2">
