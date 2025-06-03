@@ -1,3 +1,4 @@
+
 // src/app/controls/[controlId]/history/page.tsx
 "use client";
 
@@ -130,7 +131,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
             </Link>
           </Button>
         </div>
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Erro</CardTitle>
           </CardHeader>
@@ -152,7 +153,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
         </Button>
       </div>
 
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <ListOrdered className="w-6 h-6 text-primary" />
@@ -195,3 +196,4 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
     </div>
   );
 }
+

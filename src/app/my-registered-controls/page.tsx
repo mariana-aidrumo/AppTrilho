@@ -25,7 +25,7 @@ export default function MyControlsPage() {
                 </Link>
                 </Button>
             </div>
-            <Card>
+            <Card className="w-full">
                 <CardHeader>
                 <CardTitle>Acesso Negado</CardTitle>
                 </CardHeader>
@@ -88,7 +88,7 @@ export default function MyControlsPage() {
         </Button>
       </div>
 
-      <Card className="shadow-md">
+      <Card className="shadow-md w-full">
         <CardHeader>
           <CardTitle>Meus Controles Ativos</CardTitle>
           <CardDescription>
@@ -161,7 +161,7 @@ export default function MyControlsPage() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
+      <Card className="shadow-md w-full">
         <CardHeader>
             <CardTitle>Meus Controles com Alterações Solicitadas</CardTitle>
             <CardDescription>Seus controles existentes com propostas de alteração pendentes de aprovação.</CardDescription>
@@ -215,7 +215,7 @@ export default function MyControlsPage() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
+      <Card className="shadow-md w-full">
         <CardHeader>
             <CardTitle>Minhas Propostas de Novos Controles Pendentes</CardTitle>
             <CardDescription>Acompanhe os novos controles que você solicitou e aguardam aprovação.</CardDescription>
@@ -266,3 +266,4 @@ export default function MyControlsPage() {
     </div>
   );
 }
+

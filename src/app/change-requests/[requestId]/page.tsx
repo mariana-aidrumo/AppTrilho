@@ -218,7 +218,7 @@ export default function ChangeRequestDetailPage({ params: paramsPromise }: Chang
         </Button>
       </div>
 
-      <Card className="shadow-lg">
+      <Card className="shadow-lg w-full">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>

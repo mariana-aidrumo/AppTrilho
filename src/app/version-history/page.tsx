@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,7 @@ export default function VersionHistoryPage() {
           </Link>
         </Button>
       </div>
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>Histórico de Versões Geral</CardTitle>
           <CardDescription>
@@ -28,3 +29,4 @@ export default function VersionHistoryPage() {
     </div>
   );
 }
+

@@ -180,7 +180,7 @@ export default function PendingApprovalsPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>{pageTitle}</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>

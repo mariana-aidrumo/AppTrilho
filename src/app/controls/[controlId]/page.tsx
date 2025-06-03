@@ -147,7 +147,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
                 </Link>
             </Button>
             </div>
-            <Card>
+            <Card className="w-full">
             <CardHeader>
                 <CardTitle>Erro</CardTitle>
             </CardHeader>
@@ -200,7 +200,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
       {mockPendingChangeForThisControl && mockPendingChangeForThisControl.controlId === control.controlId &&
        (isUserAdmin() || (isUserControlOwner() && currentUser.controlsOwned?.includes(control.id))) && ( // Adicionada a condição de verificação de propriedade/admin
-        <Card className="border-yellow-400 bg-yellow-50/70 shadow-md">
+        <Card className="border-yellow-400 bg-yellow-50/70 shadow-md w-full">
             <CardHeader>
                 <CardTitle className="text-lg text-yellow-800 flex items-center gap-2">
                     <ShieldAlert className="w-5 h-5" />
@@ -227,7 +227,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         </Card>
       )}
 
-      <Card className="shadow-lg">
+      <Card className="shadow-lg w-full">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
@@ -314,7 +314,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
              <History className="w-5 h-5" />
@@ -361,3 +361,4 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
     </div>
   );
 }
+

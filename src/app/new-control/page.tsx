@@ -180,7 +180,7 @@ export default function NewControlPage() {
           </Link>
         </Button>
       </div>
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>{pageTitle}</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>
@@ -414,3 +414,4 @@ export default function NewControlPage() {
     </div>
   );
 }
+

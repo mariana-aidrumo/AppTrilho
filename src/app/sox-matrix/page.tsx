@@ -235,7 +235,7 @@ export default function SoxMatrixPage() {
               </Card>
             </div>
 
-            <Card className="shadow-md">
+            <Card className="shadow-md w-full">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Filter className="h-5 w-5 text-primary" />
@@ -247,7 +247,7 @@ export default function SoxMatrixPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-md">
+            <Card className="shadow-md w-full">
               <CardHeader>
                 <CardTitle>Matriz de Controles Internos (Ativos)</CardTitle>
                 <CardDescription>
@@ -268,7 +268,7 @@ export default function SoxMatrixPage() {
                 <CardDescription>Acompanhe os controles e suas solicitações.</CardDescription>
             </CardHeader>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Card className="shadow-md hover:shadow-lg transition-shadow">
+                <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-base font-medium">Minhas Solicitações</CardTitle>
                         <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary" /></Link>
@@ -282,7 +282,7 @@ export default function SoxMatrixPage() {
                         </Button>
                     </CardContent>
                 </Card>
-                <Card className="shadow-md hover:shadow-lg transition-shadow">
+                <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-base font-medium">Meus Controles</CardTitle>
                          <Link href="/my-registered-controls"><Layers className="h-5 w-5 text-primary" /></Link>
@@ -297,7 +297,7 @@ export default function SoxMatrixPage() {
                     </CardContent>
                 </Card>
             </div>
-             <Card className="shadow-md col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mt-6">
+             <Card className="shadow-md col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mt-6 w-full">
                 <CardHeader>
                     <CardTitle>Visão Geral dos Controles SOX Ativos (Transparência)</CardTitle>
                     <CardDescription>
@@ -314,3 +314,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+
