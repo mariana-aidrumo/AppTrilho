@@ -10,9 +10,9 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarInset,
-  SidebarTrigger as OriginalSidebarTrigger, // Renomeado para evitar conflito com o nosso botão
-  SidebarRail,
+  // SidebarTrigger as OriginalSidebarTrigger, // Renomeado para evitar conflito com o nosso botão
   useSidebar,
+  SidebarRail
 } from '@/components/ui/sidebar';
 import { SidebarNavItems } from "@/components/layout/sidebar-nav-items";
 import Icons from "@/components/icons";
@@ -210,7 +210,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
           </SidebarContent>
           <SidebarRail />
         </Sidebar>
-        <SidebarInset className="flex-1 bg-background p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)] w-full max-w-full">
+        <SidebarInset className="p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
           {children}
         </SidebarInset>
       </div>
