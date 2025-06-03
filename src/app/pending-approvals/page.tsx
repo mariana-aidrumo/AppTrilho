@@ -27,25 +27,34 @@ export default function PendingApprovalsPage() {
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => mockChangeRequests.filter(req => 
     !req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests]); // dataVersion removed from dependencies
+  ), [mockChangeRequests]);
 
   const adminPendingNewControls = useMemo(() => mockChangeRequests.filter(req => 
     req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests]); // dataVersion removed from dependencies
+  ), [mockChangeRequests]);
 
 
   // Filtros para Dono do Controle
-  const ownerPendingApprovalRequests = useMemo(() => mockChangeRequests.filter(
-    req => req.requestedBy === currentUser.name && (req.status === "Pendente" || req.status === "Em Análise")
-  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
+  const ownerPendingApprovalRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return mockChangeRequests.filter(
+      req => req.requestedBy === currentUser.name && (req.status === "Pendente" || req.status === "Em Análise")
+    );
+  }, [mockChangeRequests, currentUser]);
 
-  const ownerAwaitingFeedbackRequests = useMemo(() => mockChangeRequests.filter(
-    req => req.requestedBy === currentUser.name && req.status === "Aguardando Feedback do Dono"
-  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
+  const ownerAwaitingFeedbackRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return mockChangeRequests.filter(
+      req => req.requestedBy === currentUser.name && req.status === "Aguardando Feedback do Dono"
+    );
+  }, [mockChangeRequests, currentUser]);
 
-  const ownerRequestsHistory = useMemo(() => mockChangeRequests.filter(
-    req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
-  ), [mockChangeRequests, currentUser.name]); // dataVersion removed from dependencies
+  const ownerRequestsHistory = useMemo(() => {
+    if (!currentUser) return [];
+    return mockChangeRequests.filter(
+      req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
+    );
+  }, [mockChangeRequests, currentUser]);
 
   const pageTitle = isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações";
   const pageDescription = isUserAdmin()
