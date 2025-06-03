@@ -19,8 +19,8 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "SOX Hub",
-  description: "Hub de Controles SOX.",
+  name: "SOX Hub", // Internal name/ID, can remain
+  description: "Hub de Controles Internos", // Displayed name updated
   navItems: [
     // Itens para Administrador de Controles Internos
     {

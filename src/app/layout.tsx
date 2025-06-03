@@ -5,7 +5,7 @@ import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from "@/components/ui/toaster";
 import { UserProfileProvider } from '@/contexts/user-profile-context';
-import { NotificationProvider } from '@/contexts/notification-context'; // Correct import
+import { NotificationProvider } from '@/contexts/notification-context';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'SOX Hub',
-  description: 'Hub de Controles SOX.',
+  title: 'Hub de Controles Internos',
+  description: 'Hub de Controles Internos.',
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <UserProfileProvider>
-          <NotificationProvider> {/* NotificationProvider wraps AppLayout */}
+          <NotificationProvider>
             <AppLayout>{children}</AppLayout>
             <Toaster />
           </NotificationProvider>

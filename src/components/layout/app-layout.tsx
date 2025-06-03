@@ -61,17 +61,30 @@ function AppLayoutContent({ children }: AppLayoutProps) {
       router.push('/login');
     }
     if (pathname === '/login' && currentUser) {
-      router.push('/');
+      router.push('/'); // Redirect to home/dashboard if user is logged in and tries to access login
     }
   }, [currentUser, pathname, router]);
 
+  // If on login page, render only children (which will be the LoginPage component)
+  // This also implicitly handles the case where currentUser is null on the login page
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
 
-  // Render a consistent structure. Conditional parts handle their own mounting state.
+  // If not on login page AND user is not logged in (and it's a protected route),
+  // this part might not be reached due to the redirect above.
+  // However, this ensures that if somehow we are on a protected route without a user,
+  // we don't try to render the full layout with user-specific info.
+  // The useEffect above should handle the redirect, so this is a fallback.
+  if (!currentUser) {
+    // Optionally, show a loading state or redirect again if the useEffect hasn't kicked in
+    return null; // Or a loading spinner, or redirect explicitly again if needed
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          {/* SidebarTrigger will render null if !hasMounted or !isMobile (due to its internal logic) */}
           <SidebarTrigger />
           <NextLink href="/" className="flex items-center gap-2 text-primary hover:no-underline">
             <Icons.AppLogo className="w-7 h-7" />
@@ -184,7 +197,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
               <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">Logout</Button>
             </>
           ) : (
-            <div className="flex items-center gap-3 md:gap-4 h-9" /> // Placeholder
+            <div className="flex items-center gap-3 md:gap-4 h-9" /> 
           )}
         </div>
       </header>
