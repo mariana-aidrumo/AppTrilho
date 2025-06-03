@@ -39,7 +39,7 @@ body {
 
     --radius: 0.75rem; /* Increased border radius */
 
-    /* Chart colors - can be revisited if they don't fit the new theme */
+    /* Chart colors */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -61,7 +61,7 @@ body {
     --background: 288 43% 8%; /* Roxo Muito Escuro #1A0C1E */
     --foreground: 285 27% 88%; /* Roxo-Cinza Claro #E5D9E9 */
 
-    --card: 289 44% 10%; /* Roxo Escuro (Texto do tema claro) #200E24 */
+    --card: 289 44% 10%; /* Roxo Escuro (Foreground do tema claro) #200E24 */
     --card-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
 
     --popover: 289 44% 10%; /* Roxo Escuro */
@@ -86,7 +86,7 @@ body {
     --input: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para input */
     --ring: 279 90% 76%; /* Roxo mais brilhante para anéis */
 
-    /* Chart colors - can be revisited */
+    /* Chart colors */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -113,5 +113,4 @@ body {
     @apply bg-background text-foreground;
   }
 }
-
     
