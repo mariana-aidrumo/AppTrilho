@@ -1,4 +1,3 @@
-
 // src/components/layout/app-layout.tsx
 "use client";
 
@@ -10,7 +9,6 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarInset,
-  // SidebarTrigger as OriginalSidebarTrigger, // Renomeado para evitar conflito com o nosso botão
   useSidebar,
   SidebarRail
 } from '@/components/ui/sidebar';
@@ -18,7 +16,7 @@ import { SidebarNavItems } from "@/components/layout/sidebar-nav-items";
 import Icons from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users, PanelLeft } from "lucide-react"; // PanelLeft importado
+import { User, Bell, Users, PanelLeft } from "lucide-react";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import type { UserProfileType } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -33,24 +31,20 @@ interface AppLayoutProps {
 }
 
 // Componente interno que contém o layout da aplicação principal (com header, sidebar, etc.)
-// Este componente SEMPRE será renderizado dentro de SidebarProvider.
 function AppLayoutInternal({ children }: AppLayoutProps) {
   const { currentUser, logout, setActiveProfile } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
-  const { hasMounted, isMobile, toggleSidebar } = useSidebar(); // Hook useSidebar é seguro aqui
+  const { hasMounted, isMobile, toggleSidebar } = useSidebar();
   const router = useRouter();
 
   useEffect(() => {
-    // Se AppLayoutInternal está sendo renderizado, significa que não estamos na página de login.
-    // Se não houver usuário, redireciona para login.
     if (!currentUser) {
       router.push('/login');
     }
   }, [currentUser, router]);
 
-  // Se não há usuário (e estamos aguardando o redirect do useEffect), não renderiza nada ou um loader.
   if (!currentUser) {
-    return null;
+    return null; // Ou um componente de loading global
   }
 
   const handleProfileChange = (selectedProfileValue: string) => {
@@ -73,7 +67,6 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          {/* Botão para abrir/fechar sidebar em mobile */}
           {hasMounted && isMobile && (
             <Button
               variant="ghost"
@@ -93,7 +86,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
-          {hasMounted ? ( // currentUser já foi verificado acima
+          {hasMounted ? (
             <>
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-muted-foreground" />
@@ -196,7 +189,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
               <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">Logout</Button>
             </>
           ) : (
-            <div className="flex items-center gap-3 md:gap-4 h-9" /> // Placeholder
+            <div className="flex items-center gap-3 md:gap-4 h-9" />
           )}
         </div>
       </header>
@@ -210,7 +203,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
           </SidebarContent>
           <SidebarRail />
         </Sidebar>
-        <SidebarInset className="p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
+        <SidebarInset className="w-0 flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
           {children}
         </SidebarInset>
       </div>
@@ -218,16 +211,13 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
   );
 }
 
-// Componente AppLayout principal exportado
 export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
 
-  // Se for a página de login, renderiza apenas os filhos, sem SidebarProvider ou AppLayoutInternal
   if (pathname === '/login') {
     return <>{children}</>;
   }
 
-  // Para todas as outras páginas, renderiza o layout completo da aplicação
   return (
     <SidebarProvider defaultOpen>
       <AppLayoutInternal>{children}</AppLayoutInternal>

@@ -1,4 +1,3 @@
-
 // src/app/new-control/page.tsx
 "use client";
 
@@ -185,7 +184,7 @@ export default function NewControlPage() {
           <CardTitle>{pageTitle}</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} className="w-full">
           <CardContent className="space-y-4">
             {isUserAdmin() ? (
               <> {/* Campos para Administrador */}
@@ -414,4 +413,3 @@ export default function NewControlPage() {
     </div>
   );
 }
-
