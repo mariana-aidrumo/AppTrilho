@@ -1,22 +1,13 @@
+
 // src/components/layout/app-layout.tsx
 "use client";
 
 import type { ReactNode } from 'react';
 import NextLink from 'next/link';
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarInset,
-  useSidebar,
-  SidebarRail
-} from '@/components/ui/sidebar';
-import { SidebarNavItems } from "@/components/layout/sidebar-nav-items";
 import Icons from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users, PanelLeft } from "lucide-react";
+import { User, Bell, Users } from "lucide-react"; // PanelLeft removido
 import { useUserProfile } from '@/contexts/user-profile-context';
 import type { UserProfileType } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -24,27 +15,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNotification } from '@/contexts/notification-context';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react'; // useState adicionado para hasMounted
+import { HorizontalNavItems } from "@/components/layout/horizontal-nav-items"; // Novo componente de navegação
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
-// Componente interno que contém o layout da aplicação principal (com header, sidebar, etc.)
+// Componente interno que contém o layout da aplicação principal (com header, top-nav, etc.)
 function AppLayoutInternal({ children }: AppLayoutProps) {
   const { currentUser, logout, setActiveProfile } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
-  const { hasMounted, isMobile, toggleSidebar } = useSidebar();
   const router = useRouter();
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
-    if (!currentUser) {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (hasMounted && !currentUser) { // Verifica hasMounted antes de redirecionar
       router.push('/login');
     }
-  }, [currentUser, router]);
+  }, [currentUser, router, hasMounted]);
 
-  if (!currentUser) {
-    return null; // Ou um componente de loading global
+  if (!hasMounted || !currentUser) { // Adiciona hasMounted na verificação
+    // Retorna null ou um loader global enquanto hasMounted é falso ou não há currentUser
+    // Isso evita piscar o conteúdo da aplicação antes do redirecionamento ou antes da hidratação completa
+    return (
+      <div className="flex items-center justify-center h-screen">
+        {/* Você pode adicionar um spinner/loader aqui se desejar */}
+      </div>
+    );
   }
 
   const handleProfileChange = (selectedProfileValue: string) => {
@@ -59,7 +61,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
         return;
       }
       setActiveProfile(newActiveProfile);
-      router.refresh();
+      router.refresh(); // Atualiza a página para refletir as mudanças de navegação baseadas no perfil
     }
   };
 
@@ -67,17 +69,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          {hasMounted && isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={toggleSidebar}
-              aria-label="Toggle Sidebar"
-            >
-              <PanelLeft />
-            </Button>
-          )}
+          {/* Botão de toggle da Sidebar removido */}
           <NextLink href="/" className="flex items-center gap-2 text-primary hover:no-underline">
             <Icons.AppLogo className="w-7 h-7" />
             <h1 className="text-xl font-semibold">
@@ -189,24 +181,19 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
               <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">Logout</Button>
             </>
           ) : (
-            <div className="flex items-center gap-3 md:gap-4 h-9" />
+            <div className="flex items-center gap-3 md:gap-4 h-9" /> // Placeholder para evitar CLS
           )}
         </div>
       </header>
-      <div className="flex flex-1">
-        <Sidebar collapsible="icon" side="left" variant="sidebar" className="border-r">
-          <SidebarHeader className="flex items-center justify-center p-4 group-data-[collapsible=icon]:p-4">
-            <Icons.AppLogo className="w-8 h-8 text-sidebar-foreground transition-all duration-300 group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:h-7" />
-          </SidebarHeader>
-          <SidebarContent className="p-2">
-            <SidebarNavItems />
-          </SidebarContent>
-          <SidebarRail />
-        </Sidebar>
-        <SidebarInset className="w-0 flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
-          {children}
-        </SidebarInset>
-      </div>
+      
+      {/* Novo Menu de Navegação Horizontal */}
+      <nav className="border-b bg-background shadow-sm">
+        <HorizontalNavItems />
+      </nav>
+
+      <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-muted/30"> {/* Conteúdo principal da página */}
+        {children}
+      </main>
     </div>
   );
 }
@@ -215,12 +202,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
 
   if (pathname === '/login') {
-    return <>{children}</>;
+    return <>{children}</>; // Página de login não usa o layout principal
   }
 
+  // Envolve AppLayoutInternal com SidebarProvider se for necessário para algum componente filho,
+  // caso contrário, pode ser removido se nenhum componente ui/sidebar for usado diretamente.
+  // Por agora, vamos manter a estrutura caso algum subcomponente precise de useSidebar,
+  // mas ele não será usado ativamente para renderizar uma sidebar.
+  // Se confirmado que não é necessário, podemos remover o SidebarProvider.
   return (
-    <SidebarProvider defaultOpen>
       <AppLayoutInternal>{children}</AppLayoutInternal>
-    </SidebarProvider>
   );
 }
