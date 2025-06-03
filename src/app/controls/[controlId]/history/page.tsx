@@ -123,7 +123,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
 
   if (!control) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 w-full">
         <div className="flex items-center">
           <Button variant="outline" asChild>
             <Link href="/sox-matrix">
@@ -144,7 +144,7 @@ export default function ControlHistoryPage({ params }: ControlHistoryPageProps) 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href={`/controls/${control.id}`}>

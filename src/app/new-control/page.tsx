@@ -172,7 +172,7 @@ export default function NewControlPage() {
     : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise do Administrador.";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href={isUserAdmin() ? "/sox-matrix" : "/my-registered-controls"}>

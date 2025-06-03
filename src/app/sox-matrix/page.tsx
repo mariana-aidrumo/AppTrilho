@@ -197,11 +197,11 @@ export default function SoxMatrixPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {isUserAdmin() && (
           <>
             <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-              <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base font-medium">Aprovações Pendentes</CardTitle>
                   <Link href="/pending-approvals"><CheckSquare className="h-5 w-5 text-primary cursor-pointer" /></Link>
@@ -213,7 +213,7 @@ export default function SoxMatrixPage() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="shadow-md">
+              <Card className="shadow-md w-full">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base font-medium">Controles Ativos</CardTitle>
                   <TrendingUp className="h-5 w-5 text-green-500" />
@@ -223,7 +223,7 @@ export default function SoxMatrixPage() {
                   <p className="text-xs text-muted-foreground">Total de controles atualmente ativos</p>
                 </CardContent>
               </Card>
-              <Card className="shadow-md">
+              <Card className="shadow-md w-full">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base font-medium">Donos de Controles</CardTitle>
                   <Users className="h-5 w-5 text-blue-500" />
@@ -262,7 +262,7 @@ export default function SoxMatrixPage() {
         )}
 
       {isUserControlOwner() && (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full">
             <CardHeader className="px-0">
                 <CardTitle className="text-2xl">Painel (Visão Geral)</CardTitle>
                 <CardDescription>Acompanhe os controles e suas solicitações.</CardDescription>

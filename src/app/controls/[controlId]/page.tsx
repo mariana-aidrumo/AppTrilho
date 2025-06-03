@@ -139,7 +139,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
   if (!control) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full">
             <div className="flex items-center">
             <Button variant="outline" asChild>
                 <Link href="/sox-matrix">
@@ -176,7 +176,7 @@ export default function ControlDetailPage({ params }: ControlDetailPageProps) {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex items-center justify-between">
         <Button variant="outline" asChild>
           <Link href={isUserControlOwner() && currentUser.controlsOwned?.includes(control.id) ? "/my-registered-controls" : "/sox-matrix"}>

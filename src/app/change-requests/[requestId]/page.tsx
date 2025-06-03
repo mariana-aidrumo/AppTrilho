@@ -209,7 +209,7 @@ export default function ChangeRequestDetailPage({ params: paramsPromise }: Chang
   const isNewControlRequest = request.controlId.startsWith("NEW-CTRL");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href="/pending-approvals">
@@ -309,7 +309,7 @@ export default function ChangeRequestDetailPage({ params: paramsPromise }: Chang
           {request.status === "Aguardando Feedback do Dono" && currentUser.name === request.requestedBy && (
              <>
               <Separator />
-              <Card className="bg-orange-50 border-orange-300">
+              <Card className="bg-orange-50 border-orange-300 w-full">
                 <CardHeader>
                   <CardTitle className="text-orange-700 text-lg">Ação Necessária</CardTitle>
                   <CardDescription className="text-orange-600">O administrador solicitou ajustes nesta proposta. Revise o feedback acima e reenvie suas alterações.</CardDescription>

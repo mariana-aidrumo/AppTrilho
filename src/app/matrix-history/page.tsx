@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function MatrixHistoryPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
        <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href="/sox-matrix">
