@@ -7,23 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import type { ChangeRequest, SoxControl, VersionHistoryEntry } from "@/types";
+import type { ChangeRequest, SoxControl } from "@/types";
 import { ArrowLeft, CheckCircle2, XCircle, MessageSquareReply, Edit } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockChangeRequests, mockSoxControls, mockVersionHistory } from "@/data/mock-data";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react"; // Import 'use'
 import { useRouter } from "next/navigation";
 
 
 interface ChangeRequestDetailPageProps {
-  params: {
+  params: { // This type defines the shape of the resolved params
     requestId: string;
   };
 }
 
-export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailPageProps) {
+export default function ChangeRequestDetailPage({ params: paramsPromise }: ChangeRequestDetailPageProps) {
+  // Unwrap the params promise using React.use()
+  // If paramsPromise is not actually a promise, use() will return it directly.
+  const params = use(paramsPromise);
+
   const { currentUser, isUserAdmin } = useUserProfile();
   const { toast } = useToast();
   const router = useRouter();
@@ -35,6 +39,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
 
 
   useEffect(() => {
+    // params.requestId is now available because use() suspends until the promise resolves (if it was a promise)
     const foundRequest = mockChangeRequests.find(cr => cr.id === params.requestId);
     setRequest(foundRequest);
 
@@ -72,7 +77,7 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
          setChangedFields(newControlFields);
       }
     }
-  }, [params.requestId]);
+  }, [params.requestId]); // Effect depends on the resolved params.requestId
 
 
   const translateFieldName = (fieldName: string): string => {
@@ -195,8 +200,10 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     router.refresh();
   };
 
+  // If React.use() suspends, this part of the code won't be reached until params resolves.
+  // If params resolves but the useEffect doesn't find a request, then the 'request' state will be undefined.
   if (!request) {
-    return <p>Solicitação de Alteração não encontrada.</p>;
+    return <p>Solicitação de Alteração não encontrada ou dados do parâmetro ainda carregando...</p>;
   }
 
   const isNewControlRequest = request.controlId.startsWith("NEW-CTRL");
@@ -361,3 +368,5 @@ export default function ChangeRequestDetailPage({ params }: ChangeRequestDetailP
     </div>
   );
 }
+
+    
