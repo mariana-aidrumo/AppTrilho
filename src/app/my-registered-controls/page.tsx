@@ -97,7 +97,7 @@ export default function MyControlsPage() {
         </CardHeader>
         <CardContent>
           {myActiveControls.length > 0 ? (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -110,7 +110,7 @@ export default function MyControlsPage() {
                     <TableHead>Frequência</TableHead>
                     <TableHead>Modalidade</TableHead>
                     <TableHead>P/D</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead className="text-right min-w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -128,7 +128,7 @@ export default function MyControlsPage() {
                       <TableCell>{control.n3Responsavel || "N/A"}</TableCell>
                       <TableCell>{control.controlFrequency}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                           control.modalidade === "Manual" ? "bg-purple-100 text-purple-700" :
                           control.modalidade === "Automático" ? "bg-blue-100 text-blue-700" :
                           control.modalidade === "Híbrido" ? "bg-teal-100 text-teal-700" :
@@ -168,7 +168,7 @@ export default function MyControlsPage() {
         </CardHeader>
         <CardContent>
             {myControlsWithPendingChanges.length > 0 ? (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -176,7 +176,7 @@ export default function MyControlsPage() {
                             <TableHead>Nome do Controle</TableHead>
                             <TableHead>ID Solicitação</TableHead>
                             <TableHead>Status Solicitação</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                            <TableHead className="text-right min-w-[150px]">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -190,7 +190,7 @@ export default function MyControlsPage() {
                                 <TableCell>{item.control.controlName}</TableCell>
                                 <TableCell>{item.request.id}</TableCell>
                                 <TableCell>
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                                         item.request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
                                         item.request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
                                         item.request.status === "Aguardando Feedback do Dono" ? "bg-orange-100 text-orange-700" :
@@ -222,7 +222,7 @@ export default function MyControlsPage() {
         </CardHeader>
         <CardContent>
             {myPendingNewControlRequests.length > 0 ? (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -230,7 +230,7 @@ export default function MyControlsPage() {
                             <TableHead>Nome Proposto</TableHead>
                             <TableHead>Data Solicitação</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                            <TableHead className="text-right min-w-[150px]">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -240,7 +240,7 @@ export default function MyControlsPage() {
                                 <TableCell>{request.changes.controlName}</TableCell>
                                 <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
                                 <TableCell>
-                                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                     <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                                         request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
                                         request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
                                         "bg-gray-100 text-gray-700"

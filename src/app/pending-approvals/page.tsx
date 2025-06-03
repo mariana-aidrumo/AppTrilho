@@ -75,7 +75,7 @@ export default function PendingApprovalsPage() {
     const isAdminContext = context === "admin-alterations" || context === "admin-new";
 
     return (
-      <div className="rounded-md border mt-4">
+      <div className="rounded-md border mt-4 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -93,7 +93,7 @@ export default function PendingApprovalsPage() {
               {context === "owner-history" && <TableHead>Revisado Por</TableHead>}
               {context === "owner-history" && <TableHead>Data Decisão</TableHead>}
               
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead className="text-right min-w-[100px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -119,7 +119,7 @@ export default function PendingApprovalsPage() {
 
                 {context === "owner-pending" && (
                   <TableCell>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                         request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
                         request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
                         "bg-gray-100 text-gray-700"
@@ -141,7 +141,7 @@ export default function PendingApprovalsPage() {
                 {context === "owner-history" && (
                   <>
                     <TableCell>
-                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                       <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                           request.status === "Aprovado" ? "bg-green-100 text-green-700" :
                           request.status === "Rejeitado" ? "bg-red-100 text-red-700" :
                           "bg-gray-100 text-gray-700"

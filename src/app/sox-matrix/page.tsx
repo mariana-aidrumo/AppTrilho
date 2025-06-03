@@ -53,7 +53,7 @@ export default function SoxMatrixPage() {
   };
 
   const renderControlsTable = (controls: SoxControl[], profileContext: "admin" | "owner") => (
-     <div className="rounded-md border mt-4">
+     <div className="rounded-md border mt-4 overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -67,7 +67,7 @@ export default function SoxMatrixPage() {
             <TableHead>Frequência</TableHead>
             <TableHead>Modalidade</TableHead>
             <TableHead>P/D</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
+            <TableHead className="text-right min-w-[100px]">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -86,7 +86,7 @@ export default function SoxMatrixPage() {
               <TableCell>{control.n3Responsavel || "N/A"}</TableCell>
               <TableCell>{control.controlFrequency}</TableCell>
               <TableCell>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                   control.modalidade === "Manual" ? "bg-purple-100 text-purple-700" :
                   control.modalidade === "Automático" ? "bg-blue-100 text-blue-700" :
                   control.modalidade === "Híbrido" ? "bg-teal-100 text-teal-700" :
@@ -118,7 +118,7 @@ export default function SoxMatrixPage() {
         </TableBody>
       </Table>
        {controls.length === 0 && (
-        <p className="mt-4 text-center text-muted-foreground">
+        <p className="mt-4 mb-4 text-center text-muted-foreground">
           Nenhum controle ativo encontrado com os filtros aplicados.
         </p>
       )}
@@ -127,7 +127,7 @@ export default function SoxMatrixPage() {
 
   const renderFilters = () => (
     <div className="mb-6 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
         <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
           <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar Controle</label>
           <div className="relative">
@@ -177,7 +177,7 @@ export default function SoxMatrixPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="lg:col-start-1 xl:col-start-auto">
+        <div className="md:col-span-1 lg:col-start-1 xl:col-start-auto">
           <label htmlFor="n3Responsavel" className="text-sm font-medium text-muted-foreground">N3 Responsável</label>
           <Select value={selectedN3Responsavel} onValueChange={setSelectedN3Responsavel}>
             <SelectTrigger id="n3Responsavel"><SelectValue placeholder="Selecionar N3" /></SelectTrigger>
