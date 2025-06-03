@@ -25,7 +25,7 @@ body {
     --secondary-foreground: 289 44% 10%; /* Cinza Escuro para texto em Laranja */
 
     --muted: 200 27% 96%; /* Cinza Claro #F2F5F6 para fundos sutis */
-    --muted-foreground: 201 27% 55%; /* Cinza Médio #BDCCD4 (escurecido para texto) */
+    --muted-foreground: 201 27% 55%; /* Cinza Médio #8FA6B1 (escurecido de #BDCCD4 para texto) */
 
     --accent: 50 100% 49%; /* Amarelo #FBD300 */
     --accent-foreground: 289 44% 10%; /* Cinza Escuro para texto em Amarelo */
@@ -73,8 +73,8 @@ body {
     --secondary: 21 100% 73%; /* Laranja mais brilhante #FFA773 */
     --secondary-foreground: 289 44% 10%; /* Texto escuro */
 
-    --muted: 288 30% 15%; /* Roxo-Cinza Escuro para fundos sutis */
-    --muted-foreground: 285 20% 70%; /* Roxo-Cinza Médio */
+    --muted: 288 30% 15%; /* Roxo-Cinza Escuro #302036 para fundos sutis */
+    --muted-foreground: 285 20% 70%; /* Roxo-Cinza Médio #9A8DA0 */
 
     --accent: 51 97% 64%; /* Amarelo mais brilhante #FCE24C */
     --accent-foreground: 289 44% 10%; /* Texto escuro */
@@ -82,7 +82,7 @@ body {
     --destructive: 0 65% 55%; /* Vermelho Destrutivo (ajustado para escuro) */
     --destructive-foreground: 0 0% 98%;
 
-    --border: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para bordas */
+    --border: 288 30% 20%; /* Roxo-Cinza Médio-Escuro #42304A para bordas */
     --input: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para input */
     --ring: 279 90% 76%; /* Roxo mais brilhante para anéis */
 
