@@ -13,8 +13,8 @@ export interface MockUser {
 }
 
 export const mockUsers: MockUser[] = [
-    { id: 'user-adm-1', name: 'Carlos Administrador', email: 'usuario@adm.com', password: 'Senha123', roles: ['admin'], activeProfile: "Administrador de Controles Internos" },
-    { id: 'user-owner-1', name: 'João da Silva', email: 'usuario@owner.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1', '2', '3'] }, // Added '3' for PRO-012
+    { id: 'user-adm-1', name: 'Carlos Ferreira', email: 'usuario@adm.com', password: 'Senha123', roles: ['admin'], activeProfile: "Administrador de Controles Internos" },
+    { id: 'user-owner-1', name: 'João da Silva', email: 'usuario@owner.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1', '2', '3'] },
     { id: 'user-other-1', name: 'Ana Clara Souza', email: 'alice@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
     { id: 'user-other-2', name: 'Pedro Oliveira', email: 'bob@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['2'] },
 ];
@@ -79,7 +79,7 @@ export const mockSoxControls: SoxControl[] = [
     controlId: "SEC-002",
     controlName: "Revisão de Logs de Segurança",
     description: "Revisão diária de logs de segurança para identificar atividades suspeitas.",
-    controlOwner: "Carlos Administrador",
+    controlOwner: "Carlos Ferreira",
     controlFrequency: "Diário",
     controlType: "Detectivo",
     status: "Ativo",
@@ -115,20 +115,20 @@ export const mockChangeRequests: ChangeRequest[] = [
     changes: { controlOwner: "Lucas Mendes", responsavel: "Novo Responsável TI" },
     status: "Em Análise",
     comments: "Transferência de propriedade do controle e atualização de responsável.",
-    reviewedBy: "Carlos Administrador",
+    reviewedBy: "Carlos Ferreira",
     reviewDate: new Date(Date.now() - 86400000 * 1).toISOString(),
   },
   {
     id: "cr3-new-pending",
-    controlId: "NEW-CTRL-OPS010", 
+    controlId: "NEW-CTRL-OPS010",
     requestedBy: "João da Silva",
     requestDate: new Date(Date.now() - 86400000 * 5).toISOString(),
     changes: {
         controlName: "Validação de Entrada de Pedidos",
         justificativa: "Necessário para reduzir erros de processamento de pedidos e melhorar a qualidade dos dados do cliente.",
         description: "Necessário para reduzir erros de processamento de pedidos e melhorar a qualidade dos dados do cliente.",
-        controlOwner: "João da Silva", 
-        status: "Rascunho", 
+        controlOwner: "João da Silva",
+        status: "Rascunho",
     },
     status: "Pendente",
     comments: "Proposta de novo controle para validação de pedidos.",
@@ -144,7 +144,7 @@ export const mockChangeRequests: ChangeRequest[] = [
     },
     status: "Aguardando Feedback do Dono",
     comments: "Tentativa de atualização dos procedimentos de teste e N3.",
-    reviewedBy: "Carlos Administrador",
+    reviewedBy: "Carlos Ferreira",
     reviewDate: new Date(Date.now() - 86400000 * 3).toISOString(),
     adminFeedback: "A proposta é boa, mas precisamos detalhar melhor como a 'dupla aprovação' será evidenciada e confirmar o N3. Por favor, revise e adicione detalhes sobre o sistema ou formulário de aprovação a ser usado.",
   },
@@ -160,7 +160,7 @@ export const mockChangeRequests: ChangeRequest[] = [
     },
     status: "Aprovado",
     comments: "Ajuste na frequência do controle PRO-012 e responsável.",
-    reviewedBy: "Carlos Administrador",
+    reviewedBy: "Carlos Ferreira",
     reviewDate: new Date(Date.now() - 86400000 * 18).toISOString(),
   },
    {
@@ -173,7 +173,7 @@ export const mockChangeRequests: ChangeRequest[] = [
     },
     status: "Rejeitado",
     comments: "Adição de risco não justificada.",
-    reviewedBy: "Carlos Administrador",
+    reviewedBy: "Carlos Ferreira",
     reviewDate: new Date(Date.now() - 86400000 * 22).toISOString(),
     adminFeedback: "O risco de performance do sistema não é diretamente mitigado por este controle de acesso. Por favor, crie um controle específico se necessário.",
   },
@@ -195,15 +195,15 @@ export const mockChangeRequests: ChangeRequest[] = [
 
 
 export const mockVersionHistory: VersionHistoryEntry[] = [
-  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Administrador", summaryOfChanges: "Controle FIN-001 Criado.", newValues: { controlName: "Revisão de Conciliação Bancária", status: "Ativo", responsavel: "Carlos Pereira", n3Responsavel: "Gerência Financeira" } },
+  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle FIN-001 Criado.", newValues: { controlName: "Revisão de Conciliação Bancária", status: "Ativo", responsavel: "Carlos Pereira", n3Responsavel: "Gerência Financeira" } },
   { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "João da Silva", summaryOfChanges: "Solicitação de alteração cr1 enviada.", relatedChangeRequestId: "cr1" },
-  { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 28).toISOString(), changedBy: "Carlos Administrador", summaryOfChanges: "Controle ITG-005 Criado.", newValues: { controlName: "Aprovação de Acesso ao Sistema", status: "Ativo", responsavel: "Fernanda Lima", n3Responsavel: "Diretoria de TI" } },
-  { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 26).toISOString(), changedBy: "Carlos Administrador", summaryOfChanges: "Controle PRO-012 Criado.", newValues: { controlName: "Due Diligence de Integridade", status: "Ativo", responsavel: "Mariana Costa", n3Responsavel: "Gerência de Suprimentos" } },
+  { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 28).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle ITG-005 Criado.", newValues: { controlName: "Aprovação de Acesso ao Sistema", status: "Ativo", responsavel: "Fernanda Lima", n3Responsavel: "Diretoria de TI" } },
+  { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 26).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle PRO-012 Criado.", newValues: { controlName: "Due Diligence de Integridade", status: "Ativo", responsavel: "Mariana Costa", n3Responsavel: "Gerência de Suprimentos" } },
   {
     id: "vh5",
     controlId: "3", // PRO-012
     changeDate: new Date(Date.now() - 86400000 * 18).toISOString(),
-    changedBy: "Carlos Administrador",
+    changedBy: "Carlos Ferreira",
     summaryOfChanges: "Alterações da solicitação cr5-approved aplicadas.",
     previousValues: { controlFrequency: "Por Novo Fornecedor", description: "Contagens cíclicas regulares de estoque para garantir a precisão." },
     newValues: { controlFrequency: "Semanal", description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente.", responsavel: "Ana Silva (Atualizado)" },
@@ -213,7 +213,7 @@ export const mockVersionHistory: VersionHistoryEntry[] = [
 
 export const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
 export const mockSubProcessos = ["Todos", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção", "Monitoramento de Segurança", "Processamento de Pedidos"];
-export const mockDonos = ["Todos", "Ana Clara Souza", "Pedro Oliveira", "João da Silva", "Carlos Administrador", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
+export const mockDonos = ["Todos", "Ana Clara Souza", "Pedro Oliveira", "João da Silva", "Carlos Ferreira", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
 export const mockResponsaveis = ["Todos", "Carlos Pereira", "Fernanda Lima", "Mariana Costa", "Ricardo Alves", "Ana Silva (Atualizado)", "Equipe de Vendas", "Novo Responsável TI", "João Silva", "Maria Oliveira", "Beatriz Santos", "Rafael Almeida"];
 export const mockN3Responsaveis = ["Todos", "Gerência Financeira", "Diretoria de TI", "Gerência de Suprimentos", "CSO Office", "Gerência Comercial", "CFO", "VP Financeiro", "Diretoria de Operações", "Head de Compras", "Superintendência de Riscos"];
 
