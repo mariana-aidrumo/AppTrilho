@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarInset,
-  SidebarTrigger,
+  SidebarTrigger as OriginalSidebarTrigger, // Renomeado para evitar conflito com o nosso botão
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
@@ -18,7 +18,7 @@ import { SidebarNavItems } from "@/components/layout/sidebar-nav-items";
 import Icons from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users } from "lucide-react";
+import { User, Bell, Users, PanelLeft } from "lucide-react"; // PanelLeft importado
 import { useUserProfile } from '@/contexts/user-profile-context';
 import type { UserProfileType } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -32,19 +32,31 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-function AppLayoutContent({ children }: AppLayoutProps) {
+// Componente interno que contém o layout da aplicação principal (com header, sidebar, etc.)
+// Este componente SEMPRE será renderizado dentro de SidebarProvider.
+function AppLayoutInternal({ children }: AppLayoutProps) {
   const { currentUser, logout, setActiveProfile } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
-  const { hasMounted } = useSidebar();
+  const { hasMounted, isMobile, toggleSidebar } = useSidebar(); // Hook useSidebar é seguro aqui
   const router = useRouter();
-  const pathname = usePathname();
+
+  useEffect(() => {
+    // Se AppLayoutInternal está sendo renderizado, significa que não estamos na página de login.
+    // Se não houver usuário, redireciona para login.
+    if (!currentUser) {
+      router.push('/login');
+    }
+  }, [currentUser, router]);
+
+  // Se não há usuário (e estamos aguardando o redirect do useEffect), não renderiza nada ou um loader.
+  if (!currentUser) {
+    return null;
+  }
 
   const handleProfileChange = (selectedProfileValue: string) => {
     if (currentUser) {
       const newActiveProfile = selectedProfileValue as UserProfileType;
-      // Validar se o usuário pode assumir o novo perfil com base em suas roles
       if (newActiveProfile === "Administrador de Controles Internos" && !currentUser.roles.includes("admin")) {
-        // Idealmente, esta opção nem deveria aparecer no Select, mas é uma boa salvaguarda.
         console.warn(`Usuário ${currentUser.name} tentou mudar para perfil Admin sem ter a role.`);
         return;
       }
@@ -53,39 +65,26 @@ function AppLayoutContent({ children }: AppLayoutProps) {
         return;
       }
       setActiveProfile(newActiveProfile);
-      router.refresh(); // Refresh para garantir que o layout e dados se adaptem ao novo perfil
+      router.refresh();
     }
   };
-
-  useEffect(() => {
-    const publicRoutes = ['/login'];
-    const isProtectedRoute = !publicRoutes.includes(pathname);
-
-    if (isProtectedRoute && !currentUser) {
-      router.push('/login');
-    }
-    if (pathname === '/login' && currentUser) {
-      // Se o usuário já está logado e tenta acessar /login, redireciona para a home
-      router.push('/');
-    }
-  }, [currentUser, pathname, router]);
-
-  // Se estiver na página de login, renderiza apenas o children (o conteúdo da página de login)
-  if (pathname === '/login') {
-    return <>{children}</>;
-  }
-
-  // Se não há usuário logado (e não é a página de login), não renderiza nada até o redirect do useEffect ocorrer.
-  // Isso evita um flash do layout da aplicação antes do redirecionamento.
-  if (!currentUser) {
-    return null;
-  }
 
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <SidebarTrigger />
+          {/* Botão para abrir/fechar sidebar em mobile */}
+          {hasMounted && isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={toggleSidebar}
+              aria-label="Toggle Sidebar"
+            >
+              <PanelLeft />
+            </Button>
+          )}
           <NextLink href="/" className="flex items-center gap-2 text-primary hover:no-underline">
             <Icons.AppLogo className="w-7 h-7" />
             <h1 className="text-xl font-semibold">
@@ -94,7 +93,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
-          {hasMounted && currentUser ? (
+          {hasMounted ? ( // currentUser já foi verificado acima
             <>
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-muted-foreground" />
@@ -109,7 +108,6 @@ function AppLayoutContent({ children }: AppLayoutProps) {
                     {currentUser.roles.includes("control-owner") && (
                        <SelectItem value="Dono do Controle">Dono do Controle</SelectItem>
                     )}
-                    {/* Adicionar outros perfis aqui se existirem e forem permitidos */}
                   </SelectContent>
                 </Select>
               </div>
@@ -198,8 +196,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
               <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">Logout</Button>
             </>
           ) : (
-            // Placeholder para evitar layout shift enquanto hasMounted é false ou não há currentUser
-            <div className="flex items-center gap-3 md:gap-4 h-9" />
+            <div className="flex items-center gap-3 md:gap-4 h-9" /> // Placeholder
           )}
         </div>
       </header>
@@ -221,10 +218,19 @@ function AppLayoutContent({ children }: AppLayoutProps) {
   );
 }
 
+// Componente AppLayout principal exportado
 export function AppLayout({ children }: AppLayoutProps) {
+  const pathname = usePathname();
+
+  // Se for a página de login, renderiza apenas os filhos, sem SidebarProvider ou AppLayoutInternal
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
+
+  // Para todas as outras páginas, renderiza o layout completo da aplicação
   return (
     <SidebarProvider defaultOpen>
-      <AppLayoutContent>{children}</AppLayoutContent>
+      <AppLayoutInternal>{children}</AppLayoutInternal>
     </SidebarProvider>
   );
 }

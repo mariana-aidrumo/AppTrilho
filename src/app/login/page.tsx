@@ -1,23 +1,30 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import Icons from "@/components/icons"; // Import Icons for the logo
-import { Loader2 } from 'lucide-react'; // Import Loader2 for submitting state
+import Icons from "@/components/icons";
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false); // Added for button state
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { login } = useUserProfile();
+  const { login, currentUser } = useUserProfile();
+
+  useEffect(() => {
+    // Se o usuário já estiver logado, redireciona para a página principal
+    if (currentUser) {
+      router.push('/'); // Ou a rota principal da sua aplicação, ex: /sox-matrix
+    }
+  }, [currentUser, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,12 +37,23 @@ export default function LoginPage() {
     const user = login(email, password);
 
     if (user) {
-      router.push('/');
+      // O redirecionamento será tratado pelo useEffect se o login for bem-sucedido
+      // e currentUser for atualizado.
+      // Se não houver redirecionamento imediato aqui, a UI pode piscar.
+      // Para evitar isso, pode-se redirecionar aqui também, embora o useEffect cubra.
+      router.push('/'); // Garante o redirecionamento imediato após o login.
     } else {
       setError('Credenciais inválidas. Tente novamente.');
+      setIsSubmitting(false); // Garante que o botão seja reativado em caso de falha
     }
-    setIsSubmitting(false);
+    // Não é necessário setIsSubmitting(false) em caso de sucesso se houver redirecionamento
   };
+
+  // Enquanto currentUser está sendo verificado ou se já estiver logado (aguardando redirect do useEffect)
+  // não renderiza o formulário para evitar piscar a tela de login.
+  if (currentUser) {
+    return null; // Ou um componente de loading global
+  }
 
   return (
     <div className="flex items-center justify-center h-screen bg-background">
