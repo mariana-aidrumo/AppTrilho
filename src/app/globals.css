@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,77 +9,84 @@ body {
 
 @layer base {
   :root {
-    --background: 220 20% 95%; /* Light Gray-Blueish #F0F2F5 */
-    --foreground: 0 0% 20%; /* Dark Gray #333333 */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 0 0% 20%; /* Dark Gray */
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 0 0% 20%; /* Dark Gray */
-    
-    /* Roxo médio mais escuro para melhor contraste de texto */
-    --primary: 258 70% 60%; /* Medium Purple #7D5BA6 */
-    --primary-foreground: 0 0% 100%; /* White text for contrast on new primary */
-    
-    --secondary: 220 16% 90%; /* Lighter Gray-Blueish #E9EDF0 */
-    --secondary-foreground: 0 0% 15%; /* Darker Gray for text on secondary */
-    --muted: 220 16% 90%; /* Muted Gray-Blueish #E9EDF0 */
-    --muted-foreground: 220 10% 45%; /* Grayish Blue #667085 */
-    
-    /* Rosa claro como cor de destaque (geralmente para fundos ou bordas) */
-    --accent: 336 80% 92%; /* Rosa Claro #FBCFE8 */
-    --accent-foreground: 336 60% 30%; /* Texto mais escuro para contraste com rosa claro */
-    
-    --destructive: 0 72% 51%; /* Default Destructive Red (adjusted slightly) */
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 88%; /* Light Gray Border #DDE1E6 */
-    --input: 220 15% 88%; /* Light Gray Input Border */
-    --ring: 258 70% 60%; /* Medium Purple para Ring (mesmo que novo primário) */
-    
+    --background: 0 0% 100%; /* Branco #FFFFFF */
+    --foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) #200E24 */
+
+    --card: 0 0% 100%; /* Branco */
+    --card-foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) */
+
+    --popover: 0 0% 100%; /* Branco */
+    --popover-foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) */
+
+    --primary: 286 51% 51%; /* Roxo #9F4BB9 */
+    --primary-foreground: 0 0% 100%; /* Branco para contraste com Roxo */
+
+    --secondary: 21 92% 62%; /* Laranja #F78344 */
+    --secondary-foreground: 289 44% 10%; /* Cinza Escuro para texto em Laranja */
+
+    --muted: 200 27% 96%; /* Cinza Claro #F2F5F6 para fundos sutis */
+    --muted-foreground: 201 27% 55%; /* Cinza Médio #BDCCD4 (escurecido para texto) */
+
+    --accent: 50 100% 49%; /* Amarelo #FBD300 */
+    --accent-foreground: 289 44% 10%; /* Cinza Escuro para texto em Amarelo */
+
+    --destructive: 0 72% 51%; /* Vermelho Destrutivo (padrão) */
+    --destructive-foreground: 0 0% 98%; /* Branco para texto em Vermelho */
+
+    --border: 201 27% 79%; /* Cinza Médio #BDCCD4 para bordas */
+    --input: 201 27% 79%; /* Cinza Médio #BDCCD4 para bordas de input */
+    --ring: 286 51% 51%; /* Roxo #9F4BB9 para anéis de foco */
+
+    --radius: 0.75rem; /* Increased border radius */
+
+    /* Chart colors - can be revisited if they don't fit the new theme */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.75rem; /* Increased border radius */
 
-    /* Sidebar specific theme - ajustado para novo primário */
-    --sidebar-background: 258 60% 60%; /* Roxo médio-claro para sidebar (pode ser um pouco mais escuro que o primário se desejado) */
-    --sidebar-foreground: 0 0% 100%; /* Texto branco para contraste */
-    --sidebar-primary: 258 70% 60%; /* Novo primário (medium purple) para item ativo */
-    --sidebar-primary-foreground: 0 0% 100%; /* Texto branco para item ativo */
-    --sidebar-accent: 258 60% 70%; /* Roxo um pouco mais claro para hover */
+    /* Sidebar specific theme */
+    --sidebar-background: 286 51% 51%; /* Roxo Primário #9F4BB9 */
+    --sidebar-foreground: 0 0% 100%; /* Texto branco */
+    --sidebar-primary: 50 100% 49%; /* Amarelo de Acento #FBD300 para item ativo */
+    --sidebar-primary-foreground: 289 44% 10%; /* Texto escuro para item ativo em amarelo */
+    --sidebar-accent: 286 51% 61%; /* Roxo um pouco mais claro para hover (Lighten 10% de #9F4BB9) */
     --sidebar-accent-foreground: 0 0% 100%; /* Texto branco para hover */
-    --sidebar-border: 258 60% 50%; /* Roxo mais escuro para bordas da sidebar */
-    --sidebar-ring: 258 70% 60%; /* Novo primário (medium purple) para ring */
+    --sidebar-border: 286 51% 41%; /* Roxo mais escuro para bordas (Darken 10% de #9F4BB9) */
+    --sidebar-ring: 286 51% 51%; /* Roxo Primário para anel */
   }
 
   .dark {
-    --background: 220 15% 10%; /* Very Dark Blue/Gray #16191C */
-    --foreground: 220 10% 85%; /* Light Gray */
-    --card: 220 15% 15%; /* Darker Card BG #1F2328 */
-    --card-foreground: 220 10% 85%; /* Light Gray */
-    --popover: 220 15% 15%; /* Darker Popover BG */
-    --popover-foreground: 220 10% 85%; /* Light Gray */
+    --background: 288 43% 8%; /* Roxo Muito Escuro #1A0C1E */
+    --foreground: 285 27% 88%; /* Roxo-Cinza Claro #E5D9E9 */
 
-    /* Primário do tema escuro pode permanecer claro, pois é usado em fundo escuro */
-    --primary: 258 80% 80%; /* Lavanda/Lilás mais brilhante para escuro #C4B5FD */
-    --primary-foreground: 258 50% 15%; /* Texto bem escuro para contraste em botões primários */
+    --card: 289 44% 10%; /* Roxo Escuro (Texto do tema claro) #200E24 */
+    --card-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
 
-    --secondary: 220 15% 20%; /* Dark Secondary #292E33 */
-    --secondary-foreground: 220 10% 85%; /* Light Gray */
-    --muted: 220 15% 25%; /* Dark Muted #353B42 */
-    --muted-foreground: 220 10% 60%; /* Medium Gray */
+    --popover: 289 44% 10%; /* Roxo Escuro */
+    --popover-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
 
-    /* Rosa claro/médio para tema escuro */
-    --accent: 336 70% 80%; /* Rosa mais brilhante para escuro #F9A8D4 */
-    --accent-foreground: 336 50% 20%; /* Texto escuro para contraste */
-    
-    --destructive: 0 65% 55%; /* Adjusted Destructive Red for dark */
+    --primary: 279 90% 76%; /* Roxo mais brilhante #C58AF9 */
+    --primary-foreground: 289 44% 10%; /* Texto escuro para contraste */
+
+    --secondary: 21 100% 73%; /* Laranja mais brilhante #FFA773 */
+    --secondary-foreground: 289 44% 10%; /* Texto escuro */
+
+    --muted: 288 30% 15%; /* Roxo-Cinza Escuro para fundos sutis */
+    --muted-foreground: 285 20% 70%; /* Roxo-Cinza Médio */
+
+    --accent: 51 97% 64%; /* Amarelo mais brilhante #FCE24C */
+    --accent-foreground: 289 44% 10%; /* Texto escuro */
+
+    --destructive: 0 65% 55%; /* Vermelho Destrutivo (ajustado para escuro) */
     --destructive-foreground: 0 0% 98%;
-    --border: 220 15% 25%; /* Dark Border #353B42 */
-    --input: 220 15% 25%; /* Dark Input Border */
-    --ring: 258 80% 80%; /* Lavanda/Lilás mais brilhante para Ring (primário do tema escuro) */
-    
+
+    --border: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para bordas */
+    --input: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para input */
+    --ring: 279 90% 76%; /* Roxo mais brilhante para anéis */
+
+    /* Chart colors - can be revisited */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -86,14 +94,14 @@ body {
     --chart-5: 340 75% 55%;
 
     /* Dark Sidebar specific theme */
-    --sidebar-background: 258 40% 25%; /* Roxo escuro, mas não tão intenso */
-    --sidebar-foreground: 258 30% 90%; /* Texto off-white/lavanda claro */
-    --sidebar-primary: 258 80% 80%; /* Primário do tema escuro (lavanda brilhante) para item ativo */
-    --sidebar-primary-foreground: 258 50% 15%; /* Texto escuro para item ativo */
-    --sidebar-accent: 258 40% 35%; /* Roxo um pouco mais claro para hover */
-    --sidebar-accent-foreground: 258 30% 90%; /* Texto off-white para hover */
-    --sidebar-border: 258 40% 15%; /* Roxo bem escuro para bordas */
-    --sidebar-ring: 258 80% 80%; /* Primário do tema escuro para ring */
+    --sidebar-background: 289 44% 10%; /* Roxo Escuro (como o --card) */
+    --sidebar-foreground: 285 27% 88%; /* Roxo-Cinza Claro (como o --foreground) */
+    --sidebar-primary: 51 97% 64%; /* Amarelo de Acento do tema escuro */
+    --sidebar-primary-foreground: 289 44% 10%; /* Texto escuro (como o --card) */
+    --sidebar-accent: 286 51% 20%; /* Roxo mais escuro para hover */
+    --sidebar-accent-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
+    --sidebar-border: 286 51% 5%; /* Roxo Muito Muito Escuro para bordas */
+    --sidebar-ring: 279 90% 76%; /* Roxo de Acento do tema escuro */
   }
 }
 
@@ -105,3 +113,5 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+    
