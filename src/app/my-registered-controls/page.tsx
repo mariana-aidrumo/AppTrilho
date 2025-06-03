@@ -92,7 +92,7 @@ export default function MyControlsPage() {
         <CardHeader>
           <CardTitle>Meus Controles Ativos</CardTitle>
           <CardDescription>
-            Seus controles SOX ativos que não possuem alterações pendentes solicitadas por você.
+            Seus controles ativos que não possuem alterações pendentes solicitadas por você.
           </CardDescription>
         </CardHeader>
         <CardContent>
