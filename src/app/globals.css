@@ -10,36 +10,36 @@ body {
 @layer base {
   :root {
     --background: 0 0% 100%; /* Branco #FFFFFF */
-    --foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) #200E24 */
+    --foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
     --card: 0 0% 100%; /* Branco */
-    --card-foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) */
+    --card-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
     --popover: 0 0% 100%; /* Branco */
-    --popover-foreground: 289 44% 10%; /* Cinza Escuro (derivado de Roxo) */
+    --popover-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
-    --primary: 286 51% 51%; /* Roxo #9F4BB9 */
-    --primary-foreground: 0 0% 100%; /* Branco para contraste com Roxo */
+    --primary: 205 100% 20%; /* Azul Primário #003B65 */
+    --primary-foreground: 0 0% 100%; /* Branco */
 
-    --secondary: 21 92% 62%; /* Laranja #F78344 */
-    --secondary-foreground: 289 44% 10%; /* Cinza Escuro para texto em Laranja */
+    --secondary: 201 79% 55%; /* Azul Claro #32A6E6 */
+    --secondary-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
-    --muted: 200 27% 96%; /* Cinza Claro #F2F5F6 para fundos sutis */
-    --muted-foreground: 201 27% 55%; /* Cinza Médio #8FA6B1 (escurecido de #BDCCD4 para texto) */
+    --muted: 202 27% 87%; /* Cinza Claro #D7E0E5 */
+    --muted-foreground: 203 10% 58%; /* Cinza Médio #8A98A0 (para texto sutil) */
 
-    --accent: 50 100% 49%; /* Amarelo #FBD300 */
-    --accent-foreground: 289 44% 10%; /* Cinza Escuro para texto em Amarelo */
+    --accent: 21 92% 62%; /* Laranja #F78344 */
+    --accent-foreground: 0 0% 100%; /* Branco */
 
     --destructive: 0 72% 51%; /* Vermelho Destrutivo (padrão) */
     --destructive-foreground: 0 0% 98%; /* Branco para texto em Vermelho */
 
-    --border: 201 27% 79%; /* Cinza Médio #BDCCD4 para bordas */
-    --input: 201 27% 79%; /* Cinza Médio #BDCCD4 para bordas de input */
-    --ring: 286 51% 51%; /* Roxo #9F4BB9 para anéis de foco */
+    --border: 202 27% 79%; /* Cinza Médio #BDCCD4 para bordas */
+    --input: 202 27% 79%; /* Cinza Médio #BDCCD4 para bordas de input */
+    --ring: 205 100% 20%; /* Azul Primário #003B65 para anéis de foco */
 
     --radius: 0.75rem; /* Increased border radius */
 
-    /* Chart colors */
+    /* Chart colors (manter padrão ou ajustar para harmonizar com azul/laranja) */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -47,46 +47,46 @@ body {
     --chart-5: 27 87% 67%;
 
     /* Sidebar specific theme */
-    --sidebar-background: 286 51% 51%; /* Roxo Primário #9F4BB9 */
+    --sidebar-background: 205 100% 20%; /* Azul Primário #003B65 */
     --sidebar-foreground: 0 0% 100%; /* Texto branco */
-    --sidebar-primary: 50 100% 49%; /* Amarelo de Acento #FBD300 para item ativo */
-    --sidebar-primary-foreground: 289 44% 10%; /* Texto escuro para item ativo em amarelo */
-    --sidebar-accent: 286 51% 61%; /* Roxo um pouco mais claro para hover (Lighten 10% de #9F4BB9) */
+    --sidebar-primary: 21 92% 62%; /* Laranja Acento #F78344 para item ativo */
+    --sidebar-primary-foreground: 0 0% 100%; /* Texto branco para item ativo em laranja */
+    --sidebar-accent: 205 100% 25%; /* Azul Primário um pouco mais claro para hover */
     --sidebar-accent-foreground: 0 0% 100%; /* Texto branco para hover */
-    --sidebar-border: 286 51% 41%; /* Roxo mais escuro para bordas (Darken 10% de #9F4BB9) */
-    --sidebar-ring: 286 51% 51%; /* Roxo Primário para anel */
+    --sidebar-border: 205 100% 15%; /* Azul Primário mais escuro para bordas */
+    --sidebar-ring: 205 100% 20%; /* Azul Primário para anel */
   }
 
   .dark {
-    --background: 288 43% 8%; /* Roxo Muito Escuro #1A0C1E */
-    --foreground: 285 27% 88%; /* Roxo-Cinza Claro #E5D9E9 */
+    --background: 206 100% 8%; /* Azul Muito Escuro #001728 */
+    --foreground: 206 27% 92%; /* Cinza Azulado Claro #E5EBEE */
 
-    --card: 289 44% 10%; /* Roxo Escuro (Foreground do tema claro) #200E24 */
-    --card-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
+    --card: 205 100% 12%; /* Azul Escuro #00233F */
+    --card-foreground: 206 27% 92%; /* Cinza Azulado Claro #E5EBEE */
 
-    --popover: 289 44% 10%; /* Roxo Escuro */
-    --popover-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
+    --popover: 205 100% 12%; /* Azul Escuro #00233F */
+    --popover-foreground: 206 27% 92%; /* Cinza Azulado Claro #E5EBEE */
 
-    --primary: 279 90% 76%; /* Roxo mais brilhante #C58AF9 */
-    --primary-foreground: 289 44% 10%; /* Texto escuro para contraste */
+    --primary: 201 79% 55%; /* Azul Claro #32A6E6 */
+    --primary-foreground: 206 100% 8%; /* Azul Muito Escuro #001728 */
 
-    --secondary: 21 100% 73%; /* Laranja mais brilhante #FFA773 */
-    --secondary-foreground: 289 44% 10%; /* Texto escuro */
+    --secondary: 222 78% 64%; /* Azul Alternativo #5B8BEB */
+    --secondary-foreground: 206 100% 8%; /* Azul Muito Escuro #001728 */
 
-    --muted: 288 30% 15%; /* Roxo-Cinza Escuro #302036 para fundos sutis */
-    --muted-foreground: 285 20% 70%; /* Roxo-Cinza Médio #9A8DA0 */
+    --muted: 205 100% 15%; /* Azul Escuro-Médio #002C4A */
+    --muted-foreground: 206 28% 85%; /* Cinza Médio-Claro #CAD6DD */
 
-    --accent: 51 97% 64%; /* Amarelo mais brilhante #FCE24C */
-    --accent-foreground: 289 44% 10%; /* Texto escuro */
+    --accent: 21 92% 62%; /* Laranja #F78344 */
+    --accent-foreground: 0 0% 100%; /* Branco */
 
     --destructive: 0 65% 55%; /* Vermelho Destrutivo (ajustado para escuro) */
     --destructive-foreground: 0 0% 98%;
 
-    --border: 288 30% 20%; /* Roxo-Cinza Médio-Escuro #42304A para bordas */
-    --input: 288 30% 20%; /* Roxo-Cinza Médio-Escuro para input */
-    --ring: 279 90% 76%; /* Roxo mais brilhante para anéis */
+    --border: 205 100% 20%; /* Azul Médio #003B65 (o primário do light) */
+    --input: 205 100% 20%; /* Azul Médio #003B65 */
+    --ring: 201 79% 55%; /* Azul Claro #32A6E6 */
 
-    /* Chart colors */
+    /* Chart colors (manter padrão ou ajustar) */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -94,14 +94,14 @@ body {
     --chart-5: 340 75% 55%;
 
     /* Dark Sidebar specific theme */
-    --sidebar-background: 289 44% 10%; /* Roxo Escuro (como o --card) */
-    --sidebar-foreground: 285 27% 88%; /* Roxo-Cinza Claro (como o --foreground) */
-    --sidebar-primary: 51 97% 64%; /* Amarelo de Acento do tema escuro */
-    --sidebar-primary-foreground: 289 44% 10%; /* Texto escuro (como o --card) */
-    --sidebar-accent: 286 51% 20%; /* Roxo mais escuro para hover */
-    --sidebar-accent-foreground: 285 27% 88%; /* Roxo-Cinza Claro */
-    --sidebar-border: 286 51% 5%; /* Roxo Muito Muito Escuro para bordas */
-    --sidebar-ring: 279 90% 76%; /* Roxo de Acento do tema escuro */
+    --sidebar-background: 206 100% 8%; /* Azul Muito Escuro #001728 */
+    --sidebar-foreground: 206 27% 92%; /* Cinza Azulado Claro #E5EBEE */
+    --sidebar-primary: 21 92% 62%; /* Laranja Acento #F78344 */
+    --sidebar-primary-foreground: 0 0% 100%; /* Branco */
+    --sidebar-accent: 205 100% 12%; /* Azul Escuro #00233F (cor do card dark para hover) */
+    --sidebar-accent-foreground: 206 27% 92%; /* Cinza Azulado Claro #E5EBEE */
+    --sidebar-border: 206 100% 5%; /* Azul Ainda Mais Escuro #000E1A */
+    --sidebar-ring: 201 79% 55%; /* Azul Claro #32A6E6 */
   }
 }
 
