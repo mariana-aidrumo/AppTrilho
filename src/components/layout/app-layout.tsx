@@ -39,17 +39,21 @@ function AppLayoutContent({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleProfileChange = (value: string) => {
+  const handleProfileChange = (selectedProfileValue: string) => {
     if (currentUser) {
-      const newProfile = value as UserProfileType;
-      if (newProfile === "Administrador de Controles Internos" && !currentUser.roles.includes("admin")) {
+      const newActiveProfile = selectedProfileValue as UserProfileType;
+      // Validar se o usuário pode assumir o novo perfil com base em suas roles
+      if (newActiveProfile === "Administrador de Controles Internos" && !currentUser.roles.includes("admin")) {
+        // Idealmente, esta opção nem deveria aparecer no Select, mas é uma boa salvaguarda.
+        console.warn(`Usuário ${currentUser.name} tentou mudar para perfil Admin sem ter a role.`);
         return;
       }
-      if (newProfile === "Dono do Controle" && !currentUser.roles.includes("control-owner")) {
+      if (newActiveProfile === "Dono do Controle" && !currentUser.roles.includes("control-owner")) {
+        console.warn(`Usuário ${currentUser.name} tentou mudar para perfil Dono do Controle sem ter a role.`);
         return;
       }
-      setActiveProfile(newProfile);
-      router.refresh();
+      setActiveProfile(newActiveProfile);
+      router.refresh(); // Refresh para garantir que o layout e dados se adaptem ao novo perfil
     }
   };
 
@@ -61,16 +65,20 @@ function AppLayoutContent({ children }: AppLayoutProps) {
       router.push('/login');
     }
     if (pathname === '/login' && currentUser) {
-      router.push('/'); 
+      // Se o usuário já está logado e tenta acessar /login, redireciona para a home
+      router.push('/');
     }
   }, [currentUser, pathname, router]);
 
+  // Se estiver na página de login, renderiza apenas o children (o conteúdo da página de login)
   if (pathname === '/login') {
     return <>{children}</>;
   }
 
+  // Se não há usuário logado (e não é a página de login), não renderiza nada até o redirect do useEffect ocorrer.
+  // Isso evita um flash do layout da aplicação antes do redirecionamento.
   if (!currentUser) {
-    return null; 
+    return null;
   }
 
   return (
@@ -101,6 +109,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
                     {currentUser.roles.includes("control-owner") && (
                        <SelectItem value="Dono do Controle">Dono do Controle</SelectItem>
                     )}
+                    {/* Adicionar outros perfis aqui se existirem e forem permitidos */}
                   </SelectContent>
                 </Select>
               </div>
@@ -189,7 +198,8 @@ function AppLayoutContent({ children }: AppLayoutProps) {
               <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">Logout</Button>
             </>
           ) : (
-            <div className="flex items-center gap-3 md:gap-4 h-9" /> 
+            // Placeholder para evitar layout shift enquanto hasMounted é false ou não há currentUser
+            <div className="flex items-center gap-3 md:gap-4 h-9" />
           )}
         </div>
       </header>
@@ -203,7 +213,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
           </SidebarContent>
           <SidebarRail />
         </Sidebar>
-        <SidebarInset className="flex-1 bg-background p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
+        <SidebarInset className="flex-1 bg-background p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)] w-full max-w-full">
           {children}
         </SidebarInset>
       </div>
