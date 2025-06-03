@@ -61,24 +61,16 @@ function AppLayoutContent({ children }: AppLayoutProps) {
       router.push('/login');
     }
     if (pathname === '/login' && currentUser) {
-      router.push('/'); // Redirect to home/dashboard if user is logged in and tries to access login
+      router.push('/'); 
     }
   }, [currentUser, pathname, router]);
 
-  // If on login page, render only children (which will be the LoginPage component)
-  // This also implicitly handles the case where currentUser is null on the login page
   if (pathname === '/login') {
     return <>{children}</>;
   }
 
-  // If not on login page AND user is not logged in (and it's a protected route),
-  // this part might not be reached due to the redirect above.
-  // However, this ensures that if somehow we are on a protected route without a user,
-  // we don't try to render the full layout with user-specific info.
-  // The useEffect above should handle the redirect, so this is a fallback.
   if (!currentUser) {
-    // Optionally, show a loading state or redirect again if the useEffect hasn't kicked in
-    return null; // Or a loading spinner, or redirect explicitly again if needed
+    return null; 
   }
 
   return (
@@ -211,10 +203,8 @@ function AppLayoutContent({ children }: AppLayoutProps) {
           </SidebarContent>
           <SidebarRail />
         </Sidebar>
-        <SidebarInset className="flex-1 bg-background">
-          <main className="p-4 overflow-y-auto md:p-6 lg:p-8 h-[calc(100vh-4rem)]">
-            {children}
-          </main>
+        <SidebarInset className="flex-1 bg-background p-4 md:p-6 lg:p-8 overflow-y-auto h-[calc(100vh-4rem)]">
+          {children}
         </SidebarInset>
       </div>
     </div>
