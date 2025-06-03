@@ -1,3 +1,4 @@
+
 export type SoxControlStatus = "Ativo" | "Inativo" | "Rascunho" | "Pendente Aprovação";
 export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc";
 export type ControlType = "Preventivo" | "Detectivo" | "Corretivo";
@@ -72,4 +73,13 @@ export interface UnifiedHistoryItem {
   description: string;
   actor: string;
   sourceId?: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string; // ID do usuário a quem a notificação pertence
+  message: string;
+  date: string; // Data ISO
+  read: boolean;
+  link?: string; // Link opcional para navegação (ex: para uma página de solicitação)
 }

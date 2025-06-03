@@ -1,6 +1,6 @@
 
 // src/data/mock-data.ts
-import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType } from '@/types';
+import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification } from '@/types';
 
 export interface MockUser {
     id: string;
@@ -217,3 +217,77 @@ export const mockDonos = ["Todos", "Ana Clara Souza", "Pedro Oliveira", "João d
 export const mockResponsaveis = ["Todos", "Carlos Pereira", "Fernanda Lima", "Mariana Costa", "Ricardo Alves", "Ana Silva (Atualizado)", "Equipe de Vendas", "Novo Responsável TI", "João Silva", "Maria Oliveira", "Beatriz Santos", "Rafael Almeida"];
 export const mockN3Responsaveis = ["Todos", "Gerência Financeira", "Diretoria de TI", "Gerência de Suprimentos", "CSO Office", "Gerência Comercial", "CFO", "VP Financeiro", "Diretoria de Operações", "Head de Compras", "Superintendência de Riscos"];
 
+
+export const mockNotifications: Notification[] = [
+  {
+    id: "notif-cr1-pending-adm",
+    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
+    message: `Nova solicitação de alteração (cr1) para o controle FIN-001 por João da Silva.`,
+    date: new Date(Date.now() - 86400000 * 10 + 10000).toISOString(), // Um pouco depois da solicitação
+    read: false,
+    link: `/change-requests/cr1`
+  },
+  {
+    id: "notif-cr2-pending-adm",
+    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
+    message: `Nova solicitação de alteração (cr2) para o controle ITG-005 por Pedro Oliveira.`,
+    date: new Date(Date.now() - 86400000 * 8 + 10000).toISOString(),
+    read: false,
+    link: `/change-requests/cr2`
+  },
+  {
+    id: "notif-cr3-new-adm",
+    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
+    message: `Nova proposta de controle (cr3-new-pending) por João da Silva.`,
+    date: new Date(Date.now() - 86400000 * 5 + 10000).toISOString(),
+    read: true, // Admin já viu
+    link: `/change-requests/cr3-new-pending`
+  },
+  {
+    id: "notif-cr4-feedback-owner",
+    userId: "user-owner-1", // Para João da Silva (Dono)
+    message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle FIN-001.`,
+    date: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
+    read: false,
+    link: `/change-requests/cr4-feedback`
+  },
+   {
+    id: "notif-cr5-approved-owner",
+    userId: "user-owner-1", // Para João da Silva (Dono)
+    message: `Sua solicitação cr5-approved para PRO-012 foi APROVADA por Carlos Ferreira.`,
+    date: new Date(Date.now() - 86400000 * 18 + 10000).toISOString(),
+    read: true, // João já viu
+    link: `/change-requests/cr5-approved`
+  },
+  {
+    id: "notif-cr6-rejected-owner",
+    userId: "user-other-2", // Para Pedro Oliveira (Dono)
+    message: `Sua solicitação cr6-rejected para ITG-005 foi REJEITADA por Carlos Ferreira.`,
+    date: new Date(Date.now() - 86400000 * 22 + 10000).toISOString(),
+    read: false,
+    link: `/change-requests/cr6-rejected`
+  },
+  {
+    id: "notif-fin001-details-adm",
+    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
+    message: `Ana Clara Souza enviou uma nova solicitação (cr-fin001-pending-details) para o controle FIN-001.`,
+    date: new Date(Date.now() - 86400000 * 1 + 10000).toISOString(),
+    read: false,
+    link: `/change-requests/cr-fin001-pending-details`
+  },
+  {
+    id: "notif-geral-adm-1",
+    userId: "user-adm-1",
+    message: `Lembrete: Revisar políticas de acesso trimestralmente.`,
+    date: new Date(Date.now() - 86400000 * 2).toISOString(),
+    read: true,
+  },
+  {
+    id: "notif-geral-owner-1",
+    userId: "user-owner-1",
+    message: `O controle PRO-012 teve sua frequência alterada para Semanal.`,
+    date: new Date(Date.now() - 86400000 * 17).toISOString(), // Após aprovação
+    read: false,
+    link: `/controls/3` // Link para o controle
+  },
+];
