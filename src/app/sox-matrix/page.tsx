@@ -3,15 +3,43 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl } from "@/types";
+import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, FileEdit, ChevronRight, Filter, RotateCcw, Search, CheckSquare, ListChecks, ExternalLink, TrendingUp, Users, AlertCircle, LayoutDashboard, Layers } from "lucide-react";
+import { Eye, FileEdit, ChevronRight, Filter, RotateCcw, Search, CheckSquare, ListChecks, ExternalLink, TrendingUp, Users, AlertCircle, LayoutDashboard, Layers, Download } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos, mockChangeRequests, mockResponsaveis, mockN3Responsaveis } from "@/data/mock-data";
 import { useState, useMemo } from "react";
+
+type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
+
+interface UnifiedTableItem {
+  key: string; // Chave única para React (e.g., `control-${control.id}` ou `request-${request.id}`)
+  originalId: string; // ID original do controle ou da requisição
+  itemType: UnifiedTableItemType;
+  displayId: string; // O que mostrar na coluna ID (controlId ou proposedId)
+  name: string; // Nome do controle ou da proposta
+  processo?: string;
+  subProcesso?: string;
+  ownerOrRequester: string; // Dono do controle ou solicitante
+  status: string; // Status do controle ou da solicitação
+  responsavel?: string;
+  n3Responsavel?: string;
+  controlFrequency?: string;
+  controlType?: string;
+  modalidade?: string;
+  requestDate?: string;
+  lastUpdated?: string; 
+  requestedBy?: string; // Para CSV
+  summaryOfChanges?: string; // Para CSV - resumo das alterações
+  comments?: string; // Para CSV - comentários da solicitação
+  adminFeedback?: string; // Para CSV - feedback do admin
+  relatedRisks?: string[]; // Para CSV
+  testProcedures?: string; // Para CSV
+}
+
 
 export default function SoxMatrixPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
@@ -22,22 +50,107 @@ export default function SoxMatrixPage() {
   const [selectedResponsavel, setSelectedResponsavel] = useState("Todos");
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
 
-  const allActiveControls = useMemo(() => {
-    return mockSoxControls.filter(control => {
-      const matchesSearch = searchTerm === "" ||
-        control.controlId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        control.controlName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        control.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesProcess = selectedProcess === "Todos" || control.processo === selectedProcess;
-      const matchesSubProcess = selectedSubProcess === "Todos" || control.subProcesso === selectedSubProcess;
-      const matchesOwner = selectedOwner === "Todos" || control.controlOwner === selectedOwner;
-      const matchesResponsavel = selectedResponsavel === "Todos" || control.responsavel === selectedResponsavel;
-      const matchesN3Responsavel = selectedN3Responsavel === "Todos" || control.n3Responsavel === selectedN3Responsavel;
-      const isActive = control.status === "Ativo";
+  const unifiedTableData = useMemo(() => {
+    const items: UnifiedTableItem[] = [];
 
-      return isActive && matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavel && matchesN3Responsavel;
+    // 1. Controles Ativos
+    mockSoxControls
+      .filter(control => control.status === "Ativo")
+      .forEach(control => {
+        items.push({
+          key: `control-${control.id}`,
+          originalId: control.id,
+          itemType: 'Controle Ativo',
+          displayId: control.controlId,
+          name: control.controlName,
+          processo: control.processo,
+          subProcesso: control.subProcesso,
+          ownerOrRequester: control.controlOwner,
+          status: control.status,
+          responsavel: control.responsavel,
+          n3Responsavel: control.n3Responsavel,
+          controlFrequency: control.controlFrequency,
+          controlType: control.controlType,
+          modalidade: control.modalidade,
+          lastUpdated: control.lastUpdated,
+          relatedRisks: control.relatedRisks,
+          testProcedures: control.testProcedures,
+        });
+      });
+
+    // 2. Solicitações Pendentes (Alterações e Novas Propostas)
+    mockChangeRequests
+      .filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
+      .forEach(req => {
+        const isNewControl = req.controlId.startsWith("NEW-CTRL-");
+        const controlDetails = !isNewControl ? mockSoxControls.find(c => c.controlId === req.controlId) : undefined;
+        
+        let name = "";
+        let displayId = "";
+        let processo = req.changes.processo || controlDetails?.processo;
+        let subProcesso = req.changes.subProcesso || controlDetails?.subProcesso;
+        let responsavel = req.changes.responsavel || controlDetails?.responsavel;
+        let n3Responsavel = req.changes.n3Responsavel || controlDetails?.n3Responsavel;
+
+
+        if (isNewControl) {
+          name = req.changes.controlName || "Nova Proposta Sem Nome";
+          displayId = req.changes.controlId || req.controlId;
+        } else {
+          name = controlDetails?.controlName || "Controle Não Encontrado";
+          displayId = req.controlId;
+        }
+        
+        const summaryOfChanges = Object.entries(req.changes)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('; ');
+
+        items.push({
+          key: `request-${req.id}`,
+          originalId: req.id,
+          itemType: isNewControl ? 'Proposta de Novo Controle' : 'Solicitação de Alteração',
+          displayId: displayId,
+          name: name,
+          processo: processo,
+          subProcesso: subProcesso,
+          ownerOrRequester: req.requestedBy,
+          status: req.status,
+          responsavel: responsavel,
+          n3Responsavel: n3Responsavel,
+          requestDate: req.requestDate,
+          requestedBy: req.requestedBy,
+          summaryOfChanges: summaryOfChanges,
+          comments: req.comments,
+          adminFeedback: req.adminFeedback,
+          // Campos de controle que podem estar nas 'changes' de uma solicitação
+          controlFrequency: req.changes.controlFrequency,
+          controlType: req.changes.controlType,
+          modalidade: req.changes.modalidade,
+          relatedRisks: req.changes.relatedRisks,
+          testProcedures: req.changes.testProcedures,
+        });
+      });
+    
+    // Aplicar filtros
+    return items.filter(item => {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      const matchesSearch = searchTerm === "" ||
+        item.displayId.toLowerCase().includes(lowerSearchTerm) ||
+        item.name.toLowerCase().includes(lowerSearchTerm) ||
+        (item.itemType !== 'Controle Ativo' && item.summaryOfChanges?.toLowerCase().includes(lowerSearchTerm));
+
+      const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
+      const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
+      const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.ownerOrRequester === selectedOwner);
+      
+      const matchesResponsavelFilter = selectedResponsavel === "Todos" || item.responsavel === selectedResponsavel;
+      const matchesN3ResponsavelFilter = selectedN3Responsavel === "Todos" || item.n3Responsavel === selectedN3Responsavel;
+
+      return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
     });
-  }, [mockSoxControls, searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel]);
+
+  }, [mockSoxControls, mockChangeRequests, searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel]);
+
 
   const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, [mockSoxControls]);
   const adminTotalOwners = useMemo(() => (mockDonos.filter(d => d !== "Todos").length) , [mockDonos]);
@@ -52,64 +165,150 @@ export default function SoxMatrixPage() {
     setSelectedN3Responsavel("Todos");
   };
 
-  const renderControlsTable = (controls: SoxControl[], profileContext: "admin" | "owner") => (
+  const escapeCsvCell = (cellData: any): string => {
+    if (cellData === null || cellData === undefined) {
+      return "";
+    }
+    const stringData = String(cellData);
+    // If the string contains a comma, newline, or double quote, enclose it in double quotes.
+    if (stringData.includes(',') || stringData.includes('\n') || stringData.includes('"')) {
+      // Escape double quotes by doubling them
+      return `"${stringData.replace(/"/g, '""')}"`;
+    }
+    return stringData;
+  };
+
+  const handleExtractCsv = () => {
+    const headers = [
+      "Tipo Item", "ID Controle/Proposta", "Nome Controle/Proposta", "Processo", "Subprocesso", 
+      "Dono/Solicitante", "Responsável Efetivo", "N3 Responsável Efetivo", "Status", 
+      "Frequência", "Tipo (P/D/C)", "Modalidade", "Data Solicitação/Últ. Atualização",
+      "Riscos Relacionados", "Procedimentos de Teste", "Solicitado Por (Requisições)", 
+      "Resumo das Mudanças (Requisições)", "Comentários (Requisições)", "Feedback Admin (Requisições)"
+    ];
+
+    const rows = unifiedTableData.map(item => [
+      escapeCsvCell(item.itemType),
+      escapeCsvCell(item.displayId),
+      escapeCsvCell(item.name),
+      escapeCsvCell(item.processo),
+      escapeCsvCell(item.subProcesso),
+      escapeCsvCell(item.ownerOrRequester),
+      escapeCsvCell(item.responsavel),
+      escapeCsvCell(item.n3Responsavel),
+      escapeCsvCell(item.status),
+      escapeCsvCell(item.controlFrequency),
+      escapeCsvCell(item.controlType),
+      escapeCsvCell(item.modalidade),
+      escapeCsvCell(item.itemType === 'Controle Ativo' ? item.lastUpdated : item.requestDate),
+      escapeCsvCell(item.relatedRisks?.join('; ')),
+      escapeCsvCell(item.testProcedures),
+      escapeCsvCell(item.requestedBy),
+      escapeCsvCell(item.summaryOfChanges),
+      escapeCsvCell(item.comments),
+      escapeCsvCell(item.adminFeedback),
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "matriz_geral_controles.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+
+  const renderUnifiedTable = (items: UnifiedTableItem[]) => (
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Tipo</TableHead>
+            <TableHead>ID/Proposta</TableHead>
+            <TableHead>Nome/Descrição</TableHead>
             <TableHead>Processo</TableHead>
             <TableHead>Subprocesso</TableHead>
-            <TableHead className="w-[100px]">Código</TableHead>
-            <TableHead>Nome</TableHead>
-            <TableHead>Dono</TableHead>
+            <TableHead>Dono/Solicitante</TableHead>
             <TableHead>Responsável</TableHead>
-            <TableHead>N3 Responsável</TableHead>
-            <TableHead>Frequência</TableHead>
-            <TableHead>Modalidade</TableHead>
-            <TableHead>P/D</TableHead>
-            <TableHead className="text-right min-w-[100px]">Ações</TableHead>
+            <TableHead>N3 Resp.</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right min-w-[120px]">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {controls.map((control) => (
-            <TableRow key={control.id}>
-              <TableCell>{control.processo}</TableCell>
-              <TableCell>{control.subProcesso}</TableCell>
+          {items.map((item) => (
+            <TableRow key={item.key}>
+              <TableCell>
+                 <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                    item.itemType === "Controle Ativo" ? "bg-green-100 text-green-700" :
+                    item.itemType === "Solicitação de Alteração" ? "bg-blue-100 text-blue-700" :
+                    item.itemType === "Proposta de Novo Controle" ? "bg-purple-100 text-purple-700" :
+                    "bg-gray-100 text-gray-700"
+                  }`}>
+                    {item.itemType}
+                  </span>
+              </TableCell>
               <TableCell className="font-medium">
-                <Link href={`/controls/${control.id}`} className="text-primary hover:underline">
-                  {control.controlId}
+                <Link 
+                  href={item.itemType === 'Controle Ativo' ? `/controls/${item.originalId}` : `/change-requests/${item.originalId}`} 
+                  className="text-primary hover:underline"
+                >
+                  {item.displayId}
                 </Link>
               </TableCell>
-              <TableCell>{control.controlName}</TableCell>
-              <TableCell>{control.controlOwner}</TableCell>
-              <TableCell>{control.responsavel || "N/A"}</TableCell>
-              <TableCell>{control.n3Responsavel || "N/A"}</TableCell>
-              <TableCell>{control.controlFrequency}</TableCell>
+              <TableCell className="max-w-xs truncate" title={item.itemType !== 'Controle Ativo' && item.summaryOfChanges ? item.summaryOfChanges : item.name}>
+                {item.name}
+                {item.itemType !== 'Controle Ativo' && item.summaryOfChanges && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate">Mudanças: {item.summaryOfChanges}</p>
+                )}
+              </TableCell>
+              <TableCell>{item.processo || "N/A"}</TableCell>
+              <TableCell>{item.subProcesso || "N/A"}</TableCell>
+              <TableCell>{item.ownerOrRequester}</TableCell>
+              <TableCell>{item.responsavel || "N/A"}</TableCell>
+              <TableCell>{item.n3Responsavel || "N/A"}</TableCell>
               <TableCell>
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
-                  control.modalidade === "Manual" ? "bg-purple-100 text-purple-700" :
-                  control.modalidade === "Automático" ? "bg-blue-100 text-blue-700" :
-                  control.modalidade === "Híbrido" ? "bg-teal-100 text-teal-700" :
+                  // Controle Ativo
+                  item.status === "Ativo" ? "bg-green-100 text-green-700" :
+                  // Status de Solicitação
+                  item.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
+                  item.status === "Em Análise" ? "bg-orange-100 text-orange-700" : // Mudado para laranja para diferenciar
+                  item.status === "Aguardando Feedback do Dono" ? "bg-sky-100 text-sky-700" : // Mudado para azul claro
+                  // Outros status (aprovado, rejeitado - não devem aparecer aqui se filtro for para pendentes)
+                  item.status === "Aprovado" ? "bg-green-100 text-green-600" : // Verde mais escuro se aprovado
+                  item.status === "Rejeitado" ? "bg-red-100 text-red-600" : // Vermelho mais escuro se rejeitado
                   "bg-gray-100 text-gray-700"
                 }`}>
-                  {control.modalidade}
+                  {item.status}
                 </span>
               </TableCell>
-              <TableCell>{control.controlType}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end space-x-1">
-                  <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
-                    <Link href={`/controls/${control.id}`}><Eye className="h-4 w-4" /></Link>
-                  </Button>
-                  {profileContext === "admin" && (
+                  {item.itemType === 'Controle Ativo' ? (
                     <>
-                      <Button variant="ghost" size="icon" asChild title="Editar Controle">
-                        <Link href={`/controls/${control.id}?edit=true`}><FileEdit className="h-4 w-4" /></Link>
+                      <Button variant="ghost" size="icon" asChild title="Ver Detalhes do Controle">
+                        <Link href={`/controls/${item.originalId}`}><Eye className="h-4 w-4" /></Link>
                       </Button>
-                      <Button variant="ghost" size="icon" asChild title="Navegar">
-                        <Link href={`/controls/${control.id}`}><ChevronRight className="h-4 w-4" /></Link>
+                      <Button variant="ghost" size="icon" asChild title="Editar Controle">
+                        <Link href={`/controls/${item.originalId}?edit=true`}><FileEdit className="h-4 w-4" /></Link>
                       </Button>
                     </>
+                  ) : (
+                    <Button variant="ghost" size="icon" asChild title="Ver Detalhes da Solicitação">
+                      <Link href={`/change-requests/${item.originalId}`}><ExternalLink className="h-4 w-4" /></Link>
+                    </Button>
                   )}
                 </div>
               </TableCell>
@@ -117,9 +316,9 @@ export default function SoxMatrixPage() {
           ))}
         </TableBody>
       </Table>
-       {controls.length === 0 && (
+       {items.length === 0 && (
         <p className="mt-4 mb-4 text-center text-muted-foreground">
-          Nenhum controle ativo encontrado com os filtros aplicados.
+          Nenhum item encontrado com os filtros aplicados.
         </p>
       )}
     </div>
@@ -129,11 +328,11 @@ export default function SoxMatrixPage() {
     <div className="mb-6 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
         <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
-          <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar Controle</label>
+          <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar</label>
           <div className="relative">
             <Input
                 id="searchControl"
-                placeholder="Código, Nome, Descrição..."
+                placeholder="ID, Nome, Descrição..."
                 className="pr-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -160,11 +359,12 @@ export default function SoxMatrixPage() {
           </Select>
         </div>
         <div>
-          <label htmlFor="dono" className="text-sm font-medium text-muted-foreground">Dono</label>
+          <label htmlFor="dono" className="text-sm font-medium text-muted-foreground">Dono/Solicitante</label>
           <Select value={selectedOwner} onValueChange={setSelectedOwner}>
-            <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono" /></SelectTrigger>
+            <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono/Solicitante" /></SelectTrigger>
             <SelectContent>
-              {mockDonos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+               {/* Combinar donos de controle com solicitantes únicos de change requests */}
+              {[...new Set([...mockDonos, ...mockChangeRequests.map(cr => cr.requestedBy)])].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -190,6 +390,9 @@ export default function SoxMatrixPage() {
       <div className="flex justify-end space-x-2">
         <Button variant="outline" onClick={handleResetFilters}>
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
+        </Button>
+        <Button variant="default" onClick={handleExtractCsv} disabled={unifiedTableData.length === 0}>
+          <Download className="mr-2 h-4 w-4" /> Extrair CSV
         </Button>
       </div>
     </div>
@@ -239,7 +442,7 @@ export default function SoxMatrixPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Filter className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-xl">Filtrar Controles Ativos</CardTitle>
+                  <CardTitle className="text-xl">Filtrar Matriz Geral</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -249,13 +452,13 @@ export default function SoxMatrixPage() {
 
             <Card className="shadow-md w-full">
               <CardHeader>
-                <CardTitle>Matriz de Controles Internos (Ativos)</CardTitle>
+                <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
                 <CardDescription>
-                  Visualize todos os controles SOX ativos. Clique em um ID de controle para mais detalhes.
+                  Visualize controles ativos e solicitações pendentes.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderControlsTable(allActiveControls, "admin")}
+                {renderUnifiedTable(unifiedTableData)}
               </CardContent>
             </Card>
           </>
@@ -299,14 +502,15 @@ export default function SoxMatrixPage() {
             </div>
              <Card className="shadow-md col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mt-6 w-full">
                 <CardHeader>
-                    <CardTitle>Visão Geral dos Controles SOX Ativos (Transparência)</CardTitle>
+                    <CardTitle>Visão Geral dos Controles Ativos</CardTitle>
                     <CardDescription>
-                        Explore todos os controles SOX atualmente ativos na organização. Você pode visualizar detalhes, mas a edição é restrita aos seus próprios controles ou via solicitação.
+                        Explore todos os controles internos atualmente ativos na organização.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                    {renderFilters()}
-                   {renderControlsTable(allActiveControls, "owner")}
+                   {/* Para o Dono, continuamos mostrando a tabela apenas de controles ativos, não a unificada completa do admin */}
+                   {renderUnifiedTable(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))}
                 </CardContent>
             </Card>
         </div>
