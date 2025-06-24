@@ -17,7 +17,7 @@ const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 // This mapping translates our internal SoxControl property names to the SharePoint internal column names.
-// SharePoint mangles names with spaces, special chars, and accents. This map is our best guess based on common patterns.
+// This is our best guess based on common SharePoint naming conventions (removing spaces, encoding special characters).
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     codigoAnterior: 'Title',
     matriz: 'Matriz',
@@ -30,17 +30,17 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     codigoCosan: 'CodigoCOSAN',
     objetivoControle: 'ObjetivodoControle',
     controlName: 'NomedoControle',
-    description: 'DescricaodocontroleATUAL',
+    description: 'Descri_x00e7__x00e3_odocontroleA', // SharePoint likely truncates this
     tipo: 'Tipo',
-    controlFrequency: 'Frequ_x00eancia_',
+    controlFrequency: 'Frequ_x00ea_ncia_',
     modalidade: 'Modalidade',
     controlType: 'P_x002f_D',
     mrc: 'MRC_x003f_',
     evidenciaControle: 'Evid_x00ea_nciadocontrole',
-    implementacaoData: 'Implementa_x00e7__x00e3_o',
+    implementacaoData: 'Implementa_x00e7__x00e3_oData', // From "Implementação Data"
     dataUltimaAlteracao: 'Data_x00fa_ltimaaltera_x00e7__x0',
     sistemasRelacionados: 'SistemasRelacionados',
-    transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas',
+    transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas', // Truncated guess
     aplicavelIPE: 'Aplic_x00e1_velIPE_x003f_',
     ipe_C: 'C',
     ipe_EO: 'E_x002f_O',
@@ -48,7 +48,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     ipe_OR: 'O_x002f_R',
     ipe_PD: 'P_x002f_D_x0028_IPE_x0029_',
     responsavel: 'Respons_x00e1_vel',
-    controlOwner: 'DonodoControle_x0028_Control_x00',
+    controlOwner: 'DonodoControle_x0028_Control_x00', // Truncated guess
     executorControle: 'ExecutordoControle',
     executadoPor: 'Executadopor',
     n3Responsavel: 'N3Respons_x00e1_vel',
@@ -63,52 +63,34 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
 const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   const fields = item.fields;
   
-  return {
-    id: item.id, // Use SharePoint's internal item ID
-    status: (fields.status as SoxControlStatus) || 'Ativo', // Status field might not be in the mapping if it's system-managed
+  // This function inverts the spFieldMapping to read data from SharePoint
+  const readMapping: { [spKey: string]: keyof SoxControl } = {};
+  for (const key in spFieldMapping) {
+      const soxKey = key as keyof SoxControl;
+      readMapping[spFieldMapping[soxKey]] = soxKey;
+  }
+  
+  const soxControl: Partial<SoxControl> = {
+    id: item.id,
+    status: (fields.status as SoxControlStatus) || 'Ativo',
     lastUpdated: item.lastModifiedDateTime,
-    
-    // Map fields using spFieldMapping
-    codigoAnterior: fields[spFieldMapping.codigoAnterior!] || '', // "Cód Controle ANTERIOR" is the Title field
-    matriz: fields[spFieldMapping.matriz!] || '',
-    processo: fields[spFieldMapping.processo!] || '',
-    subProcesso: fields[spFieldMapping.subProcesso!] || '',
-    riscoId: fields[spFieldMapping.riscoId!] || '',
-    riscoDescricao: fields[spFieldMapping.riscoDescricao!] || '',
-    riscoClassificacao: fields[spFieldMapping.riscoClassificacao!] || '',
-    controlId: fields[spFieldMapping.controlId!] || '',
-    codigoCosan: fields[spFieldMapping.codigoCosan!] || '',
-    objetivoControle: fields[spFieldMapping.objetivoControle!] || '',
-    controlName: fields[spFieldMapping.controlName!] || '',
-    description: fields[spFieldMapping.description!] || '',
-    tipo: fields[spFieldMapping.tipo!] || '',
-    controlFrequency: (fields[spFieldMapping.controlFrequency!] as ControlFrequency) || 'Ad-hoc',
-    modalidade: (fields[spFieldMapping.modalidade!] as ControlModalidade) || 'Híbrido',
-    controlType: (fields[spFieldMapping.controlType!] as ControlType) || 'Preventivo',
-    mrc: parseSharePointBoolean(fields[spFieldMapping.mrc!]),
-    evidenciaControle: fields[spFieldMapping.evidenciaControle!] || '',
-    implementacaoData: fields[spFieldMapping.implementacaoData!] || '',
-    dataUltimaAlteracao: fields[spFieldMapping.dataUltimaAlteracao!] || '',
-    sistemasRelacionados: fields[spFieldMapping.sistemasRelacionados!] ? String(fields[spFieldMapping.sistemasRelacionados!]).split(';').map((s:string) => s.trim()) : [],
-    transacoesTelasMenusCriticos: fields[spFieldMapping.transacoesTelasMenusCriticos!] || '',
-    responsavel: fields[spFieldMapping.responsavel!] || '',
-    controlOwner: fields[spFieldMapping.controlOwner!] || '',
-    executorControle: fields[spFieldMapping.executorControle!] ? String(fields[spFieldMapping.executorControle!]).split(';').map((s:string) => s.trim()) : [],
-    executadoPor: fields[spFieldMapping.executadoPor!] || '',
-    n3Responsavel: fields[spFieldMapping.n3Responsavel!] || '',
-    area: fields[spFieldMapping.area!] || '',
-    vpResponsavel: fields[spFieldMapping.vpResponsavel!] || '',
-    impactoMalhaSul: parseSharePointBoolean(fields[spFieldMapping.impactoMalhaSul!]),
-    sistemaArmazenamento: fields[spFieldMapping.sistemaArmazenamento!] || '',
-    
-    // Parse boolean fields for IPE
-    aplicavelIPE: parseSharePointBoolean(fields[spFieldMapping.aplicavelIPE!]),
-    ipe_C: parseSharePointBoolean(fields[spFieldMapping.ipe_C!]),
-    ipe_EO: parseSharePointBoolean(fields[spFieldMapping.ipe_EO!]),
-    ipe_VA: parseSharePointBoolean(fields[spFieldMapping.ipe_VA!]),
-    ipe_OR: parseSharePointBoolean(fields[spFieldMapping.ipe_OR!]),
-    ipe_PD: parseSharePointBoolean(fields[spFieldMapping.ipe_PD!]),
   };
+
+  for(const spKey in fields) {
+    const soxKey = readMapping[spKey];
+    if (soxKey) {
+        let value = fields[spKey];
+        // Handle specific type conversions on read if necessary
+        if (soxKey === 'sistemasRelacionados' || soxKey === 'executorControle') {
+            value = typeof value === 'string' ? value.split(';').map(s => s.trim()) : [];
+        } else if (['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'].includes(soxKey)) {
+            value = parseSharePointBoolean(value);
+        }
+        (soxControl as any)[soxKey] = value;
+    }
+  }
+
+  return soxControl as SoxControl;
 };
 
 export const getSoxControls = async (): Promise<SoxControl[]> => {
@@ -126,10 +108,6 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             .get();
 
         if (response && response.value) {
-            // The SharePoint API might return encoded names, let's log the first item's fields to debug if needed
-            if(response.value.length > 0) {
-                console.log("SharePoint fields received:", response.value[0].fields);
-            }
             return response.value.map(mapSharePointItemToSoxControl);
         }
         return [];
@@ -150,8 +128,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
   const fieldsToCreate: { [key: string]: any } = {};
 
-  // Iterate over our mapping to build the request payload for SharePoint
-  for (const key in spFieldMapping) {
+  for (const key in controlData) {
       const soxKey = key as keyof SoxControl;
       const spKey = spFieldMapping[soxKey];
 
@@ -161,18 +138,11 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
           if (Array.isArray(value)) {
               fieldsToCreate[spKey] = value.join('; ');
           } else if (typeof value === 'boolean') {
-              // Convert boolean to "Sim"/"Não" which are common for Yes/No fields, or just text
               fieldsToCreate[spKey] = value ? 'Sim' : 'Não';
           } else {
-              // Convert all other types to string to be safe for text fields
               fieldsToCreate[spKey] = String(value);
           }
       }
-  }
-  
-  // The Title field is special and mandatory. If codigoAnterior is empty, provide a placeholder.
-  if(!fieldsToCreate['Title']) {
-    fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
   }
   
   const newItem = {
@@ -180,7 +150,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   };
 
   try {
-      console.log("Attempting to create item in SharePoint with payload:", newItem);
+      console.log("Attempting to create item in SharePoint with payload:", JSON.stringify(newItem, null, 2));
       const response = await graphClient
           .api(`/sites/${siteId}/lists/${listId}/items`)
           .post(newItem);

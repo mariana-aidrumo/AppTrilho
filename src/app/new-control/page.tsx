@@ -51,8 +51,8 @@ export default function NewControlPage() {
     "Risco": "riscoId",
     "Descrição do Risco": "riscoDescricao",
     "Classificação do Risco": "riscoClassificacao",
-    "Codigo NOVO": "controlId", // Note: "Código" changed to "Codigo" to match user's latest screenshot implicitly
-    "Codigo COSAN": "codigoCosan", // Note: "Código" changed to "Codigo" to match user's latest screenshot implicitly
+    "Codigo NOVO": "controlId", 
+    "Codigo COSAN": "codigoCosan",
     "Objetivo do Controle": "objetivoControle",
     "Nome do Controle": "controlName",
     "Descrição do controle ATUAL": "description",
@@ -62,7 +62,7 @@ export default function NewControlPage() {
     "P/D": "controlType",
     "MRC?": "mrc",
     "Evidência do controle": "evidenciaControle",
-    "Implementação": "implementacaoData", // Changed from "Implementação Data" to match user list
+    "Implementação Data": "implementacaoData",
     "Data última alteração": "dataUltimaAlteracao",
     "Sistemas Relacionados": "sistemasRelacionados",
     "Transações/Telas/Menus críticos": "transacoesTelasMenusCriticos",
@@ -84,12 +84,11 @@ export default function NewControlPage() {
   };
   
   const handleDownloadTemplate = () => {
-    // Recreate headers in the exact order specified by the user
     const orderedHeaders = [
       "Cód Controle ANTERIOR", "Matriz", "Processo", "Sub-Processo", "Risco", "Descrição do Risco",
       "Classificação do Risco", "Codigo NOVO", "Codigo COSAN", "Objetivo do Controle", "Nome do Controle",
       "Descrição do controle ATUAL", "Tipo", "Frequência", "Modalidade", "P/D", "MRC?", "Evidência do controle",
-      "Implementação", "Data última alteração", "Sistemas Relacionados", "Transações/Telas/Menus críticos",
+      "Implementação Data", "Data última alteração", "Sistemas Relacionados", "Transações/Telas/Menus críticos",
       "Aplicável IPE?", "C", "E/O", "V/A", "O/R", "P/D (IPE)", "Responsável", "Dono do Controle (Control owner)",
       "Executor do Controle", "Executado por", "N3 Responsável", "Área", "VP Responsável", "Impacto Malha Sul",
       "Sistema Armazenamento"
