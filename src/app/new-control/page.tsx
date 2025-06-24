@@ -124,19 +124,49 @@ export default function NewControlPage() {
     }
     reset();
   };
+  
+  const headerMapping: { [key: string]: keyof SoxControl | string } = {
+    "Cód Controle ANTERIOR": "codigoAnterior",
+    "Processo": "processo",
+    "Sub-Processo": "subProcesso",
+    "Código NOVO": "controlId",
+    "Nome do Controle": "controlName",
+    "Descrição do controle ATUAL": "description",
+    "Frequência": "controlFrequency",
+    "Modalidade": "modalidade",
+    "P/D": "controlType",
+    "Dono do Controle (Control owner)": "controlOwner",
+    "Matriz": "matriz",
+    "Risco": "riscoId",
+    "Descrição do Risco": "riscoDescricao",
+    "Classificação do Risco": "riscoClassificacao",
+    "Código COSAN": "codigoCosan",
+    "Objetivo do Controle": "objetivoControle",
+    "Tipo": "tipo",
+    "MRC?": "mrc",
+    "Evidência do controle": "evidenciaControle",
+    "Implementação Data": "implementacaoData",
+    "Data última alteração": "dataUltimaAlteracao",
+    "Sistemas Relacionados": "sistemasRelacionados",
+    "Transações/Telas/Menus críticos": "transacoesTelasMenusCriticos",
+    "Aplicável IPE?": "aplicavelIPE",
+    "C": "ipe_C",
+    "E/O": "ipe_EO",
+    "V/A": "ipe_VA",
+    "O/R": "ipe_OR",
+    "P/D (IPE)": "ipe_PD",
+    "Responsável": "responsavel",
+    "Executor do Controle": "executorControle",
+    "Executado por": "executadoPor",
+    "N3 Responsável": "n3Responsavel",
+    "Área": "area",
+    "VP Responsável": "vpResponsavel",
+    "Impacto Malha Sul": "impactoMalhaSul",
+    "Sistema Armazenamento": "sistemaArmazenamento",
+  };
 
   const handleDownloadTemplate = () => {
-    const headers = [
-      "controlId", "controlName", "description", "controlOwner", "controlFrequency",
-      "controlType", "processo", "subProcesso", "modalidade", "responsavel",
-      "n3Responsavel", "relatedRisks", "testProcedures", "codigoAnterior", "matriz",
-      "riscoId", "riscoDescricao", "riscoClassificacao", "codigoCosan", "objetivoControle",
-      "tipo", "mrc", "evidenciaControle", "implementacaoData", "dataUltimaAlteracao",
-      "sistemasRelacionados", "transacoesTelasMenusCriticos", "aplicavelIPE",
-      "ipe_C", "ipe_EO", "ipe_VA", "ipe_OR", "ipe_PD",
-      "executorControle", "executadoPor", "area", "vpResponsavel", "impactoMalhaSul",
-      "sistemaArmazenamento"
-    ];
+    const headers = Object.keys(headerMapping);
     const ws = xlsx.utils.json_to_sheet([{}], { header: headers });
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
@@ -172,61 +202,63 @@ export default function NewControlPage() {
         const workbook = xlsx.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = xlsx.utils.sheet_to_json(worksheet);
+        const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
 
         let controlsAdded = 0;
-        json.forEach((row, index) => {
-          // Basic validation
-          if (row.controlId && row.controlName && row.description) {
+        jsonFromSheet.forEach((row, index) => {
+          const mappedRow: any = {};
+          for (const key in row) {
+              if (headerMapping[key]) {
+                  mappedRow[headerMapping[key]] = row[key];
+              }
+          }
+          
+          if (mappedRow.controlId && mappedRow.controlName && mappedRow.description) {
              const newSoxControl: SoxControl = {
               id: String(mockSoxControls.length + 1 + index),
               status: "Ativo",
               lastUpdated: new Date().toISOString(),
 
-              // Fields from form
-              controlId: row.controlId,
-              controlName: row.controlName,
-              description: row.description,
-              controlOwner: row.controlOwner || "",
-              controlFrequency: row.controlFrequency || "Ad-hoc",
-              controlType: row.controlType || "Preventivo",
-              processo: row.processo,
-              subProcesso: row.subProcesso,
-              modalidade: row.modalidade,
-              responsavel: row.responsavel,
-              n3Responsavel: row.n3Responsavel,
-              relatedRisks: row.relatedRisks ? String(row.relatedRisks).split(',').map(r => r.trim()) : [],
-              testProcedures: row.testProcedures || "",
-
-              // Detailed fields from type
-              codigoAnterior: row.codigoAnterior,
-              matriz: row.matriz,
-              riscoId: row.riscoId,
-              riscoDescricao: row.riscoDescricao,
-              riscoClassificacao: row.riscoClassificacao,
-              codigoCosan: row.codigoCosan,
-              objetivoControle: row.objetivoControle,
-              tipo: row.tipo,
-              mrc: parseBoolean(row.mrc),
-              evidenciaControle: row.evidenciaControle,
-              implementacaoData: row.implementacaoData,
-              dataUltimaAlteracao: row.dataUltimaAlteracao,
-              sistemasRelacionados: row.sistemasRelacionados ? String(row.sistemasRelacionados).split(',').map(r => r.trim()) : [],
-              transacoesTelasMenusCriticos: row.transacoesTelasMenusCriticos,
-              aplicavelIPE: parseBoolean(row.aplicavelIPE),
+              // Map all fields from the spreadsheet
+              controlId: mappedRow.controlId,
+              controlName: mappedRow.controlName,
+              description: mappedRow.description,
+              controlOwner: mappedRow.controlOwner,
+              controlFrequency: mappedRow.controlFrequency,
+              controlType: mappedRow.controlType,
+              processo: mappedRow.processo,
+              subProcesso: mappedRow.subProcesso,
+              modalidade: mappedRow.modalidade,
+              responsavel: mappedRow.responsavel,
+              n3Responsavel: mappedRow.n3Responsavel,
+              codigoAnterior: mappedRow.codigoAnterior,
+              matriz: mappedRow.matriz,
+              riscoId: mappedRow.riscoId,
+              riscoDescricao: mappedRow.riscoDescricao,
+              riscoClassificacao: mappedRow.riscoClassificacao,
+              codigoCosan: mappedRow.codigoCosan,
+              objetivoControle: mappedRow.objetivoControle,
+              tipo: mappedRow.tipo,
+              mrc: parseBoolean(mappedRow.mrc),
+              evidenciaControle: mappedRow.evidenciaControle,
+              implementacaoData: mappedRow.implementacaoData,
+              dataUltimaAlteracao: mappedRow.dataUltimaAlteracao,
+              sistemasRelacionados: mappedRow.sistemasRelacionados ? String(mappedRow.sistemasRelacionados).split(',').map(r => r.trim()) : [],
+              transacoesTelasMenusCriticos: mappedRow.transacoesTelasMenusCriticos,
+              aplicavelIPE: parseBoolean(mappedRow.aplicavelIPE),
               ipeAssertions: {
-                  C: parseBoolean(row.ipe_C),
-                  EO: parseBoolean(row.ipe_EO),
-                  VA: parseBoolean(row.ipe_VA),
-                  OR: parseBoolean(row.ipe_OR),
-                  PD: parseBoolean(row.ipe_PD),
+                  C: parseBoolean(mappedRow.ipe_C),
+                  EO: parseBoolean(mappedRow.ipe_EO),
+                  VA: parseBoolean(mappedRow.ipe_VA),
+                  OR: parseBoolean(mappedRow.ipe_OR),
+                  PD: parseBoolean(mappedRow.ipe_PD),
               },
-              executorControle: row.executorControle ? String(row.executorControle).split(';').map(r => r.trim()) : [],
-              executadoPor: row.executadoPor,
-              area: row.area,
-              vpResponsavel: row.vpResponsavel,
-              impactoMalhaSul: parseBoolean(row.impactoMalhaSul),
-              sistemaArmazenamento: row.sistemaArmazenamento,
+              executorControle: mappedRow.executorControle ? String(mappedRow.executorControle).split(';').map(r => r.trim()) : [],
+              executadoPor: mappedRow.executadoPor,
+              area: mappedRow.area,
+              vpResponsavel: mappedRow.vpResponsavel,
+              impactoMalhaSul: parseBoolean(mappedRow.impactoMalhaSul),
+              sistemaArmazenamento: mappedRow.sistemaArmazenamento,
             };
             mockSoxControls.push(newSoxControl);
             controlsAdded++;
@@ -235,7 +267,7 @@ export default function NewControlPage() {
 
         toast({
           title: "Arquivo Processado!",
-          description: `${controlsAdded} de ${json.length} controles foram importados com sucesso.`,
+          description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
         });
         setExcelFile(null); // Clear file input after processing
       };
