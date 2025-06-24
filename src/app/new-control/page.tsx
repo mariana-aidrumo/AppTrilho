@@ -1,7 +1,9 @@
+
 // src/app/new-control/page.tsx
 "use client";
 
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useState } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -9,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { mockChangeRequests, mockSoxControls, mockVersionHistory, mockProcessos, mockSubProcessos, mockDonos, mockResponsaveis, mockN3Responsaveis } from '@/data/mock-data';
-import type { ChangeRequest, SoxControl, VersionHistoryEntry, ControlFrequency, ControlType, ControlModalidade } from '@/types';
+import { mockChangeRequests, mockSoxControls, mockVersionHistory } from '@/data/mock-data';
+import type { ChangeRequest, SoxControl } from '@/types';
 import Link from 'next/link';
+import * as xlsx from 'xlsx';
 
 const ownerNewControlSchema = z.object({
   controlName: z.string().min(3, "Nome do controle é obrigatório (mínimo 3 caracteres)."),
@@ -26,18 +28,12 @@ const adminNewControlSchema = z.object({
   controlId: z.string().min(3, "ID do Controle é obrigatório."),
   controlName: z.string().min(3, "Nome do controle é obrigatório."),
   description: z.string().min(10, "Descrição é obrigatória."),
-  controlOwner: z.string().min(1, "Dono do controle é obrigatório."),
-  controlFrequency: z.enum(["Diário", "Semanal", "Mensal", "Trimestral", "Anual", "Ad-hoc"], {
-    errorMap: () => ({ message: "Selecione uma frequência válida." }),
-  }),
-  controlType: z.enum(["Preventivo", "Detectivo", "Corretivo"], {
-    errorMap: () => ({ message: "Selecione um tipo válido." }),
-  }),
+  controlOwner: z.string().optional(),
+  controlFrequency: z.string().optional(),
+  controlType: z.string().optional(),
   processo: z.string().optional(),
   subProcesso: z.string().optional(),
-  modalidade: z.enum(["Manual", "Automático", "Híbrido"], {
-    errorMap: () => ({ message: "Selecione uma modalidade válida." }),
-  }).optional(),
+  modalidade: z.string().optional(),
   responsavel: z.string().optional(),
   n3Responsavel: z.string().optional(),
   relatedRisks: z.string().optional(),
@@ -48,29 +44,20 @@ type OwnerFormValues = z.infer<typeof ownerNewControlSchema>;
 type AdminFormValues = z.infer<typeof adminNewControlSchema>;
 type FormValues = OwnerFormValues | AdminFormValues;
 
-const controlFrequencies: ControlFrequency[] = ["Diário", "Semanal", "Mensal", "Trimestral", "Anual", "Ad-hoc"];
-const controlTypes: ControlType[] = ["Preventivo", "Detectivo", "Corretivo"];
-const controlModalidades: ControlModalidade[] = ["Manual", "Automático", "Híbrido"];
-const filteredDonos = mockDonos.filter(dono => dono !== "Todos");
-const filteredResponsaveis = mockResponsaveis.filter(r => r !== "Todos");
-const filteredN3Responsaveis = mockN3Responsaveis.filter(n3 => n3 !== "Todos");
-
-
 export default function NewControlPage() {
   const { toast } = useToast();
   const { currentUser, isUserAdmin } = useUserProfile();
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   const currentSchema = isUserAdmin() ? adminNewControlSchema : ownerNewControlSchema;
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting }, reset } = useForm<FormValues>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<FormValues>({
     resolver: zodResolver(currentSchema),
-    defaultValues: isUserAdmin() ?
-      { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined, responsavel: undefined, n3Responsavel: undefined } :
-      {}
   });
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    if (!currentUser) return; // Guard against null user
+    if (!currentUser) return;
 
     if (isUserAdmin()) {
       const adminData = data as AdminFormValues;
@@ -80,16 +67,16 @@ export default function NewControlPage() {
         controlId: adminData.controlId,
         controlName: adminData.controlName,
         description: adminData.description,
-        controlOwner: adminData.controlOwner,
-        controlFrequency: adminData.controlFrequency,
-        controlType: adminData.controlType,
+        controlOwner: adminData.controlOwner || "",
+        controlFrequency: adminData.controlFrequency as any || "Ad-hoc",
+        controlType: adminData.controlType as any || "Preventivo",
         status: "Ativo",
         lastUpdated: new Date().toISOString(),
         relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
         testProcedures: adminData.testProcedures || "",
         processo: adminData.processo,
         subProcesso: adminData.subProcesso,
-        modalidade: adminData.modalidade,
+        modalidade: adminData.modalidade as any,
         responsavel: adminData.responsavel,
         n3Responsavel: adminData.n3Responsavel,
       };
@@ -121,9 +108,9 @@ export default function NewControlPage() {
         changes: {
           controlName: ownerData.controlName,
           justificativa: ownerData.justificativa,
-          description: ownerData.justificativa, // Usando justificativa como descrição inicial
-          controlOwner: currentUser.name, // Dono pode sugerir a si mesmo
-          status: "Rascunho", // Novo controle proposto começa como rascunho
+          description: ownerData.justificativa,
+          controlOwner: currentUser.name,
+          status: "Rascunho",
         },
         status: "Pendente",
         comments: `Proposta de novo controle: ${ownerData.controlName}.`,
@@ -138,13 +125,94 @@ export default function NewControlPage() {
     reset();
   };
 
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "controlId", "controlName", "description", "controlOwner", "controlFrequency",
+      "controlType", "processo", "subProcesso", "modalidade", "responsavel",
+      "n3Responsavel", "relatedRisks", "testProcedures"
+    ];
+    const ws = xlsx.utils.json_to_sheet([{}], { header: headers });
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
+    xlsx.writeFile(wb, "modelo_controles.xlsx");
+    toast({ title: "Template Baixado", description: "Preencha o arquivo modelo_controles.xlsx e faça o upload." });
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setExcelFile(event.target.files[0]);
+    }
+  };
+
+  const handleProcessFile = async () => {
+    if (!excelFile) {
+      toast({ title: "Nenhum arquivo selecionado", description: "Por favor, selecione um arquivo Excel para processar.", variant: "destructive" });
+      return;
+    }
+    setIsProcessingFile(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = event.target?.result;
+        const workbook = xlsx.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = xlsx.utils.sheet_to_json(worksheet);
+
+        let controlsAdded = 0;
+        json.forEach((row, index) => {
+          // Basic validation
+          if (row.controlId && row.controlName && row.description) {
+             const newSoxControl: SoxControl = {
+              id: String(mockSoxControls.length + 1 + index),
+              controlId: row.controlId,
+              controlName: row.controlName,
+              description: row.description,
+              controlOwner: row.controlOwner || "",
+              controlFrequency: row.controlFrequency || "Ad-hoc",
+              controlType: row.controlType || "Preventivo",
+              status: "Ativo",
+              lastUpdated: new Date().toISOString(),
+              relatedRisks: row.relatedRisks ? String(row.relatedRisks).split(',').map(r => r.trim()) : [],
+              testProcedures: row.testProcedures || "",
+              processo: row.processo,
+              subProcesso: row.subProcesso,
+              modalidade: row.modalidade,
+              responsavel: row.responsavel,
+              n3Responsavel: row.n3Responsavel,
+            };
+            mockSoxControls.push(newSoxControl);
+            controlsAdded++;
+          }
+        });
+
+        toast({
+          title: "Arquivo Processado!",
+          description: `${controlsAdded} de ${json.length} controles foram importados com sucesso.`,
+        });
+        setExcelFile(null); // Clear file input after processing
+      };
+      reader.onerror = () => {
+          toast({ title: "Erro ao ler arquivo", description: "Não foi possível ler o arquivo selecionado.", variant: "destructive" });
+      };
+      reader.readAsBinaryString(excelFile);
+
+    } catch (error) {
+      console.error("Error processing Excel file:", error);
+      toast({ title: "Erro no Processamento", description: "Ocorreu um erro ao processar a planilha. Verifique o formato.", variant: "destructive" });
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
   const pageTitle = isUserAdmin() ? "Criar Novo Controle" : "Solicitar Novo Controle";
   const pageDescription = isUserAdmin()
-    ? "Preencha todos os detalhes para criar um novo controle diretamente na matriz."
-    : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise do Administrador.";
+    ? "Preencha os detalhes para criar um novo controle ou use o upload em massa."
+    : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise.";
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full max-w-4xl mx-auto">
       <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href={isUserAdmin() ? "/sox-matrix" : "/my-registered-controls"}>
@@ -152,15 +220,44 @@ export default function NewControlPage() {
           </Link>
         </Button>
       </div>
+
+      {isUserAdmin() && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Criação em Massa via Excel</CardTitle>
+            <CardDescription>Para adicionar múltiplos controles de uma vez, baixe o modelo, preencha e faça o upload.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto">
+                <Download className="mr-2 h-4 w-4" />
+                Baixar Modelo Excel
+              </Button>
+              <div className="flex-1">
+                <Label htmlFor="excel-upload" className="sr-only">Upload Excel</Label>
+                <Input id="excel-upload" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+              </div>
+            </div>
+            {excelFile && <p className="text-sm text-muted-foreground">Arquivo selecionado: {excelFile.name}</p>}
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button onClick={handleProcessFile} disabled={!excelFile || isProcessingFile}>
+              {isProcessingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
+              Processar Arquivo
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>{pageTitle}</CardTitle>
+          <CardTitle>{isUserAdmin() ? "Criação de Controle Individual" : pageTitle}</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="w-full">
           <CardContent className="space-y-4">
             {isUserAdmin() ? (
-              <> {/* Campos para Administrador */}
+              <>
                 <div>
                   <Label htmlFor="controlId">ID do Controle</Label>
                   <Input id="controlId" {...register("controlId")} placeholder="Ex: FIN-010, IT-ABC" />
@@ -177,139 +274,51 @@ export default function NewControlPage() {
                   {errors.description && <p className="text-sm text-destructive mt-1">{(errors.description as any).message}</p>}
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <Label htmlFor="controlOwner">Dono do Controle</Label>
-                        <Controller
-                            name="controlOwner"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o dono" /></SelectTrigger>
-                                    <SelectContent>
-                                        {filteredDonos.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.controlOwner && <p className="text-sm text-destructive mt-1">{(errors.controlOwner as any).message}</p>}
-                    </div>
-                    <div>
-                        <Label htmlFor="controlFrequency">Frequência</Label>
-                         <Controller
-                            name="controlFrequency"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione a frequência" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.controlFrequency && <p className="text-sm text-destructive mt-1">{(errors.controlFrequency as any).message}</p>}
-                    </div>
+                  <div>
+                    <Label htmlFor="controlOwner">Dono do Controle</Label>
+                    <Input id="controlOwner" {...register("controlOwner")} placeholder="Nome do dono" />
+                    {errors.controlOwner && <p className="text-sm text-destructive mt-1">{(errors.controlOwner as any).message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="controlFrequency">Frequência</Label>
+                    <Input id="controlFrequency" {...register("controlFrequency")} placeholder="Ex: Diário, Mensal, Por ocorrência" />
+                    {errors.controlFrequency && <p className="text-sm text-destructive mt-1">{(errors.controlFrequency as any).message}</p>}
+                  </div>
                 </div>
                  <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                        <Label htmlFor="controlType">Tipo (P/D)</Label>
-                        <Controller
-                            name="controlType"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.controlType && <p className="text-sm text-destructive mt-1">{(errors.controlType as any).message}</p>}
+                      <Label htmlFor="controlType">Tipo (P/D)</Label>
+                      <Input id="controlType" {...register("controlType")} placeholder="Ex: Preventivo, Detectivo" />
+                      {errors.controlType && <p className="text-sm text-destructive mt-1">{(errors.controlType as any).message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="modalidade">Modalidade</Label>
-                        <Controller
-                            name="modalidade"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value as string | undefined}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione a modalidade" /></SelectTrigger>
-                                    <SelectContent>
-                                        {controlModalidades.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.modalidade && <p className="text-sm text-destructive mt-1">{(errors.modalidade as any).message}</p>}
+                      <Label htmlFor="modalidade">Modalidade</Label>
+                      <Input id="modalidade" {...register("modalidade")} placeholder="Ex: Manual, Automático, Híbrido" />
+                      {errors.modalidade && <p className="text-sm text-destructive mt-1">{(errors.modalidade as any).message}</p>}
                     </div>
                  </div>
                  <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                        <Label htmlFor="processo">Processo</Label>
-                         <Controller
-                            name="processo"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o processo" /></SelectTrigger>
-                                    <SelectContent>
-                                        {mockProcessos.filter(p => p !== "Todos").map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.processo && <p className="text-sm text-destructive mt-1">{(errors.processo as any).message}</p>}
+                      <Label htmlFor="processo">Processo</Label>
+                      <Input id="processo" {...register("processo")} placeholder="Ex: Ativo Fixo" />
+                      {errors.processo && <p className="text-sm text-destructive mt-1">{(errors.processo as any).message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="subProcesso">Subprocesso</Label>
-                        <Controller
-                            name="subProcesso"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o subprocesso" /></SelectTrigger>
-                                    <SelectContent>
-                                        {mockSubProcessos.filter(s => s !== "Todos").map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.subProcesso && <p className="text-sm text-destructive mt-1">{(errors.subProcesso as any).message}</p>}
+                      <Label htmlFor="subProcesso">Subprocesso</Label>
+                      <Input id="subProcesso" {...register("subProcesso")} placeholder="Ex: Gestão de Projetos" />
+                      {errors.subProcesso && <p className="text-sm text-destructive mt-1">{(errors.subProcesso as any).message}</p>}
                     </div>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                        <Label htmlFor="responsavel">Responsável</Label>
-                         <Controller
-                            name="responsavel"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
-                                    <SelectContent>
-                                        {filteredResponsaveis.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.responsavel && <p className="text-sm text-destructive mt-1">{(errors.responsavel as any).message}</p>}
+                      <Label htmlFor="responsavel">Responsável</Label>
+                      <Input id="responsavel" {...register("responsavel")} placeholder="Nome do responsável pela execução" />
+                      {errors.responsavel && <p className="text-sm text-destructive mt-1">{(errors.responsavel as any).message}</p>}
                     </div>
                     <div>
-                        <Label htmlFor="n3Responsavel">N3 Responsável</Label>
-                        <Controller
-                            name="n3Responsavel"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecione o N3 responsável" /></SelectTrigger>
-                                    <SelectContent>
-                                        {filteredN3Responsaveis.map(n3 => <SelectItem key={n3} value={n3}>{n3}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        {errors.n3Responsavel && <p className="text-sm text-destructive mt-1">{(errors.n3Responsavel as any).message}</p>}
+                      <Label htmlFor="n3Responsavel">N3 Responsável</Label>
+                      <Input id="n3Responsavel" {...register("n3Responsavel")} placeholder="Nome do gestor N3" />
+                      {errors.n3Responsavel && <p className="text-sm text-destructive mt-1">{(errors.n3Responsavel as any).message}</p>}
                     </div>
                 </div>
                 <div>
