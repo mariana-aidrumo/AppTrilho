@@ -1,7 +1,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'export',
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
@@ -20,6 +19,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // output: 'export', // This must be removed for server-side logic (API, Server Actions) to work
 };
 
 export default nextConfig;

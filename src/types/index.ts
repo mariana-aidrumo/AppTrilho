@@ -13,11 +13,11 @@ export interface IPEAssertions {
 }
 
 export interface SoxControl {
-  id: string;
+  id: string; // Internal ID (from SharePoint list item ID)
   controlId: string; // Ex: "FIN-001" / "Código NOVO"
   controlName: string;
   description: string; // "Descrição do controle ATUAL"
-  controlOwner: string; // "Dono do Controle (Control owner)"
+  controlOwner: string; // "Dono do Controle (Control owner)" - Will be a string name for now
   controlFrequency: ControlFrequency;
   controlType: ControlType; // P/D
   status: SoxControlStatus;
@@ -32,8 +32,8 @@ export interface SoxControl {
   processo?: string;
   subProcesso?: string;
   modalidade?: ControlModalidade;
-  responsavel?: string; // "Responsável"
-  n3Responsavel?: string; // "N3 Responsável"
+  responsavel?: string; // "Responsável" - Will be a string name for now
+  n3Responsavel?: string; // "N3 Responsável" - Will be a string name for now
   codigoAnterior?: string;
   matriz?: string;
   riscoId?: string;
