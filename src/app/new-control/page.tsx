@@ -18,6 +18,7 @@ import { addChangeRequest, addSoxControl, addSoxControlsInBulk } from '@/service
 import type { ChangeRequest, SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
+import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
 const ownerNewControlSchema = z.object({
   controlName: z.string().min(3, "Nome do controle é obrigatório (mínimo 3 caracteres)."),
@@ -123,22 +124,21 @@ export default function NewControlPage() {
   
   const headerMapping: { [key: string]: keyof SoxControl | string } = {
     "Cód Controle ANTERIOR": "codigoAnterior",
+    "Matriz": "matriz",
     "Processo": "processo",
     "Sub-Processo": "subProcesso",
-    "Código NOVO": "controlId",
-    "Nome do Controle": "controlName",
-    "Descrição do controle ATUAL": "description",
-    "Frequência": "controlFrequency",
-    "Modalidade": "modalidade",
-    "P/D": "controlType",
-    "Dono do Controle (Control owner)": "controlOwner",
-    "Matriz": "matriz",
     "Risco": "riscoId",
     "Descrição do Risco": "riscoDescricao",
     "Classificação do Risco": "riscoClassificacao",
+    "Código NOVO": "controlId",
     "Código COSAN": "codigoCosan",
     "Objetivo do Controle": "objetivoControle",
+    "Nome do Controle": "controlName",
+    "Descrição do controle ATUAL": "description",
     "Tipo": "tipo",
+    "Frequência": "controlFrequency",
+    "Modalidade": "modalidade",
+    "P/D": "controlType",
     "MRC?": "mrc",
     "Evidência do controle": "evidenciaControle",
     "Implementação Data": "implementacaoData",
@@ -152,6 +152,7 @@ export default function NewControlPage() {
     "O/R": "ipe_OR",
     "P/D (IPE)": "ipe_PD",
     "Responsável": "responsavel",
+    "Dono do Controle (Control owner)": "controlOwner",
     "Executor do Controle": "executorControle",
     "Executado por": "executadoPor",
     "N3 Responsável": "n3Responsavel",
@@ -182,14 +183,6 @@ export default function NewControlPage() {
       return;
     }
     setIsProcessingFile(true);
-
-    const parseBoolean = (value: any): boolean => {
-        if (typeof value === 'boolean') return value;
-        if (typeof value === 'string') {
-            return ['true', 'sim', '1', 'yes', 'x', 's'].includes(value.toLowerCase().trim());
-        }
-        return !!value;
-    };
 
     try {
       const reader = new FileReader();
@@ -230,25 +223,25 @@ export default function NewControlPage() {
               codigoCosan: mappedRow.codigoCosan,
               objetivoControle: mappedRow.objetivoControle,
               tipo: mappedRow.tipo,
-              mrc: parseBoolean(mappedRow.mrc),
+              mrc: parseSharePointBoolean(mappedRow.mrc),
               evidenciaControle: mappedRow.evidenciaControle,
               implementacaoData: mappedRow.implementacaoData,
               dataUltimaAlteracao: mappedRow.dataUltimaAlteracao,
               sistemasRelacionados: mappedRow.sistemasRelacionados ? String(mappedRow.sistemasRelacionados).split(',').map(r => r.trim()) : [],
               transacoesTelasMenusCriticos: mappedRow.transacoesTelasMenusCriticos,
-              aplicavelIPE: parseBoolean(mappedRow.aplicavelIPE),
+              aplicavelIPE: parseSharePointBoolean(mappedRow.aplicavelIPE),
               ipeAssertions: {
-                  C: parseBoolean(mappedRow.ipe_C),
-                  EO: parseBoolean(mappedRow.ipe_EO),
-                  VA: parseBoolean(mappedRow.ipe_VA),
-                  OR: parseBoolean(mappedRow.ipe_OR),
-                  PD: parseBoolean(mappedRow.ipe_PD),
+                  C: parseSharePointBoolean(mappedRow.ipe_C),
+                  EO: parseSharePointBoolean(mappedRow.ipe_EO),
+                  VA: parseSharePointBoolean(mappedRow.ipe_VA),
+                  OR: parseSharePointBoolean(mappedRow.ipe_OR),
+                  PD: parseSharePointBoolean(mappedRow.ipe_PD),
               },
               executorControle: mappedRow.executorControle ? String(mappedRow.executorControle).split(';').map(r => r.trim()) : [],
               executadoPor: mappedRow.executadoPor,
               area: mappedRow.area,
               vpResponsavel: mappedRow.vpResponsavel,
-              impactoMalhaSul: parseBoolean(mappedRow.impactoMalhaSul),
+              impactoMalhaSul: parseSharePointBoolean(mappedRow.impactoMalhaSul),
               sistemaArmazenamento: mappedRow.sistemaArmazenamento,
             };
             controlsToCreate.push(newSoxControl);
