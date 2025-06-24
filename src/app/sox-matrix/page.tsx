@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download } from "lucide-react";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos, mockChangeRequests, mockResponsaveis, mockN3Responsaveis } from "@/data/mock-data";
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
@@ -303,7 +304,11 @@ export default function SoxMatrixPage() {
         </TableHeader>
         <TableBody>
           {items.map((item) => (
-            <TableRow key={item.key}>
+            <TableRow
+              key={item.key}
+              onClick={() => handleViewDetails(item)}
+              className="cursor-pointer"
+            >
               <TableCell>{item.previousDisplayId || "N/A"}</TableCell>
               <TableCell>{item.processo || "N/A"}</TableCell>
               <TableCell>{item.subProcesso || "N/A"}</TableCell>
@@ -315,7 +320,14 @@ export default function SoxMatrixPage() {
               <TableCell>{item.controlType || "N/A"}</TableCell>
               <TableCell>{item.ownerOrRequester}</TableCell>
               <TableCell className="text-right">
-                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(item)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewDetails(item);
+                  }}
+                >
                     <Eye className="h-4 w-4" />
                     <span className="sr-only">Ver Detalhes</span>
                 </Button>
@@ -330,7 +342,7 @@ export default function SoxMatrixPage() {
         </p>
       )}
     </div>
-  );
+  )
 
   const renderFilters = () => (
     <div className="mb-6 space-y-4">
@@ -403,7 +415,7 @@ export default function SoxMatrixPage() {
         </Button>
       </div>
     </div>
-  );
+  )
 
   return (
     <div className="space-y-6 w-full">
