@@ -10,6 +10,7 @@ import {
   mockNotifications,
   mockVersionHistory,
 } from '@/data/mock-data';
+import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
 // --- SharePoint Integration ---
 
@@ -25,7 +26,13 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
       try {
           const parsed = JSON.parse(fields.ipeAssertions);
           if(typeof parsed === 'object' && parsed !== null) {
-            ipeAssertions = { ...ipeAssertions, ...parsed };
+            ipeAssertions = { 
+                C: parseSharePointBoolean(parsed.C),
+                EO: parseSharePointBoolean(parsed.EO),
+                VA: parseSharePointBoolean(parsed.VA),
+                OR: parseSharePointBoolean(parsed.OR),
+                PD: parseSharePointBoolean(parsed.PD),
+            };
           }
       } catch (e) {
           console.error(`Failed to parse ipeAssertions for item ${fields.id}:`, fields.ipeAssertions);
@@ -37,7 +44,7 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     controlId: fields.controlId || '',
     controlName: fields.Title || fields.controlName || '', // Title is the default name column
     description: fields.description || '',
-    controlOwner: fields.controlOwner?.LookupValue || '',
+    controlOwner: fields.controlOwner || '', // Changed from LookupValue
     controlFrequency: fields.controlFrequency || 'Ad-hoc',
     controlType: fields.controlType || 'Preventivo',
     status: fields.status || 'Inativo',
@@ -45,8 +52,8 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     processo: fields.processo,
     subProcesso: fields.subProcesso,
     modalidade: fields.modalidade,
-    responsavel: fields.responsavel?.LookupValue || '',
-    n3Responsavel: fields.n3Responsavel?.LookupValue || '',
+    responsavel: fields.responsavel || '', // Changed from LookupValue
+    n3Responsavel: fields.n3Responsavel || '', // Changed from LookupValue
     codigoAnterior: fields.codigoAnterior,
     matriz: fields.matriz,
     riscoId: fields.riscoId,
@@ -55,19 +62,19 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     codigoCosan: fields.codigoCosan,
     objetivoControle: fields.objetivoControle,
     tipo: fields.tipo,
-    mrc: fields.mrc === true,
+    mrc: parseSharePointBoolean(fields.mrc),
     evidenciaControle: fields.evidenciaControle,
     implementacaoData: fields.implementacaoData,
     dataUltimaAlteracao: fields.dataUltimaAlteracao,
     sistemasRelacionados: fields.sistemasRelacionados ? fields.sistemasRelacionados.split(';').map((s:string) => s.trim()) : [],
     executorControle: fields.executorControle ? fields.executorControle.split(';').map((s:string) => s.trim()) : [],
     transacoesTelasMenusCriticos: fields.transacoesTelasMenusCriticos,
-    aplicavelIPE: fields.aplicavelIPE === true,
+    aplicavelIPE: parseSharePointBoolean(fields.aplicavelIPE),
     ipeAssertions: ipeAssertions,
     executadoPor: fields.executadoPor,
     area: fields.area,
     vpResponsavel: fields.vpResponsavel,
-    impactoMalhaSul: fields.impactoMalhaSul === true,
+    impactoMalhaSul: parseSharePointBoolean(fields.impactoMalhaSul),
     sistemaArmazenamento: fields.sistemaArmazenamento,
   };
 };
@@ -132,17 +139,22 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     vpResponsavel: controlData.vpResponsavel,
     sistemaArmazenamento: controlData.sistemaArmazenamento,
     
-    // Boolean fields
-    mrc: controlData.mrc,
-    aplicavelIPE: controlData.aplicavelIPE,
-    impactoMalhaSul: controlData.impactoMalhaSul,
+    // Person fields (as text)
+    controlOwner: controlData.controlOwner,
+    responsavel: controlData.responsavel,
+    n3Responsavel: controlData.n3Responsavel,
+    
+    // Boolean fields converted to string for text columns
+    mrc: controlData.mrc !== undefined ? String(controlData.mrc) : undefined,
+    aplicavelIPE: controlData.aplicavelIPE !== undefined ? String(controlData.aplicavelIPE) : undefined,
+    impactoMalhaSul: controlData.impactoMalhaSul !== undefined ? String(controlData.impactoMalhaSul) : undefined,
 
     // Array of strings, converted to ; separated string
     sistemasRelacionados: controlData.sistemasRelacionados?.join('; '),
     executorControle: controlData.executorControle?.join('; '),
 
     // JSON object, converted to string
-    ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : null,
+    ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : undefined,
   };
 
   Object.keys(fieldsToCreate).forEach(key => {
