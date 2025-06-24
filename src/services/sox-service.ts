@@ -26,7 +26,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     riscoId: 'Risco',
     riscoDescricao: 'Descri_x00e7__x00e3_odoRisco',
     riscoClassificacao: 'Classifica_x00e7__x00e3_odoRisco',
-    controlId: 'Codigo_x0020_NOVO', // Corrected to handle space
+    controlId: 'CodigoNOVO',
     codigoCosan: 'CodigoCOSAN',
     objetivoControle: 'ObjetivodoControle',
     controlName: 'NomedoControle',
@@ -37,7 +37,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     controlType: 'P_x002f_D',
     mrc: 'MRC_x003f_',
     evidenciaControle: 'Evid_x00ea_nciadocontrole',
-    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data', // Corrected to handle space
+    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data',
     dataUltimaAlteracao: 'Data_x00fa_ltimaaltera_x00e7__x0',
     sistemasRelacionados: 'SistemasRelacionados',
     transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas', // Truncated guess
@@ -50,7 +50,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     responsavel: 'Respons_x00e1_vel',
     controlOwner: 'DonodoControle_x0028_Control_x00', // Truncated guess
     executorControle: 'ExecutordoControle',
-    executadoPor: 'Executado_x0020_por', // Corrected to handle space
+    executadoPor: 'Executado_x0020_por',
     n3Responsavel: 'N3Respons_x00e1_vel',
     area: '_x00c1_rea',
     vpResponsavel: 'VPRespons_x00e1_vel',
