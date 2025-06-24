@@ -42,9 +42,10 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   return {
     id: item.id, // Use SharePoint's internal item ID
     controlId: fields.controlId || '',
-    controlName: fields.Title || fields.controlName || '', // Title is the default name column
+    controlName: fields.controlName || '', // Use the dedicated controlName field
+    codigoAnterior: fields.Title || '', // "Cód Controle ANTERIOR" is the Title field
     description: fields.description || '',
-    controlOwner: fields.controlOwner || '', // Changed from LookupValue
+    controlOwner: fields.controlOwner || '', 
     controlFrequency: fields.controlFrequency || 'Ad-hoc',
     controlType: fields.controlType || 'Preventivo',
     status: fields.status || 'Inativo',
@@ -52,9 +53,8 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     processo: fields.processo,
     subProcesso: fields.subProcesso,
     modalidade: fields.modalidade,
-    responsavel: fields.responsavel || '', // Changed from LookupValue
-    n3Responsavel: fields.n3Responsavel || '', // Changed from LookupValue
-    codigoAnterior: fields.codigoAnterior,
+    responsavel: fields.responsavel || '',
+    n3Responsavel: fields.n3Responsavel || '',
     matriz: fields.matriz,
     riscoId: fields.riscoId,
     riscoDescricao: fields.riscoDescricao,
@@ -67,10 +67,10 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     implementacaoData: fields.implementacaoData,
     dataUltimaAlteracao: fields.dataUltimaAlteracao,
     sistemasRelacionados: fields.sistemasRelacionados ? fields.sistemasRelacionados.split(';').map((s:string) => s.trim()) : [],
-    executorControle: fields.executorControle ? fields.executorControle.split(';').map((s:string) => s.trim()) : [],
     transacoesTelasMenusCriticos: fields.transacoesTelasMenusCriticos,
     aplicavelIPE: parseSharePointBoolean(fields.aplicavelIPE),
     ipeAssertions: ipeAssertions,
+    executorControle: fields.executorControle ? fields.executorControle.split(';').map((s:string) => s.trim()) : [],
     executadoPor: fields.executadoPor,
     area: fields.area,
     vpResponsavel: fields.vpResponsavel,
@@ -111,10 +111,12 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
 
   const fieldsToCreate: any = {
-    // Text fields
+    // Map "Cód Controle ANTERIOR" to the SharePoint 'Title' field.
+    Title: controlData.codigoAnterior,
+
+    // All other fields are mapped to their corresponding text columns
     controlId: controlData.controlId,
     controlName: controlData.controlName,
-    Title: controlData.controlName, // Also set the default Title field
     description: controlData.description,
     controlFrequency: controlData.controlFrequency,
     controlType: controlData.controlType,
@@ -122,7 +124,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     processo: controlData.processo,
     subProcesso: controlData.subProcesso,
     modalidade: controlData.modalidade,
-    codigoAnterior: controlData.codigoAnterior,
     matriz: controlData.matriz,
     riscoId: controlData.riscoId,
     riscoDescricao: controlData.riscoDescricao,
@@ -138,25 +139,24 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     area: controlData.area,
     vpResponsavel: controlData.vpResponsavel,
     sistemaArmazenamento: controlData.sistemaArmazenamento,
-    
-    // Person fields (as text)
     controlOwner: controlData.controlOwner,
     responsavel: controlData.responsavel,
     n3Responsavel: controlData.n3Responsavel,
     
-    // Boolean fields converted to string for text columns
+    // Convert boolean-like values to strings "true" or "false"
     mrc: controlData.mrc !== undefined ? String(controlData.mrc) : undefined,
     aplicavelIPE: controlData.aplicavelIPE !== undefined ? String(controlData.aplicavelIPE) : undefined,
     impactoMalhaSul: controlData.impactoMalhaSul !== undefined ? String(controlData.impactoMalhaSul) : undefined,
 
-    // Array of strings, converted to ; separated string
+    // Convert arrays to semi-colon separated strings
     sistemasRelacionados: controlData.sistemasRelacionados?.join('; '),
     executorControle: controlData.executorControle?.join('; '),
 
-    // JSON object, converted to string
+    // Stringify JSON object
     ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : undefined,
   };
 
+  // Remove any keys that are undefined, null, or empty to avoid sending empty values
   Object.keys(fieldsToCreate).forEach(key => {
     if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null || fieldsToCreate[key] === "") {
       delete fieldsToCreate[key];
@@ -180,11 +180,12 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
     
     for (const control of controls) {
         try {
-            if (control.controlId && control.controlName && control.description) {
+            // A basic check for essential data before attempting to add.
+            if (control.controlName && control.description) {
                 await addSoxControl(control);
                 controlsAdded++;
             } else {
-                errors.push({ controlId: control.controlId || 'ID Desconhecido', message: 'Campos obrigatórios (ID, Nome, Descrição) não preenchidos.' });
+                errors.push({ controlId: control.controlId || 'ID Desconhecido', message: 'Campos obrigatórios (Nome, Descrição) não preenchidos.' });
             }
         } catch (error: any) {
             console.error(`Failed to add control in bulk for ${control.controlId}:`, error?.body || error);
