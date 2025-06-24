@@ -129,7 +129,13 @@ export default function NewControlPage() {
     const headers = [
       "controlId", "controlName", "description", "controlOwner", "controlFrequency",
       "controlType", "processo", "subProcesso", "modalidade", "responsavel",
-      "n3Responsavel", "relatedRisks", "testProcedures"
+      "n3Responsavel", "relatedRisks", "testProcedures", "codigoAnterior", "matriz",
+      "riscoId", "riscoDescricao", "riscoClassificacao", "codigoCosan", "objetivoControle",
+      "tipo", "mrc", "evidenciaControle", "implementacaoData", "dataUltimaAlteracao",
+      "sistemasRelacionados", "transacoesTelasMenusCriticos", "aplicavelIPE",
+      "ipe_C", "ipe_EO", "ipe_VA", "ipe_OR", "ipe_PD",
+      "executorControle", "executadoPor", "area", "vpResponsavel", "impactoMalhaSul",
+      "sistemaArmazenamento"
     ];
     const ws = xlsx.utils.json_to_sheet([{}], { header: headers });
     const wb = xlsx.utils.book_new();
@@ -151,6 +157,14 @@ export default function NewControlPage() {
     }
     setIsProcessingFile(true);
 
+    const parseBoolean = (value: any): boolean => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+            return ['true', 'sim', '1', 'yes', 'x', 's'].includes(value.toLowerCase().trim());
+        }
+        return !!value;
+    };
+
     try {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -166,21 +180,53 @@ export default function NewControlPage() {
           if (row.controlId && row.controlName && row.description) {
              const newSoxControl: SoxControl = {
               id: String(mockSoxControls.length + 1 + index),
+              status: "Ativo",
+              lastUpdated: new Date().toISOString(),
+
+              // Fields from form
               controlId: row.controlId,
               controlName: row.controlName,
               description: row.description,
               controlOwner: row.controlOwner || "",
               controlFrequency: row.controlFrequency || "Ad-hoc",
               controlType: row.controlType || "Preventivo",
-              status: "Ativo",
-              lastUpdated: new Date().toISOString(),
-              relatedRisks: row.relatedRisks ? String(row.relatedRisks).split(',').map(r => r.trim()) : [],
-              testProcedures: row.testProcedures || "",
               processo: row.processo,
               subProcesso: row.subProcesso,
               modalidade: row.modalidade,
               responsavel: row.responsavel,
               n3Responsavel: row.n3Responsavel,
+              relatedRisks: row.relatedRisks ? String(row.relatedRisks).split(',').map(r => r.trim()) : [],
+              testProcedures: row.testProcedures || "",
+
+              // Detailed fields from type
+              codigoAnterior: row.codigoAnterior,
+              matriz: row.matriz,
+              riscoId: row.riscoId,
+              riscoDescricao: row.riscoDescricao,
+              riscoClassificacao: row.riscoClassificacao,
+              codigoCosan: row.codigoCosan,
+              objetivoControle: row.objetivoControle,
+              tipo: row.tipo,
+              mrc: parseBoolean(row.mrc),
+              evidenciaControle: row.evidenciaControle,
+              implementacaoData: row.implementacaoData,
+              dataUltimaAlteracao: row.dataUltimaAlteracao,
+              sistemasRelacionados: row.sistemasRelacionados ? String(row.sistemasRelacionados).split(',').map(r => r.trim()) : [],
+              transacoesTelasMenusCriticos: row.transacoesTelasMenusCriticos,
+              aplicavelIPE: parseBoolean(row.aplicavelIPE),
+              ipeAssertions: {
+                  C: parseBoolean(row.ipe_C),
+                  EO: parseBoolean(row.ipe_EO),
+                  VA: parseBoolean(row.ipe_VA),
+                  OR: parseBoolean(row.ipe_OR),
+                  PD: parseBoolean(row.ipe_PD),
+              },
+              executorControle: row.executorControle ? String(row.executorControle).split(';').map(r => r.trim()) : [],
+              executadoPor: row.executadoPor,
+              area: row.area,
+              vpResponsavel: row.vpResponsavel,
+              impactoMalhaSul: parseBoolean(row.impactoMalhaSul),
+              sistemaArmazenamento: row.sistemaArmazenamento,
             };
             mockSoxControls.push(newSoxControl);
             controlsAdded++;
@@ -205,6 +251,7 @@ export default function NewControlPage() {
       setIsProcessingFile(false);
     }
   };
+
 
   const pageTitle = isUserAdmin() ? "Criar Novo Controle" : "Solicitar Novo Controle";
   const pageDescription = isUserAdmin()
