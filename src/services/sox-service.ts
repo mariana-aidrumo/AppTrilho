@@ -106,14 +106,19 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
     throw new Error("SharePoint site URL or list name is not configured.");
   }
-  
+
   const graphClient = await getGraphClient();
   const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
 
-  const fieldsToCreate: any = {
-    // Map "Cód Controle ANTERIOR" to the SharePoint 'Title' field.
-    Title: controlData.codigoAnterior,
+  const fieldsToCreate: { [key: string]: any } = {};
 
+  // Handle the special "Title" field mapping.
+  // SharePoint requires the Title field, so we provide a placeholder if it's empty.
+  fieldsToCreate.Title = controlData.codigoAnterior || '-';
+
+  // Map all other fields from the controlData object to what SharePoint expects.
+  // This approach is safer as it explicitly handles each type and avoids sending null/undefined.
+  const fieldsToMap = {
     controlId: controlData.controlId,
     controlName: controlData.controlName,
     description: controlData.description,
@@ -141,36 +146,42 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     controlOwner: controlData.controlOwner,
     responsavel: controlData.responsavel,
     n3Responsavel: controlData.n3Responsavel,
-    
-    // Explicitly convert all boolean-like values to strings for text columns
-    mrc: String(controlData.mrc),
-    aplicavelIPE: String(controlData.aplicavelIPE),
-    impactoMalhaSul: String(controlData.impactoMalhaSul),
-
-    // Convert arrays to semi-colon separated strings
-    sistemasRelacionados: controlData.sistemasRelacionados?.join('; '),
-    executorControle: controlData.executorControle?.join('; '),
-
-    // Stringify the IPE Assertions object into a JSON string
-    ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : undefined,
+    mrc: controlData.mrc,
+    aplicavelIPE: controlData.aplicavelIPE,
+    impactoMalhaSul: controlData.impactoMalhaSul,
+    sistemasRelacionados: controlData.sistemasRelacionados,
+    executorControle: controlData.executorControle,
+    ipeAssertions: controlData.ipeAssertions,
   };
 
-  // Ensure we don't send undefined or null values to SharePoint
-  for (const key in fieldsToCreate) {
-    if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null) {
-      delete fieldsToCreate[key];
+  for (const [key, value] of Object.entries(fieldsToMap)) {
+    if (value !== undefined && value !== null) {
+      if (Array.isArray(value)) {
+          fieldsToCreate[key] = value.join('; ');
+      } else if (typeof value === 'object') {
+          fieldsToCreate[key] = JSON.stringify(value);
+      } else {
+          fieldsToCreate[key] = String(value);
+      }
     }
   }
-  
+
   const newItem = {
       fields: fieldsToCreate
   };
 
-  const response = await graphClient
-      .api(`/sites/${siteId}/lists/${SHAREPOINT_CONTROLS_LIST_NAME}/items`)
-      .post(newItem);
-
-  return mapSharePointItemToSoxControl(response);
+  try {
+      const response = await graphClient
+          .api(`/sites/${siteId}/lists/${SHAREPOINT_CONTROLS_LIST_NAME}/items`)
+          .post(newItem);
+      return mapSharePointItemToSoxControl(response);
+  } catch (error) {
+      console.error("Error details sending to SharePoint:", {
+        itemSent: newItem,
+        errorBody: error.body,
+      });
+      throw error;
+  }
 };
 
 
