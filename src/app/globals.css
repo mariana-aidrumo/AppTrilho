@@ -9,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    --background: 202 27% 90%; /* Cinza Claro #D7E0E5 */
+    --background: 206 27% 92%; /* #E5EBEE */
     --foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
     --card: 0 0% 100%; /* Branco */
@@ -24,7 +24,7 @@ body {
     --secondary: 201 79% 55%; /* Azul Claro #32A6E6 */
     --secondary-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
-    --muted: 202 27% 90%; /* Cinza Claro #D7E0E5 */
+    --muted: 206 27% 92%; /* #E5EBEE */
     --muted-foreground: 203 10% 40%; /* Cinza Médio #5A6870 (escurecido de #8A98A0 para melhor contraste) */
 
     --accent: 21 92% 62%; /* Laranja #F78344 */
