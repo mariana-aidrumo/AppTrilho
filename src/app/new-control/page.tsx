@@ -176,12 +176,17 @@ export default function NewControlPage() {
             const { controlsAdded, errors } = await addSoxControlsInBulk(controlsToCreate);
 
             if (errors.length > 0) {
-                const errorSummary = `Falha ao importar ${errors.length} controle(s). Verifique se os valores de colunas de 'Escolha' (Ex: Frequência, Tipo) correspondem exatamente às opções no SharePoint.`;
+                // Get the first error message as a representative example.
+                const firstError = errors[0];
+                const detailedErrorMessage = `Controle '${firstError.controlId || "ID não encontrado"}': ${firstError.message}`;
+
+                const errorSummary = `Falha ao importar ${errors.length} controle(s). Exemplo de erro: ${detailedErrorMessage}. Verifique se os nomes das colunas e os tipos de dados correspondem ao SharePoint.`;
+                
                 toast({
-                  title: `Importação Parcial: ${controlsAdded}/${jsonFromSheet.length} sucesso(s)`,
+                  title: `Falha na Importação: ${controlsAdded}/${jsonFromSheet.length} sucesso(s)`,
                   description: errorSummary,
                   variant: "destructive",
-                  duration: 9000
+                  duration: 15000 // Increased duration to allow reading the detailed error
                 });
                 console.error("Erros de importação:", errors);
             } else {
