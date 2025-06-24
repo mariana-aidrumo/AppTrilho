@@ -29,16 +29,6 @@ const adminNewControlSchema = z.object({
   controlId: z.string().min(3, "ID do Controle é obrigatório."),
   controlName: z.string().min(3, "Nome do controle é obrigatório."),
   description: z.string().min(10, "Descrição é obrigatória."),
-  controlOwner: z.string().optional(),
-  controlFrequency: z.string().optional(),
-  controlType: z.string().optional(),
-  processo: z.string().optional(),
-  subProcesso: z.string().optional(),
-  modalidade: z.string().optional(),
-  responsavel: z.string().optional(),
-  n3Responsavel: z.string().optional(),
-  relatedRisks: z.string().optional(),
-  testProcedures: z.string().optional(),
 });
 
 type OwnerFormValues = z.infer<typeof ownerNewControlSchema>;
@@ -67,16 +57,6 @@ export default function NewControlPage() {
           controlId: adminData.controlId,
           controlName: adminData.controlName,
           description: adminData.description,
-          controlOwner: adminData.controlOwner || "",
-          controlFrequency: adminData.controlFrequency as any || "Ad-hoc",
-          controlType: adminData.controlType as any || "Preventivo",
-          relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
-          testProcedures: adminData.testProcedures || "",
-          processo: adminData.processo,
-          subProcesso: adminData.subProcesso,
-          modalidade: adminData.modalidade as any,
-          responsavel: adminData.responsavel,
-          n3Responsavel: adminData.n3Responsavel,
         };
         
         await addSoxControl(newSoxControl);
@@ -141,7 +121,7 @@ export default function NewControlPage() {
     "P/D": "controlType",
     "MRC?": "mrc",
     "Evidência do controle": "evidenciaControle",
-    "Implementação Data": "implementacaoData",
+    "Implementação": "implementacaoData",
     "Data última alteração": "dataUltimaAlteracao",
     "Sistemas Relacionados": "sistemasRelacionados",
     "Transações/Telas/Menus críticos": "transacoesTelasMenusCriticos",
@@ -150,7 +130,7 @@ export default function NewControlPage() {
     "E/O": "ipe_EO",
     "V/A": "ipe_VA",
     "O/R": "ipe_OR",
-    "P/D (IPE)": "ipe_PD",
+    "P/D": "ipe_PD",
     "Responsável": "responsavel",
     "Dono do Controle (Control owner)": "controlOwner",
     "Executor do Controle": "executorControle",
@@ -197,8 +177,11 @@ export default function NewControlPage() {
         jsonFromSheet.forEach((row) => {
           const mappedRow: any = {};
           for (const key in row) {
-              if (headerMapping[key]) {
-                  mappedRow[headerMapping[key]] = row[key];
+              if (headerMapping[key as keyof typeof headerMapping]) {
+                  const mappedKey = headerMapping[key as keyof typeof headerMapping]
+                  if(typeof mappedKey === 'string') {
+                     mappedRow[mappedKey] = row[key];
+                  }
               }
           }
           
@@ -356,62 +339,6 @@ export default function NewControlPage() {
                   <Label htmlFor="description">Descrição Completa do Controle</Label>
                   <Textarea id="description" {...register("description")} placeholder="Descreva detalhadamente o controle." rows={5} />
                   {errors.description && <p className="text-sm text-destructive mt-1">{(errors.description as any).message}</p>}
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="controlOwner">Dono do Controle</Label>
-                    <Input id="controlOwner" {...register("controlOwner")} placeholder="Nome do dono" />
-                    {errors.controlOwner && <p className="text-sm text-destructive mt-1">{(errors.controlOwner as any).message}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="controlFrequency">Frequência</Label>
-                    <Input id="controlFrequency" {...register("controlFrequency")} placeholder="Ex: Diário, Mensal, Por ocorrência" />
-                    {errors.controlFrequency && <p className="text-sm text-destructive mt-1">{(errors.controlFrequency as any).message}</p>}
-                  </div>
-                </div>
-                 <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="controlType">Tipo (P/D)</Label>
-                      <Input id="controlType" {...register("controlType")} placeholder="Ex: Preventivo, Detectivo" />
-                      {errors.controlType && <p className="text-sm text-destructive mt-1">{(errors.controlType as any).message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="modalidade">Modalidade</Label>
-                      <Input id="modalidade" {...register("modalidade")} placeholder="Ex: Manual, Automático, Híbrido" />
-                      {errors.modalidade && <p className="text-sm text-destructive mt-1">{(errors.modalidade as any).message}</p>}
-                    </div>
-                 </div>
-                 <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="processo">Processo</Label>
-                      <Input id="processo" {...register("processo")} placeholder="Ex: Ativo Fixo" />
-                      {errors.processo && <p className="text-sm text-destructive mt-1">{(errors.processo as any).message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="subProcesso">Subprocesso</Label>
-                      <Input id="subProcesso" {...register("subProcesso")} placeholder="Ex: Gestão de Projetos" />
-                      {errors.subProcesso && <p className="text-sm text-destructive mt-1">{(errors.subProcesso as any).message}</p>}
-                    </div>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="responsavel">Responsável</Label>
-                      <Input id="responsavel" {...register("responsavel")} placeholder="Nome do responsável pela execução" />
-                      {errors.responsavel && <p className="text-sm text-destructive mt-1">{(errors.responsavel as any).message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="n3Responsavel">N3 Responsável</Label>
-                      <Input id="n3Responsavel" {...register("n3Responsavel")} placeholder="Nome do gestor N3" />
-                      {errors.n3Responsavel && <p className="text-sm text-destructive mt-1">{(errors.n3Responsavel as any).message}</p>}
-                    </div>
-                </div>
-                <div>
-                  <Label htmlFor="relatedRisks">Riscos Relacionados (separados por vírgula)</Label>
-                  <Input id="relatedRisks" {...register("relatedRisks")} placeholder="Risco A, Risco B" />
-                </div>
-                <div>
-                  <Label htmlFor="testProcedures">Procedimentos de Teste</Label>
-                  <Textarea id="testProcedures" {...register("testProcedures")} placeholder="Descreva os procedimentos de teste." rows={3} />
                 </div>
               </>
             ) : (
