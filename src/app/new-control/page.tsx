@@ -256,15 +256,27 @@ export default function NewControlPage() {
         });
         
         if (controlsToCreate.length > 0) {
-            const controlsAdded = await addSoxControlsInBulk(controlsToCreate);
-            toast({
-              title: "Arquivo Processado!",
-              description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
-            });
+            const { controlsAdded, errors } = await addSoxControlsInBulk(controlsToCreate);
+
+            if (errors.length > 0) {
+                const errorSummary = `Falha ao importar ${errors.length} controle(s). Verifique se os valores de colunas de 'Escolha' (Ex: Frequência, Tipo) correspondem exatamente às opções no SharePoint.`;
+                toast({
+                  title: `Importação Parcial: ${controlsAdded}/${jsonFromSheet.length} sucesso(s)`,
+                  description: errorSummary,
+                  variant: "destructive",
+                  duration: 9000
+                });
+                console.error("Erros de importação:", errors);
+            } else {
+                toast({
+                  title: "Arquivo Processado!",
+                  description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
+                });
+            }
         } else {
             toast({
               title: "Nenhum controle válido encontrado",
-              description: "Verifique se a planilha está preenchida corretamente.",
+              description: "Verifique se a planilha está preenchida corretamente com ID, Nome e Descrição.",
               variant: "destructive"
             });
         }

@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -142,15 +143,10 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
     // JSON object, converted to string
     ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : null,
-
-    // Person fields are intentionally OMITTED here to avoid errors.
-    // The SharePoint API requires a user's LookupId, not their name as a string.
-    // A future update would involve looking up user IDs before creating the item.
   };
 
-  // Remove null/undefined fields from the payload to avoid sending empty values
   Object.keys(fieldsToCreate).forEach(key => {
-    if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null) {
+    if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null || fieldsToCreate[key] === "") {
       delete fieldsToCreate[key];
     }
   });
@@ -166,20 +162,25 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   return mapSharePointItemToSoxControl(response);
 };
 
-export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Promise<number> => {
+export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Promise<{ controlsAdded: number; errors: { controlId?: string; message: string }[] }> => {
     let controlsAdded = 0;
-    // Batching is recommended for >20 items, but for simplicity we do it one by one.
+    const errors: { controlId?: string; message: string }[] = [];
+    
     for (const control of controls) {
         try {
             if (control.controlId && control.controlName && control.description) {
                 await addSoxControl(control);
                 controlsAdded++;
+            } else {
+                errors.push({ controlId: control.controlId || 'ID Desconhecido', message: 'Campos obrigatórios (ID, Nome, Descrição) não preenchidos.' });
             }
-        } catch (error) {
-            console.error(`Failed to add control in bulk: ${control.controlId}`, error);
+        } catch (error: any) {
+            console.error(`Failed to add control in bulk for ${control.controlId}:`, error?.body || error);
+            const errorMessage = error?.body ? JSON.parse(error.body)?.error?.message : (error.message || 'Erro desconhecido ao salvar no SharePoint.');
+            errors.push({ controlId: control.controlId, message: errorMessage });
         }
     }
-    return controlsAdded;
+    return { controlsAdded, errors };
 };
 
 export const getFilterOptions = async () => {
