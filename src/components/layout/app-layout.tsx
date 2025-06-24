@@ -12,7 +12,7 @@ import { useUserProfile } from '@/contexts/user-profile-context';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNotification } from '@/contexts/notification-context';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { HorizontalNavItems } from "@/components/layout/horizontal-nav-items";
 
@@ -22,9 +22,8 @@ interface AppLayoutProps {
 
 // Componente interno que contém o layout da aplicação principal (com header, top-nav, etc.)
 function AppLayoutInternal({ children }: AppLayoutProps) {
-  const { currentUser, logout } = useUserProfile(); // setActiveProfile removido
+  const { currentUser, logout } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
-  const router = useRouter();
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
@@ -33,9 +32,10 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
 
   useEffect(() => {
     if (hasMounted && !currentUser) {
-      router.push('/login');
+      // O redirecionamento para login é tratado na página de login
+      // e no AppLayout principal agora.
     }
-  }, [currentUser, router, hasMounted]);
+  }, [currentUser, hasMounted]);
 
   if (!hasMounted || !currentUser) {
     return (
@@ -103,20 +103,10 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
                         {notifications.map((notification) => (
                           <div
                             key={notification.id}
-                            className={`p-3 border-b border-border last:border-b-0 cursor-pointer ${!notification.read ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50'}`}
+                            className={`p-3 border-b border-border last:border-b-0 ${!notification.read ? 'bg-primary/5' : ''}`}
                             onClick={() => {
                               if (!notification.read) markAsRead(notification.id);
-                              if (notification.link) {
-                                router.push(notification.link);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    if (!notification.read) markAsRead(notification.id);
-                                    if (notification.link) router.push(notification.link);
-                                }
+                              // Lógica de navegação removida
                             }}
                           >
                             <div className="flex items-start gap-2">
@@ -162,7 +152,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
         <HorizontalNavItems />
       </nav>
 
-      <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-muted/30">
+      <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto bg-muted/30 w-full">
         {children}
       </main>
     </div>

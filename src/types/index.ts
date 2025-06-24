@@ -81,5 +81,4 @@ export interface Notification {
   message: string;
   date: string; // Data ISO
   read: boolean;
-  link?: string; // Link opcional para navegação (ex: para uma página de solicitação)
 }

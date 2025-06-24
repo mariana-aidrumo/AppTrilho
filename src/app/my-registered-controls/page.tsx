@@ -119,9 +119,7 @@ export default function MyControlsPage() {
                       <TableCell>{control.processo}</TableCell>
                       <TableCell>{control.subProcesso}</TableCell>
                       <TableCell className="font-medium">
-                        <Link href={`/controls/${control.id}`} className="text-primary hover:underline">
-                          {control.controlId}
-                        </Link>
+                        {control.controlId}
                       </TableCell>
                       <TableCell>{control.controlName}</TableCell>
                       <TableCell>{control.responsavel || "N/A"}</TableCell>
@@ -139,14 +137,7 @@ export default function MyControlsPage() {
                       </TableCell>
                       <TableCell>{control.controlType}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end space-x-1">
-                          <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
-                            <Link href={`/controls/${control.id}`}><Eye className="h-4 w-4" /></Link>
-                          </Button>
-                          <Button variant="ghost" size="icon" asChild title="Solicitar Alteração">
-                            <Link href={`/controls/${control.id}?edit=true`}><FileEdit className="h-4 w-4" /></Link>
-                          </Button>
-                        </div>
+                        {/* Ações removidas */}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -183,9 +174,7 @@ export default function MyControlsPage() {
                         {myControlsWithPendingChanges.map(item => (
                             <TableRow key={item.request.id}>
                                 <TableCell>
-                                    <Link href={`/controls/${item.control.id}`} className="text-primary hover:underline">
-                                        {item.control.controlId}
-                                    </Link>
+                                    {item.control.controlId}
                                 </TableCell>
                                 <TableCell>{item.control.controlName}</TableCell>
                                 <TableCell>{item.request.id}</TableCell>
@@ -200,9 +189,7 @@ export default function MyControlsPage() {
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="outline" size="sm" asChild>
-                                        <Link href={`/change-requests/${item.request.id}`}>Ver Solicitação <ExternalLink className="ml-2 h-3 w-3"/></Link>
-                                    </Button>
+                                    {/* Ação removida */}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -249,9 +236,7 @@ export default function MyControlsPage() {
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="outline" size="sm" asChild>
-                                        <Link href={`/change-requests/${request.id}`}>Ver Proposta <ExternalLink className="ml-2 h-3 w-3"/></Link>
-                                    </Button>
+                                    {/* Ação removida */}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -266,4 +251,3 @@ export default function MyControlsPage() {
     </div>
   );
 }
-

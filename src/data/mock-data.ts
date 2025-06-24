@@ -225,7 +225,6 @@ export const mockNotifications: Notification[] = [
     message: `Nova solicitação de alteração (cr1) para o controle FIN-001 por João da Silva.`,
     date: new Date(Date.now() - 86400000 * 10 + 10000).toISOString(), // Um pouco depois da solicitação
     read: false,
-    link: `/change-requests/cr1`
   },
   {
     id: "notif-cr2-pending-adm",
@@ -233,7 +232,6 @@ export const mockNotifications: Notification[] = [
     message: `Nova solicitação de alteração (cr2) para o controle ITG-005 por Pedro Oliveira.`,
     date: new Date(Date.now() - 86400000 * 8 + 10000).toISOString(),
     read: false,
-    link: `/change-requests/cr2`
   },
   {
     id: "notif-cr3-new-adm",
@@ -241,7 +239,6 @@ export const mockNotifications: Notification[] = [
     message: `Nova proposta de controle (cr3-new-pending) por João da Silva.`,
     date: new Date(Date.now() - 86400000 * 5 + 10000).toISOString(),
     read: true, // Admin já viu
-    link: `/change-requests/cr3-new-pending`
   },
   {
     id: "notif-cr4-feedback-owner",
@@ -249,7 +246,6 @@ export const mockNotifications: Notification[] = [
     message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle FIN-001.`,
     date: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
     read: false,
-    link: `/change-requests/cr4-feedback`
   },
    {
     id: "notif-cr5-approved-owner",
@@ -257,7 +253,6 @@ export const mockNotifications: Notification[] = [
     message: `Sua solicitação cr5-approved para PRO-012 foi APROVADA por Carlos Ferreira.`,
     date: new Date(Date.now() - 86400000 * 18 + 10000).toISOString(),
     read: true, // João já viu
-    link: `/change-requests/cr5-approved`
   },
   {
     id: "notif-cr6-rejected-owner",
@@ -265,7 +260,6 @@ export const mockNotifications: Notification[] = [
     message: `Sua solicitação cr6-rejected para ITG-005 foi REJEITADA por Carlos Ferreira.`,
     date: new Date(Date.now() - 86400000 * 22 + 10000).toISOString(),
     read: false,
-    link: `/change-requests/cr6-rejected`
   },
   {
     id: "notif-fin001-details-adm",
@@ -273,7 +267,6 @@ export const mockNotifications: Notification[] = [
     message: `Ana Clara Souza enviou uma nova solicitação (cr-fin001-pending-details) para o controle FIN-001.`,
     date: new Date(Date.now() - 86400000 * 1 + 10000).toISOString(),
     read: false,
-    link: `/change-requests/cr-fin001-pending-details`
   },
   {
     id: "notif-geral-adm-1",
@@ -288,6 +281,5 @@ export const mockNotifications: Notification[] = [
     message: `O controle PRO-012 teve sua frequência alterada para Semanal.`,
     date: new Date(Date.now() - 86400000 * 17).toISOString(), // Após aprovação
     read: false,
-    link: `/controls/3` // Link para o controle
   },
 ];

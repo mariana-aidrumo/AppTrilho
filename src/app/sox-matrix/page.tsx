@@ -260,12 +260,7 @@ export default function SoxMatrixPage() {
                   </span>
               </TableCell>
               <TableCell className="font-medium">
-                <Link 
-                  href={item.itemType === 'Controle Ativo' ? `/controls/${item.originalId}` : `/change-requests/${item.originalId}`} 
-                  className="text-primary hover:underline"
-                >
-                  {item.displayId}
-                </Link>
+                {item.displayId}
               </TableCell>
               <TableCell className="max-w-xs truncate" title={item.itemType !== 'Controle Ativo' && item.summaryOfChanges ? item.summaryOfChanges : item.name}>
                 {item.name}
@@ -295,22 +290,7 @@ export default function SoxMatrixPage() {
                 </span>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end space-x-1">
-                  {item.itemType === 'Controle Ativo' ? (
-                    <>
-                      <Button variant="ghost" size="icon" asChild title="Ver Detalhes do Controle">
-                        <Link href={`/controls/${item.originalId}`}><Eye className="h-4 w-4" /></Link>
-                      </Button>
-                      <Button variant="ghost" size="icon" asChild title="Editar Controle">
-                        <Link href={`/controls/${item.originalId}?edit=true`}><FileEdit className="h-4 w-4" /></Link>
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="ghost" size="icon" asChild title="Ver Detalhes da Solicitação">
-                      <Link href={`/change-requests/${item.originalId}`}><ExternalLink className="h-4 w-4" /></Link>
-                    </Button>
-                  )}
-                </div>
+                {/* Ações removidas pois as páginas de detalhes foram desativadas */}
               </TableCell>
             </TableRow>
           ))}
@@ -518,4 +498,3 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
-

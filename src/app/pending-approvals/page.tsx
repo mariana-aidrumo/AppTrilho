@@ -11,18 +11,10 @@ import { Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText,
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockChangeRequests } from "@/data/mock-data"; // mockSoxControls, mockVersionHistory no longer needed here
-// import { useToast } from "@/hooks/use-toast"; // No longer needed here
 import { useMemo } from "react";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
-  // const { toast } = useToast(); // No longer needed here
-  // const [dataVersion, setDataVersion] = useState(0); // No longer needed for quick actions
-
-  // const forceRerender = () => setDataVersion(prev => prev + 1); // No longer needed for quick actions
-
-  // handleQuickAdminAction is removed as all actions are now on the details page.
-
 
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => mockChangeRequests.filter(req => 
@@ -100,9 +92,7 @@ export default function PendingApprovalsPage() {
             {requests.map((request) => (
               <TableRow key={request.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/change-requests/${request.id}`} className="text-primary hover:underline">
-                    {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'ID pendente'}` : request.controlId}
-                  </Link>
+                  {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'ID pendente'}` : request.controlId}
                   <div className="text-xs text-muted-foreground">ID Sol.: {request.id}</div>
                 </TableCell>
 
@@ -133,7 +123,7 @@ export default function PendingApprovalsPage() {
                   <TableCell className="max-w-xs italic text-sm">
                     {request.adminFeedback || "Nenhum feedback específico."}
                      <div className="mt-1">
-                        <Link href={`/change-requests/${request.id}`} className="text-xs text-primary hover:underline">Ver detalhes e responder</Link>
+                        <span className="text-xs text-muted-foreground">Revise sua proposta e reenvie.</span>
                     </div>
                   </TableCell>
                 )}
@@ -155,19 +145,7 @@ export default function PendingApprovalsPage() {
                 )}
                 
                 <TableCell className="text-right">
-                  <div className="flex justify-end space-x-1">
-                    <Button variant="ghost" size="icon" asChild title="Ver Detalhes">
-                      <Link href={`/change-requests/${request.id}`}><Eye className="h-4 w-4" /></Link>
-                    </Button>
-                    {/* Botões de ação rápida para Admin removidos. Ações devem ser feitas na página de detalhes. */}
-                    {context === "owner-feedback" && (
-                         <Button variant="outline" size="sm" asChild title="Revisar e Reenviar" 
-                            className="border-orange-500 text-orange-600 hover:bg-orange-100 hover:text-orange-700">
-                            {/* Idealmente, esta ação levaria para um formulário de edição da proposta original */}
-                            <Link href={`/change-requests/${request.id}`}> <Edit2 className="h-4 w-4 mr-1" /> Revisar</Link>
-                         </Button>
-                    )}
-                  </div>
+                  {/* Ações removidas pois as páginas de detalhes foram desativadas */}
                 </TableCell>
               </TableRow>
             ))}
@@ -234,4 +212,3 @@ export default function PendingApprovalsPage() {
     </div>
   );
 }
-    
