@@ -19,8 +19,8 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "Rumo SOX Hub", // Internal name/ID
-  description: "Portal de Controles Internos Rumo", // Displayed name updated
+  name: "Portal de Controles Internos", // Internal name/ID
+  description: "Portal de Controles Internos", // Displayed name updated
   navItems: [
     // Itens para Administrador de Controles Internos
     {

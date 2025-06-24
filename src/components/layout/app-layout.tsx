@@ -3,7 +3,6 @@
 
 import type { ReactNode } from 'react';
 import NextLink from 'next/link';
-import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { User, Bell, Users } from "lucide-react";
@@ -35,7 +34,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-primary text-primary-foreground">
         <div className="flex items-center gap-3">
           <NextLink href="/" className="flex items-center gap-2 text-primary-foreground hover:no-underline">
-            <Icons.AppLogo className="w-auto h-7" />
             <h1 className="text-xl font-semibold">
               {siteConfig.description}
             </h1>
@@ -43,8 +41,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
         <div className="flex items-center gap-3 md:gap-4">
             <Select value={currentUser.activeProfile} onValueChange={handleProfileChange}>
-                <SelectTrigger className="w-auto sm:w-[280px] h-9 text-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
-                    <Users className="h-4 w-4 mr-2 text-primary-foreground/80" />
+                <SelectTrigger className="w-auto sm:w-[280px] h-9 text-primary-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
+                    <Users className="h-4 w-4 mr-2 text-primary-foreground" />
                     <SelectValue placeholder="Selecionar Perfil" />
                 </SelectTrigger>
                 <SelectContent>
