@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -19,7 +20,7 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 // This mapping translates our internal SoxControl property names to the SharePoint DISPLAY NAMES.
 // This is more reliable when internal names with special character encodings are unknown.
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: 'Title', // Confirmed as Title field, which is a special case
+    codigoAnterior: 'Title',
     matriz: 'Matriz',
     processo: 'Processo',
     subProcesso: 'Sub-Processo',
