@@ -191,7 +191,6 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
     
     for (const control of controls) {
         try {
-            // A basic check for essential data before attempting to add.
             if (control.controlName && control.description) {
                 await addSoxControl(control);
                 controlsAdded++;
@@ -199,8 +198,26 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
                 errors.push({ controlId: control.controlId || 'ID Desconhecido', message: 'Campos obrigatórios (Nome, Descrição) não preenchidos.' });
             }
         } catch (error: any) {
-            console.error(`Failed to add control in bulk for ${control.controlId}:`, error?.body || error);
-            const errorMessage = error?.body ? JSON.parse(error.body)?.error?.message : (error.message || 'Erro desconhecido ao salvar no SharePoint.');
+            console.error(`Falha ao adicionar controle ${control.controlId || 'sem ID'}. Detalhes:`, error);
+    
+            let errorMessage = 'Um erro desconhecido ocorreu.';
+            if (error) {
+                if (error.body) {
+                    try {
+                        const errorDetails = JSON.parse(error.body);
+                        // The actual error from SharePoint is often nested
+                        errorMessage = errorDetails?.error?.message || JSON.stringify(errorDetails);
+                    } catch (parseError) {
+                        // If the body isn't JSON, it might be plain text
+                        errorMessage = String(error.body);
+                    }
+                } else if (error.message) {
+                    errorMessage = error.message;
+                } else {
+                    errorMessage = JSON.stringify(error);
+                }
+            }
+            
             errors.push({ controlId: control.controlId, message: errorMessage });
         }
     }
