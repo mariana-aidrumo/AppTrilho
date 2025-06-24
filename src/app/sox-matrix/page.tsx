@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks } from "lucide-react";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos, mockChangeRequests, mockResponsaveis, mockN3Responsaveis } from "@/data/mock-data";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
+import { getSoxControls, getChangeRequests, getFilterOptions } from "@/services/sox-service";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
@@ -123,6 +123,18 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
 
 export default function SoxMatrixPage() {
   const { currentUser } = useUserProfile();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Data states
+  const [soxControls, setSoxControls] = useState<SoxControl[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [processos, setProcessos] = useState<string[]>([]);
+  const [subProcessos, setSubProcessos] = useState<string[]>([]);
+  const [donos, setDonos] = useState<string[]>([]);
+  const [responsaveis, setResponsaveis] = useState<string[]>([]);
+  const [n3Responsaveis, setN3Responsaveis] = useState<string[]>([]);
+  
+  // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProcess, setSelectedProcess] = useState("Todos");
   const [selectedSubProcess, setSelectedSubProcess] = useState("Todos");
@@ -131,11 +143,37 @@ export default function SoxMatrixPage() {
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [controlsData, requestsData, filtersData] = await Promise.all([
+          getSoxControls(),
+          getChangeRequests(),
+          getFilterOptions()
+        ]);
+        setSoxControls(controlsData);
+        setChangeRequests(requestsData);
+        setProcessos(filtersData.processos);
+        setSubProcessos(filtersData.subProcessos);
+        setDonos(filtersData.donos);
+        setResponsaveis(filtersData.responsaveis);
+        setN3Responsaveis(filtersData.n3Responsaveis);
+      } catch (error) {
+        console.error("Failed to load SOX Matrix data:", error);
+        // Optionally, show a toast notification for the error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const unifiedTableData = useMemo(() => {
     const items: UnifiedTableItem[] = [];
 
     // Add active controls
-    mockSoxControls
+    soxControls
       .filter(control => control.status === "Ativo")
       .forEach(control => {
         items.push({
@@ -151,11 +189,11 @@ export default function SoxMatrixPage() {
       });
 
     // Add pending change requests
-    mockChangeRequests
+    changeRequests
       .filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
       .forEach(req => {
         const isNewControl = req.controlId.startsWith("NEW-CTRL-");
-        const controlDetails = !isNewControl ? mockSoxControls.find(c => c.controlId === req.controlId) : undefined;
+        const controlDetails = !isNewControl ? soxControls.find(c => c.controlId === req.controlId) : undefined;
         
         let name: string;
         let previousDisplayId: string | undefined;
@@ -214,12 +252,12 @@ export default function SoxMatrixPage() {
       return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
     });
 
-  }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel]);
+  }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel, soxControls, changeRequests]);
 
 
-  const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, []);
-  const adminTotalOwners = useMemo(() => (mockDonos.filter(d => d !== "Todos").length) , []);
-  const adminTotalPendingRequests = useMemo(() => mockChangeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, []);
+  const adminTotalActiveControls = useMemo(() => soxControls.filter(c => c.status === "Ativo").length, [soxControls]);
+  const adminTotalOwners = useMemo(() => new Set(donos.filter(d => d !== "Todos")).size, [donos]);
+  const adminTotalPendingRequests = useMemo(() => changeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, [changeRequests]);
 
   const handleResetFilters = () => {
     setSearchTerm("");
@@ -307,7 +345,7 @@ export default function SoxMatrixPage() {
           ))}
         </TableBody>
       </Table>
-       {items.length === 0 && (
+       {items.length === 0 && !isLoading && (
         <p className="mt-4 mb-4 text-center text-muted-foreground">
           Nenhum item encontrado com os filtros aplicados.
         </p>
@@ -336,7 +374,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedProcess} onValueChange={setSelectedProcess}>
             <SelectTrigger id="processo"><SelectValue placeholder="Selecionar Processo" /></SelectTrigger>
             <SelectContent>
-              {mockProcessos.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              {processos.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -345,7 +383,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedSubProcess} onValueChange={setSelectedSubProcess}>
             <SelectTrigger id="subprocesso"><SelectValue placeholder="Selecionar Subprocesso" /></SelectTrigger>
             <SelectContent>
-              {mockSubProcessos.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {subProcessos.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -354,7 +392,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedOwner} onValueChange={setSelectedOwner}>
             <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono/Solicitante" /></SelectTrigger>
             <SelectContent>
-               {[...new Set([...mockDonos, ...mockChangeRequests.map(cr => cr.requestedBy)])].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+               {donos.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -363,7 +401,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedResponsavel} onValueChange={setSelectedResponsavel}>
             <SelectTrigger id="responsavel"><SelectValue placeholder="Selecionar Responsável" /></SelectTrigger>
             <SelectContent>
-              {mockResponsaveis.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              {responsaveis.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -372,7 +410,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedN3Responsavel} onValueChange={setSelectedN3Responsavel}>
             <SelectTrigger id="n3Responsavel"><SelectValue placeholder="Selecionar N3" /></SelectTrigger>
             <SelectContent>
-              {mockN3Responsaveis.map(n3 => <SelectItem key={n3} value={n3}>{n3}</SelectItem>)}
+              {n3Responsaveis.map(n3 => <SelectItem key={n3} value={n3}>{n3}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -387,6 +425,15 @@ export default function SoxMatrixPage() {
       </div>
     </div>
   );
+  
+  if (isLoading) {
+    return (
+        <div className="flex items-center justify-center h-screen">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <p className="ml-2">Carregando dados da matriz...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-6 w-full">
@@ -451,7 +498,7 @@ export default function SoxMatrixPage() {
               </CardContent>
             </Card>
           </>
-        )}
+      )}
 
       {currentUser.activeProfile === "Dono do Controle" && (
         <div className="space-y-6 w-full">

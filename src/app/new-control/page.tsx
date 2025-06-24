@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { mockChangeRequests, mockSoxControls, mockVersionHistory } from '@/data/mock-data';
+import { addChangeRequest, addSoxControl, addSoxControlsInBulk } from '@/services/sox-service';
 import type { ChangeRequest, SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
@@ -59,70 +59,66 @@ export default function NewControlPage() {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!currentUser) return;
 
-    if (isUserAdmin()) {
-      const adminData = data as AdminFormValues;
-      const newControlIdNumber = mockSoxControls.length + 1;
-      const newSoxControl: SoxControl = {
-        id: String(newControlIdNumber),
-        controlId: adminData.controlId,
-        controlName: adminData.controlName,
-        description: adminData.description,
-        controlOwner: adminData.controlOwner || "",
-        controlFrequency: adminData.controlFrequency as any || "Ad-hoc",
-        controlType: adminData.controlType as any || "Preventivo",
-        status: "Ativo",
-        lastUpdated: new Date().toISOString(),
-        relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
-        testProcedures: adminData.testProcedures || "",
-        processo: adminData.processo,
-        subProcesso: adminData.subProcesso,
-        modalidade: adminData.modalidade as any,
-        responsavel: adminData.responsavel,
-        n3Responsavel: adminData.n3Responsavel,
-      };
-      mockSoxControls.push(newSoxControl);
-      mockVersionHistory.unshift({
-        id: `vh-admin-new-${newSoxControl.id}-${Date.now()}`,
-        controlId: newSoxControl.id,
-        changeDate: new Date().toISOString(),
-        changedBy: currentUser.name,
-        summaryOfChanges: `Controle ${newSoxControl.controlId} criado diretamente pelo Administrador.`,
-        newValues: { ...newSoxControl },
-      });
-      toast({
-        title: "Controle Criado!",
-        description: `O controle "${adminData.controlName}" foi criado com sucesso.`,
-        variant: "default",
-      });
+    try {
+      if (isUserAdmin()) {
+        const adminData = data as AdminFormValues;
+        const newSoxControl: Partial<SoxControl> = {
+          controlId: adminData.controlId,
+          controlName: adminData.controlName,
+          description: adminData.description,
+          controlOwner: adminData.controlOwner || "",
+          controlFrequency: adminData.controlFrequency as any || "Ad-hoc",
+          controlType: adminData.controlType as any || "Preventivo",
+          relatedRisks: adminData.relatedRisks ? adminData.relatedRisks.split(',').map(r => r.trim()) : [],
+          testProcedures: adminData.testProcedures || "",
+          processo: adminData.processo,
+          subProcesso: adminData.subProcesso,
+          modalidade: adminData.modalidade as any,
+          responsavel: adminData.responsavel,
+          n3Responsavel: adminData.n3Responsavel,
+        };
+        
+        await addSoxControl(newSoxControl);
+        
+        toast({
+          title: "Controle Criado!",
+          description: `O controle "${adminData.controlName}" foi criado com sucesso.`,
+          variant: "default",
+        });
 
-    } else {
-      const ownerData = data as OwnerFormValues;
-      const newRequestId = `cr-new-${Date.now()}`;
-      const tempProposedId = `TEMP-${Date.now()}`;
+      } else {
+        const ownerData = data as OwnerFormValues;
+        const tempProposedId = `TEMP-${Date.now()}`;
 
-      const newChangeRequest: ChangeRequest = {
-        id: newRequestId,
-        controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`,
-        requestedBy: currentUser.name,
-        requestDate: new Date().toISOString(),
-        changes: {
-          controlName: ownerData.controlName,
-          justificativa: ownerData.justificativa,
-          description: ownerData.justificativa,
-          controlOwner: currentUser.name,
-          status: "Rascunho",
-        },
-        status: "Pendente",
-        comments: `Proposta de novo controle: ${ownerData.controlName}.`,
-      };
-      mockChangeRequests.unshift(newChangeRequest);
-      toast({
-        title: "Proposta Enviada!",
-        description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
-        variant: "default",
-      });
+        const newChangeRequest: Partial<ChangeRequest> = {
+          controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`,
+          requestedBy: currentUser.name,
+          changes: {
+            controlName: ownerData.controlName,
+            justificativa: ownerData.justificativa,
+            description: ownerData.justificativa,
+            controlOwner: currentUser.name,
+            status: "Rascunho",
+          },
+          status: "Pendente",
+          comments: `Proposta de novo controle: ${ownerData.controlName}.`,
+        };
+        await addChangeRequest(newChangeRequest);
+        toast({
+          title: "Proposta Enviada!",
+          description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
+          variant: "default",
+        });
+      }
+      reset();
+    } catch(error) {
+        toast({
+            title: "Erro ao Salvar",
+            description: "Não foi possível salvar os dados. Tente novamente.",
+            variant: "destructive"
+        });
+        console.error("Failed to submit new control/request:", error);
     }
-    reset();
   };
   
   const headerMapping: { [key: string]: keyof SoxControl | string } = {
@@ -197,15 +193,15 @@ export default function NewControlPage() {
 
     try {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const data = event.target?.result;
         const workbook = xlsx.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
 
-        let controlsAdded = 0;
-        jsonFromSheet.forEach((row, index) => {
+        const controlsToCreate: Partial<SoxControl>[] = [];
+        jsonFromSheet.forEach((row) => {
           const mappedRow: any = {};
           for (const key in row) {
               if (headerMapping[key]) {
@@ -214,12 +210,7 @@ export default function NewControlPage() {
           }
           
           if (mappedRow.controlId && mappedRow.controlName && mappedRow.description) {
-             const newSoxControl: SoxControl = {
-              id: String(mockSoxControls.length + 1 + index),
-              status: "Ativo",
-              lastUpdated: new Date().toISOString(),
-
-              // Map all fields from the spreadsheet
+             const newSoxControl: Partial<SoxControl> = {
               controlId: mappedRow.controlId,
               controlName: mappedRow.controlName,
               description: mappedRow.description,
@@ -260,15 +251,24 @@ export default function NewControlPage() {
               impactoMalhaSul: parseBoolean(mappedRow.impactoMalhaSul),
               sistemaArmazenamento: mappedRow.sistemaArmazenamento,
             };
-            mockSoxControls.push(newSoxControl);
-            controlsAdded++;
+            controlsToCreate.push(newSoxControl);
           }
         });
+        
+        if (controlsToCreate.length > 0) {
+            const controlsAdded = await addSoxControlsInBulk(controlsToCreate);
+            toast({
+              title: "Arquivo Processado!",
+              description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
+            });
+        } else {
+            toast({
+              title: "Nenhum controle válido encontrado",
+              description: "Verifique se a planilha está preenchida corretamente.",
+              variant: "destructive"
+            });
+        }
 
-        toast({
-          title: "Arquivo Processado!",
-          description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
-        });
         setExcelFile(null); // Clear file input after processing
       };
       reader.onerror = () => {

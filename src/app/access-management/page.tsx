@@ -1,12 +1,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockUsers, type MockUser } from "@/data/mock-data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -15,8 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, ArrowLeft } from "lucide-react";
+import { UserPlus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import type { MockUser } from "@/data/mock-data";
+import { getUsers, addUser, deleteUser, updateUserRolesAndProfile } from "@/services/sox-service";
 
 // Schema for adding a new user
 const addUserSchema = z.object({
@@ -29,13 +30,33 @@ export default function AccessManagementPage() {
   const { currentUser, isUserAdmin } = useUserProfile();
   const { toast } = useToast();
   
-  // Local state for users, initialized with mock data
-  const [users, setUsers] = useState<MockUser[]>(mockUsers);
+  const [users, setUsers] = useState<MockUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [userToDelete, setUserToDelete] = useState<MockUser | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserSchema),
   });
+
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+        const data = await getUsers();
+        setUsers(data);
+    } catch (error) {
+        toast({ title: "Erro", description: "Falha ao carregar usuários.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (isUserAdmin()) {
+        fetchUsers();
+    } else {
+        setIsLoading(false);
+    }
+  }, [isUserAdmin, fetchUsers]);
 
   if (!isUserAdmin()) {
     return (
@@ -57,7 +78,7 @@ export default function AccessManagementPage() {
     );
   }
 
-  const handleAddUser: SubmitHandler<AddUserFormValues> = (data) => {
+  const handleAddUser: SubmitHandler<AddUserFormValues> = async (data) => {
     if (users.some(u => u.email === data.email)) {
       toast({
         title: "Erro",
@@ -66,77 +87,85 @@ export default function AccessManagementPage() {
       });
       return;
     }
-
-    const newUser: MockUser = {
-      id: `user-new-${Date.now()}`,
-      name: data.name,
-      email: data.email,
-      password: 'DefaultPassword123', // Placeholder
-      roles: ['control-owner'], // Default role
-      activeProfile: 'Dono do Controle',
-    };
-
-    setUsers(prevUsers => [...prevUsers, newUser]);
-    toast({
-      title: "Usuário Adicionado",
-      description: `${data.name} foi adicionado como Dono do Controle.`,
-    });
-    reset();
+    
+    try {
+        await addUser({ name: data.name, email: data.email });
+        toast({
+          title: "Usuário Adicionado",
+          description: `${data.name} foi adicionado como Dono do Controle.`,
+        });
+        reset();
+        fetchUsers(); // Refresh the list
+    } catch(error) {
+        toast({ title: "Erro", description: "Não foi possível adicionar o usuário.", variant: "destructive" });
+    }
   };
 
-  const handleToggleRole = (userId: string, role: 'admin' | 'control-owner') => {
-    setUsers(prevUsers =>
-      prevUsers.map(user => {
-        if (user.id === userId) {
-          // Prevent removing the last admin
-          if (role === 'admin' && user.roles.includes('admin')) {
-             const adminCount = users.filter(u => u.roles.includes('admin')).length;
-             if (adminCount <= 1) {
-                toast({ title: "Ação não permitida", description: "Não é possível remover o último administrador.", variant: "destructive" });
-                return user;
-             }
-          }
+  const handleToggleRole = async (userId: string, role: 'admin' | 'control-owner') => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
 
-          const newRoles = user.roles.includes(role)
-            ? user.roles.filter(r => r !== role)
-            : [...user.roles, role];
-          
-          // Ensure at least one role is present
-          if (newRoles.length === 0) {
-              toast({ title: "Ação não permitida", description: "O usuário deve ter pelo menos um perfil.", variant: "destructive" });
-              return user;
-          }
-          
-          // Adjust active profile if the current one is removed
-          const newActiveProfile = 
-            (newRoles.includes('admin') ? "Administrador de Controles Internos" :
-            (newRoles.includes('control-owner') ? "Dono do Controle" : user.activeProfile));
-
-          return { ...user, roles: newRoles, activeProfile: newActiveProfile as any };
+    // Prevent removing the last admin
+    if (role === 'admin' && user.roles.includes('admin')) {
+        const adminCount = users.filter(u => u.roles.includes('admin')).length;
+        if (adminCount <= 1) {
+            toast({ title: "Ação não permitida", description: "Não é possível remover o último administrador.", variant: "destructive" });
+            return;
         }
-        return user;
-      })
-    );
+    }
+
+    const newRoles = user.roles.includes(role)
+        ? user.roles.filter(r => r !== role)
+        : [...user.roles, role];
+    
+    if (newRoles.length === 0) {
+        toast({ title: "Ação não permitida", description: "O usuário deve ter pelo menos um perfil.", variant: "destructive" });
+        return;
+    }
+    
+    const newActiveProfile = 
+        (newRoles.includes('admin') ? "Administrador de Controles Internos" :
+        (newRoles.includes('control-owner') ? "Dono do Controle" : user.activeProfile));
+
+    try {
+        await updateUserRolesAndProfile(userId, newRoles, newActiveProfile);
+        fetchUsers(); // Refresh the list
+    } catch(error) {
+        toast({ title: "Erro", description: "Não foi possível atualizar o perfil do usuário.", variant: "destructive" });
+    }
   };
   
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (!userToDelete) return;
     
-    // Prevent deleting the current user
     if (userToDelete.id === currentUser.id) {
        toast({ title: "Ação não permitida", description: "Você não pode remover a si mesmo.", variant: "destructive" });
        setUserToDelete(null);
        return;
     }
-
-    setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
-    toast({
-      title: "Usuário Removido",
-      description: `${userToDelete.name} foi removido do sistema.`,
-    });
-    setUserToDelete(null);
+    
+    try {
+        await deleteUser(userToDelete.id);
+        toast({
+          title: "Usuário Removido",
+          description: `${userToDelete.name} foi removido do sistema.`,
+        });
+        fetchUsers(); // Refresh the list
+    } catch(error) {
+        toast({ title: "Erro", description: "Não foi possível remover o usuário.", variant: "destructive" });
+    } finally {
+        setUserToDelete(null);
+    }
   };
 
+  if (isLoading) {
+    return (
+        <div className="flex items-center justify-center h-screen">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <p className="ml-2">Carregando gerenciamento de acessos...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

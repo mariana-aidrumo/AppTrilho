@@ -5,48 +5,65 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ChangeRequest } from "@/types"; // SoxControl, VersionHistoryEntry no longer needed here
+import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2 } from "lucide-react";
+import { Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockChangeRequests } from "@/data/mock-data"; // mockSoxControls, mockVersionHistory no longer needed here
-import { useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { getChangeRequests } from "@/services/sox-service";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+  const [isLoading, setIsLoading] = useState(true);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const requestsData = await getChangeRequests();
+        setChangeRequests(requestsData);
+      } catch (error) {
+        console.error("Failed to load change requests:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   // Filtros para Administrador
-  const adminPendingAlterations = useMemo(() => mockChangeRequests.filter(req => 
+  const adminPendingAlterations = useMemo(() => changeRequests.filter(req => 
     !req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests]);
+  ), [changeRequests]);
 
-  const adminPendingNewControls = useMemo(() => mockChangeRequests.filter(req => 
+  const adminPendingNewControls = useMemo(() => changeRequests.filter(req => 
     req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
-  ), [mockChangeRequests]);
+  ), [changeRequests]);
 
 
   // Filtros para Dono do Controle
   const ownerPendingApprovalRequests = useMemo(() => {
     if (!currentUser) return [];
-    return mockChangeRequests.filter(
+    return changeRequests.filter(
       req => req.requestedBy === currentUser.name && (req.status === "Pendente" || req.status === "Em Análise")
     );
-  }, [mockChangeRequests, currentUser]);
+  }, [changeRequests, currentUser]);
 
   const ownerAwaitingFeedbackRequests = useMemo(() => {
     if (!currentUser) return [];
-    return mockChangeRequests.filter(
+    return changeRequests.filter(
       req => req.requestedBy === currentUser.name && req.status === "Aguardando Feedback do Dono"
     );
-  }, [mockChangeRequests, currentUser]);
+  }, [changeRequests, currentUser]);
 
   const ownerRequestsHistory = useMemo(() => {
     if (!currentUser) return [];
-    return mockChangeRequests.filter(
+    return changeRequests.filter(
       req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
     );
-  }, [mockChangeRequests, currentUser]);
+  }, [changeRequests, currentUser]);
 
   const pageTitle = isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações";
   const pageDescription = isUserAdmin()
@@ -155,6 +172,14 @@ export default function PendingApprovalsPage() {
     );
   };
 
+  if (isLoading) {
+      return (
+          <div className="flex items-center justify-center h-screen">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p className="ml-2">Carregando solicitações...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-6 w-full">

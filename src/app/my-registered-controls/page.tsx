@@ -6,14 +6,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, FileEdit, ArrowLeft, ExternalLink, FilePlus2 } from "lucide-react";
+import { ArrowLeft, FilePlus2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { mockSoxControls, mockChangeRequests } from "@/data/mock-data";
-import { useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { getSoxControls, getChangeRequests } from "@/services/sox-service";
 
 export default function MyControlsPage() {
   const { currentUser, isUserControlOwner } = useUserProfile();
+  const [isLoading, setIsLoading] = useState(true);
+  const [soxControls, setSoxControls] = useState<SoxControl[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!isUserControlOwner()) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const [controlsData, requestsData] = await Promise.all([
+          getSoxControls(),
+          getChangeRequests(),
+        ]);
+        setSoxControls(controlsData);
+        setChangeRequests(requestsData);
+      } catch (error) {
+        console.error("Failed to load controls data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [isUserControlOwner]);
+
 
   if (!isUserControlOwner()) {
     return (
@@ -40,38 +67,46 @@ export default function MyControlsPage() {
   const userOwnedControlIds = currentUser.controlsOwned || [];
 
   const myActiveControls = useMemo(() =>
-    mockSoxControls.filter(control =>
+    soxControls.filter(control =>
       userOwnedControlIds.includes(control.id) &&
       control.status === "Ativo" &&
-      !mockChangeRequests.some(cr =>
+      !changeRequests.some(cr =>
         cr.controlId === control.controlId &&
         cr.requestedBy === currentUser.name &&
         (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")
       )
-    ), [mockSoxControls, userOwnedControlIds, currentUser.name, mockChangeRequests]);
+    ), [soxControls, changeRequests, userOwnedControlIds, currentUser.name]);
 
   const myControlsWithPendingChanges = useMemo(() => {
     const pendingChanges: { control: SoxControl, request: ChangeRequest }[] = [];
-    mockChangeRequests.forEach(cr => {
+    changeRequests.forEach(cr => {
       if (cr.requestedBy === currentUser.name &&
           !cr.controlId.startsWith("NEW-CTRL-") &&
           (cr.status === "Pendente" || cr.status === "Em Análise" || cr.status === "Aguardando Feedback do Dono")) {
-        const control = mockSoxControls.find(c => c.controlId === cr.controlId && userOwnedControlIds.includes(c.id));
+        const control = soxControls.find(c => c.controlId === cr.controlId && userOwnedControlIds.includes(c.id));
         if (control) {
           pendingChanges.push({ control, request: cr });
         }
       }
     });
     return pendingChanges;
-  }, [userOwnedControlIds, currentUser.name, mockChangeRequests, mockSoxControls]);
+  }, [userOwnedControlIds, currentUser.name, changeRequests, soxControls]);
 
   const myPendingNewControlRequests = useMemo(() =>
-    mockChangeRequests.filter(
+    changeRequests.filter(
       req => req.requestedBy === currentUser.name &&
              req.controlId.startsWith("NEW-CTRL-") &&
              (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
-    ), [currentUser.name, mockChangeRequests]);
+    ), [currentUser.name, changeRequests]);
 
+  if (isLoading) {
+      return (
+          <div className="flex items-center justify-center h-screen">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p className="ml-2">Carregando seus controles...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-6 w-full">
