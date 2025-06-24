@@ -1,27 +1,61 @@
 
 export type SoxControlStatus = "Ativo" | "Inativo" | "Rascunho" | "Pendente Aprovação";
-export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc";
+export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc" | "Por ocorrência";
 export type ControlType = "Preventivo" | "Detectivo" | "Corretivo";
-export type ControlModalidade = "Manual" | "Automático" | "Híbrido";
+export type ControlModalidade = "Manual" | "Automático" | "Híbrido" | "ITDM";
+
+export interface IPEAssertions {
+  C: boolean;
+  EO: boolean;
+  VA: boolean;
+  OR: boolean;
+  PD: boolean;
+}
 
 export interface SoxControl {
   id: string;
-  controlId: string; // Ex: "FIN-001"
+  controlId: string; // Ex: "FIN-001" / "Código NOVO"
   controlName: string;
-  description: string;
-  controlOwner: string; // ID ou nome do usuário
+  description: string; // "Descrição do controle ATUAL"
+  controlOwner: string; // "Dono do Controle (Control owner)"
   controlFrequency: ControlFrequency;
-  controlType: ControlType;
+  controlType: ControlType; // P/D
   status: SoxControlStatus;
   lastUpdated: string; // Data ISO
-  relatedRisks: string[];
-  testProcedures: string;
+  
+  // Fields from previous versions, can be used for other controls
+  relatedRisks?: string[];
+  testProcedures?: string;
+  justificativa?: string;
+  
+  // Detailed fields from image
   processo?: string;
   subProcesso?: string;
   modalidade?: ControlModalidade;
-  justificativa?: string; // Para novos controles propostos
-  responsavel?: string;
-  n3Responsavel?: string;
+  responsavel?: string; // "Responsável"
+  n3Responsavel?: string; // "N3 Responsável"
+  codigoAnterior?: string;
+  matriz?: string;
+  riscoId?: string;
+  riscoDescricao?: string;
+  riscoClassificacao?: string;
+  codigoCosan?: string;
+  objetivoControle?: string;
+  tipo?: string; // e.g. "Chave"
+  mrc?: boolean;
+  evidenciaControle?: string;
+  implementacaoData?: string;
+  dataUltimaAlteracao?: string;
+  sistemasRelacionados?: string[];
+  transacoesTelasMenusCriticos?: string;
+  aplicavelIPE?: boolean;
+  ipeAssertions?: IPEAssertions;
+  executorControle?: string[];
+  executadoPor?: string;
+  area?: string;
+  vpResponsavel?: string;
+  impactoMalhaSul?: boolean;
+  sistemaArmazenamento?: string;
 }
 
 export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono";

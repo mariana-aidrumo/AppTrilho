@@ -3,44 +3,120 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl, ChangeRequest } from "@/types";
+import type { SoxControl, ChangeRequest, IPEAssertions } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, FileEdit, ChevronRight, Filter, RotateCcw, Search, CheckSquare, ListChecks, ExternalLink, TrendingUp, Users, AlertCircle, LayoutDashboard, Layers, Download } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos, mockChangeRequests, mockResponsaveis, mockN3Responsaveis } from "@/data/mock-data";
 import { useState, useMemo } from "react";
+import type { ReactNode } from "react";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
-interface UnifiedTableItem {
+// This interface combines fields from SoxControl and ChangeRequest for the unified table.
+interface UnifiedTableItem extends Partial<SoxControl> {
   key: string;
   originalId: string;
   itemType: UnifiedTableItemType;
-  previousDisplayId?: string; // Cód Controle ANTERIOR
-  displayId: string; // Código NOVO
-  name: string;
-  description?: string;
-  processo?: string;
-  subProcesso?: string;
-  ownerOrRequester: string;
-  status: string;
-  responsavel?: string;
-  n3Responsavel?: string;
-  controlFrequency?: string;
-  controlType?: string;
-  modalidade?: string;
+  
+  // Display fields for the table
+  previousDisplayId?: string;
+  displayId: string;
+  name: string; // From controlName
+  ownerOrRequester: string; // From controlOwner or requestedBy
+  
+  // Request-specific fields
   requestDate?: string;
-  lastUpdated?: string;
-  requestedBy?: string;
   summaryOfChanges?: string;
   comments?: string;
   adminFeedback?: string;
-  relatedRisks?: string[];
-  testProcedures?: string;
 }
+
+const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
+  if (!item) return null;
+
+  const DetailRow = ({ label, value }: { label: string; value?: ReactNode | null }) => (
+    <div className="grid grid-cols-12 gap-2 py-2 border-b text-sm">
+      <dt className="col-span-4 font-semibold text-muted-foreground">{label}</dt>
+      <dd className="col-span-8">{value || <span className="text-muted-foreground/70">N/A</span>}</dd>
+    </div>
+  );
+
+  const SectionHeader = ({ title }: { title: string }) => (
+      <h3 className="text-base font-semibold text-primary bg-primary/10 p-2 my-4 rounded-md">{title}</h3>
+  );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{item.name}</SheetTitle>
+          <SheetDescription>Detalhes completos do controle e suas responsabilidades.</SheetDescription>
+        </SheetHeader>
+        <div className="py-4">
+            <SectionHeader title="Histórico (De-Para)" />
+            <dl><DetailRow label="Cód Controle ANTERIOR" value={item.codigoAnterior} /></dl>
+
+            <SectionHeader title="Informações Gerais" />
+            <dl>
+                <DetailRow label="Matriz" value={item.matriz} />
+                <DetailRow label="Processo" value={item.processo} />
+                <DetailRow label="Sub-Processo" value={item.subProcesso} />
+                <DetailRow label="Risco" value={item.riscoId} />
+                <DetailRow label="Descrição do Risco" value={item.riscoDescricao} />
+                <DetailRow label="Classificação do Risco" value={item.riscoClassificacao} />
+            </dl>
+
+            <SectionHeader title="Informações do Controle" />
+            <dl>
+                <DetailRow label="Código NOVO" value={item.displayId} />
+                <DetailRow label="Código COSAN" value={item.codigoCosan} />
+                <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />
+                <DetailRow label="Nome do Controle" value={item.name} />
+                <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />
+                <DetailRow label="Tipo" value={item.tipo} />
+                <DetailRow label="Frequência" value={item.controlFrequency} />
+                <DetailRow label="Modalidade" value={item.modalidade} />
+                <DetailRow label="P/D" value={item.controlType} />
+                <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />
+                <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />
+                <DetailRow label="Implementação Data" value={item.implementacaoData} />
+                <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />
+                <DetailRow label="Sistemas Relacionados" value={item.sistemasRelacionados?.join(', ')} />
+                <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />
+                <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />
+                <DetailRow label="C" value={item.ipeAssertions?.C ? 'X' : ''} />
+                <DetailRow label="E/O" value={item.ipeAssertions?.EO ? 'X' : ''} />
+                <DetailRow label="V/A" value={item.ipeAssertions?.VA ? 'X' : ''} />
+                <DetailRow label="O/R" value={item.ipeAssertions?.OR ? 'X' : ''} />
+                <DetailRow label="P/D (IPE)" value={item.ipeAssertions?.PD ? 'X' : ''} />
+            </dl>
+            
+            <SectionHeader title="Responsabilidades" />
+            <dl>
+                <DetailRow label="Responsável" value={item.responsavel} />
+                <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />
+                <DetailRow label="Executor do Controle" value={item.executorControle?.join('; ')} />
+                <DetailRow label="Executado por" value={item.executadoPor} />
+                <DetailRow label="N3 Responsável" value={item.n3Responsavel} />
+                <DetailRow label="Área" value={item.area} />
+                <DetailRow label="VP Responsável" value={item.vpResponsavel} />
+            </dl>
+
+            <SectionHeader title="Malha Sul" />
+            <dl><DetailRow label="Impacto Malha Sul" value={item.impactoMalhaSul === false ? 'Não' : item.impactoMalhaSul === true ? 'Sim' : 'N/A'} /></dl>
+
+            <SectionHeader title="Sistema" />
+            <dl><DetailRow label="Sistema Armazenamento" value={item.sistemaArmazenamento} /></dl>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
 
 
 export default function SoxMatrixPage() {
@@ -51,36 +127,28 @@ export default function SoxMatrixPage() {
   const [selectedOwner, setSelectedOwner] = useState("Todos");
   const [selectedResponsavel, setSelectedResponsavel] = useState("Todos");
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
+  const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
   const unifiedTableData = useMemo(() => {
     const items: UnifiedTableItem[] = [];
 
+    // Add active controls
     mockSoxControls
       .filter(control => control.status === "Ativo")
       .forEach(control => {
         items.push({
+          ...control,
           key: `control-${control.id}`,
           originalId: control.id,
           itemType: 'Controle Ativo',
-          previousDisplayId: "N/A", // Não há código anterior para um controle ativo
-          displayId: control.controlId, // Código Novo é o código atual
+          previousDisplayId: control.codigoAnterior || "N/A",
+          displayId: control.controlId,
           name: control.controlName,
-          description: control.description,
-          processo: control.processo,
-          subProcesso: control.subProcesso,
           ownerOrRequester: control.controlOwner,
-          status: control.status,
-          responsavel: control.responsavel,
-          n3Responsavel: control.n3Responsavel,
-          controlFrequency: control.controlFrequency,
-          controlType: control.controlType,
-          modalidade: control.modalidade,
-          lastUpdated: control.lastUpdated,
-          relatedRisks: control.relatedRisks,
-          testProcedures: control.testProcedures,
         });
       });
 
+    // Add pending change requests
     mockChangeRequests
       .filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
       .forEach(req => {
@@ -90,11 +158,7 @@ export default function SoxMatrixPage() {
         let name: string;
         let previousDisplayId: string | undefined;
         let displayId: string;
-        let processo = req.changes.processo || controlDetails?.processo;
-        let subProcesso = req.changes.subProcesso || controlDetails?.subProcesso;
-        let responsavel = req.changes.responsavel || controlDetails?.responsavel;
-        let n3Responsavel = req.changes.n3Responsavel || controlDetails?.n3Responsavel;
-
+        
         if (isNewControl) {
           name = req.changes.controlName || "Nova Proposta Sem Nome";
           previousDisplayId = "N/A";
@@ -102,39 +166,31 @@ export default function SoxMatrixPage() {
         } else if (controlDetails) {
           name = controlDetails.controlName;
           previousDisplayId = controlDetails.controlId;
-          displayId = req.changes.controlId || controlDetails.controlId; // Mostra o novo ID se proposto, senão o antigo
+          displayId = req.changes.controlId || controlDetails.controlId;
         } else {
-          return; // Skip if control details not found for an alteration
+          return;
         }
         
         const summaryOfChanges = Object.entries(req.changes)
           .map(([key, value]) => `${key}: ${value}`)
           .join('; ');
+        
+        // Combine original control data with proposed changes
+        const combinedData = { ...controlDetails, ...req.changes };
 
         items.push({
+          ...combinedData,
           key: `request-${req.id}`,
           originalId: req.id,
           itemType: isNewControl ? 'Proposta de Novo Controle' : 'Solicitação de Alteração',
           previousDisplayId: previousDisplayId,
           displayId: displayId,
           name: name,
-          description: req.changes.description || controlDetails?.description || req.changes.justificativa || '',
-          processo: processo,
-          subProcesso: subProcesso,
           ownerOrRequester: req.requestedBy,
-          status: req.status,
-          responsavel: responsavel,
-          n3Responsavel: n3Responsavel,
           requestDate: req.requestDate,
-          requestedBy: req.requestedBy,
           summaryOfChanges: summaryOfChanges,
           comments: req.comments,
           adminFeedback: req.adminFeedback,
-          controlFrequency: req.changes.controlFrequency || controlDetails?.controlFrequency,
-          controlType: req.changes.controlType || controlDetails?.controlType,
-          modalidade: req.changes.modalidade || controlDetails?.modalidade,
-          relatedRisks: req.changes.relatedRisks || controlDetails?.relatedRisks,
-          testProcedures: req.changes.testProcedures || controlDetails?.testProcedures,
         });
       });
     
@@ -148,7 +204,7 @@ export default function SoxMatrixPage() {
 
       const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
       const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
-      const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.ownerOrRequester === selectedOwner);
+      const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.controlOwner === selectedOwner);
       
       const matchesResponsavelFilter = selectedResponsavel === "Todos" || item.responsavel === selectedResponsavel;
       const matchesN3ResponsavelFilter = selectedN3Responsavel === "Todos" || item.n3Responsavel === selectedN3Responsavel;
@@ -156,12 +212,12 @@ export default function SoxMatrixPage() {
       return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
     });
 
-  }, [mockSoxControls, mockChangeRequests, searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel]);
+  }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel]);
 
 
-  const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, [mockSoxControls]);
-  const adminTotalOwners = useMemo(() => (mockDonos.filter(d => d !== "Todos").length) , [mockDonos]);
-  const adminTotalPendingRequests = useMemo(() => mockChangeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, [mockChangeRequests]);
+  const adminTotalActiveControls = useMemo(() => mockSoxControls.filter(c => c.status === "Ativo").length, []);
+  const adminTotalOwners = useMemo(() => (mockDonos.filter(d => d !== "Todos").length) , []);
+  const adminTotalPendingRequests = useMemo(() => mockChangeRequests.filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono").length, []);
 
   const handleResetFilters = () => {
     setSearchTerm("");
@@ -170,6 +226,10 @@ export default function SoxMatrixPage() {
     setSelectedOwner("Todos");
     setSelectedResponsavel("Todos");
     setSelectedN3Responsavel("Todos");
+  };
+  
+  const handleViewDetails = (item: UnifiedTableItem) => {
+    setSelectedItem(item);
   };
 
   const escapeCsvCell = (cellData: any): string => {
@@ -185,8 +245,7 @@ export default function SoxMatrixPage() {
 
   const handleExtractCsv = () => {
     const headers = [
-      "Cód Controle ANTERIOR",
-      "Processo", "Sub-Processo", "Código NOVO", "Nome do Controle", 
+      "Cód Controle ANTERIOR", "Processo", "Sub-Processo", "Código NOVO", "Nome do Controle", 
       "Descrição do controle ATUAL", "Frequência", "Modalidade", "P/D", 
       "Dono do Controle (Control owner)"
     ];
@@ -239,6 +298,7 @@ export default function SoxMatrixPage() {
             <TableHead>Modalidade</TableHead>
             <TableHead>P/D</TableHead>
             <TableHead>Dono do Controle (Control owner)</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -254,6 +314,12 @@ export default function SoxMatrixPage() {
               <TableCell>{item.modalidade || "N/A"}</TableCell>
               <TableCell>{item.controlType || "N/A"}</TableCell>
               <TableCell>{item.ownerOrRequester}</TableCell>
+              <TableCell className="text-right">
+                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(item)}>
+                    <Eye className="h-4 w-4" />
+                    <span className="sr-only">Ver Detalhes</span>
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -339,7 +405,6 @@ export default function SoxMatrixPage() {
     </div>
   );
 
-
   return (
     <div className="space-y-6 w-full">
       {currentUser.activeProfile === "Administrador de Controles Internos" && (
@@ -395,7 +460,7 @@ export default function SoxMatrixPage() {
               <CardHeader>
                 <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
                 <CardDescription>
-                  Visualize controles ativos e solicitações pendentes.
+                  Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> para ver detalhes.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -445,7 +510,7 @@ export default function SoxMatrixPage() {
                 <CardHeader>
                     <CardTitle>Visão Geral dos Controles Ativos</CardTitle>
                     <CardDescription>
-                        Explore todos os controles internos atualmente ativos na organização.
+                        Explore todos os controles internos atualmente ativos na organização. Use o ícone <Eye className="inline h-4 w-4" /> para ver detalhes.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -455,6 +520,15 @@ export default function SoxMatrixPage() {
             </Card>
         </div>
       )}
+      <ControlDetailSheet 
+        item={selectedItem}
+        open={!!selectedItem}
+        onOpenChange={(open) => {
+            if (!open) {
+                setSelectedItem(null);
+            }
+        }}
+      />
     </div>
   );
 }

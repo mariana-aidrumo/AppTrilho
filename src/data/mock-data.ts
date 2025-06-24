@@ -1,5 +1,6 @@
+
 // src/data/mock-data.ts
-import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification } from '@/types';
+import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions } from '@/types';
 
 export interface MockUser {
     id: string;
@@ -21,21 +22,49 @@ export const mockUsers: MockUser[] = [
 export const mockSoxControls: SoxControl[] = [
   {
     id: "1",
-    controlId: "FIN-001",
-    controlName: "Revisão de Conciliação Bancária",
-    description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil.",
-    controlOwner: "Ana Clara Souza",
-    controlFrequency: "Mensal",
-    controlType: "Detectivo",
+    controlId: "RUMO.AF.01", // Código NOVO
+    codigoAnterior: "RUMO_IMZ_02", // Cód Controle ANTERIOR
+    controlName: "Aprovação dos projetos de investimento - Abertura, suplementação e encerramento",
+    description: "Por ocorrência, o Time de Gestão de Capex gerencia as solicitações de abertura, suplementação e encerramento de projetos de investimentos de capitalização via sistema SGP e essas solicitações são aprovadas conforme Manual de Diretrizes de Aprovação (MDA).",
+    controlOwner: "Helenize Maria Dubiela",
+    controlFrequency: "Por ocorrência",
+    controlType: "Preventivo",
     status: "Ativo",
     lastUpdated: new Date(Date.now() - 86400000 * 5).toISOString(),
-    relatedRisks: ["Demonstração Financeira Incorreta", "Transações Fraudulentas", "Passivos Não Registrados"],
-    testProcedures: "Verificar se as conciliações bancárias são realizadas mensalmente, revisadas independentemente e todos os itens de conciliação são investigados e compensados adequadamente. Obter uma amostra das conciliações bancárias concluídas e verificar as assinaturas e datas do preparador e revisor.",
-    processo: "Relatórios Financeiros",
-    subProcesso: "Fechamento Mensal",
-    modalidade: "Manual",
-    responsavel: "Carlos Pereira",
-    n3Responsavel: "Gerência Financeira",
+    
+    // New detailed fields from image
+    matriz: "Rumo",
+    processo: "Ativo Fixo",
+    subProcesso: "1.Gestão de Projetos de Investimento",
+    riscoId: "ATF.R.01",
+    riscoDescricao: "Aquisição de ativos não aprovados conforme diretrizes internas ou em desacordo com os projetos de investimentos aprovados.",
+    riscoClassificacao: "Alto",
+    codigoCosan: "RUM.PPE.01",
+    objetivoControle: "Validar e aprovar os projetos de investimento em suas diferentes fases.",
+    tipo: "Chave",
+    modalidade: "ITDM",
+    mrc: false,
+    evidenciaControle: "a) Base do sistema SGP com todas as solicitações de Abertura, Alteração de mudança (alteração de custo) e Encerrados;\nb) Ata enviada por e-mail com a aprovação do valor para o projeto/ workflow de aprovação com evidência do valor aprovado para o projeto;\nc) Tela do projeto do SGP com as informações financeiras;\nd) Tela do SAP evidenciando o cadastro do valor aprovado na Ata ou e-mail (abertura do PEP).",
+    implementacaoData: "mai/25",
+    dataUltimaAlteracao: "abr/25",
+    sistemasRelacionados: ["SAP"],
+    transacoesTelasMenusCriticos: "CJ03",
+    aplicavelIPE: false,
+    ipeAssertions: {
+      C: true,
+      EO: true,
+      VA: true,
+      OR: true,
+      PD: true,
+    },
+    responsavel: "Patricia Ramos do Rosario",
+    executorControle: ["Gustavo Alberto Peixoto", "Webert Soares Dias Raspante"],
+    executadoPor: "Rumo",
+    n3Responsavel: "Paula Formentini",
+    area: "Escritório de Projetos",
+    vpResponsavel: "Finanças",
+    impactoMalhaSul: false,
+    sistemaArmazenamento: "IB",
   },
   {
     id: "2",
@@ -43,7 +72,7 @@ export const mockSoxControls: SoxControl[] = [
     controlName: "Aprovação de Acesso ao Sistema",
     description: "Revisão trimestral dos direitos de acesso do usuário a sistemas críticos.",
     controlOwner: "Pedro Oliveira",
-    controlFrequency: "Por Solicitação",
+    controlFrequency: "Trimestral",
     controlType: "Preventivo",
     status: "Ativo",
     lastUpdated: new Date().toISOString(),
@@ -61,7 +90,7 @@ export const mockSoxControls: SoxControl[] = [
     controlName: "Due Diligence de Integridade",
     description: "Contagens cíclicas regulares de estoque para garantir a precisão.",
     controlOwner: "João da Silva",
-    controlFrequency: "Por Novo Fornecedor",
+    controlFrequency: "Por ocorrência", // Updated from "Por Novo Fornecedor"
     controlType: "Preventivo",
     status: "Ativo",
     lastUpdated: new Date().toISOString(),
@@ -96,7 +125,7 @@ export const mockSoxControls: SoxControl[] = [
 export const mockChangeRequests: ChangeRequest[] = [
   {
     id: "cr1",
-    controlId: "FIN-001",
+    controlId: "RUMO.AF.01", // Previously FIN-001
     requestedBy: "João da Silva",
     requestDate: new Date(Date.now() - 86400000 * 10).toISOString(),
     changes: {
@@ -134,7 +163,7 @@ export const mockChangeRequests: ChangeRequest[] = [
   },
   {
     id: "cr4-feedback",
-    controlId: "FIN-001",
+    controlId: "RUMO.AF.01", // Previously FIN-001
     requestedBy: "João da Silva",
     requestDate: new Date(Date.now() - 86400000 * 15).toISOString(),
     changes: {
@@ -178,7 +207,7 @@ export const mockChangeRequests: ChangeRequest[] = [
   },
    {
     id: "cr-fin001-pending-details",
-    controlId: "FIN-001",
+    controlId: "RUMO.AF.01", // Previously FIN-001
     requestedBy: "Ana Clara Souza",
     requestDate: new Date(Date.now() - 86400000 * 1).toISOString(),
     changes: {
@@ -194,7 +223,7 @@ export const mockChangeRequests: ChangeRequest[] = [
 
 
 export const mockVersionHistory: VersionHistoryEntry[] = [
-  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle FIN-001 Criado.", newValues: { controlName: "Revisão de Conciliação Bancária", status: "Ativo", responsavel: "Carlos Pereira", n3Responsavel: "Gerência Financeira" } },
+  { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle RUMO.AF.01 Criado.", newValues: { controlName: "Aprovação dos projetos de investimento - Abertura, suplementação e encerramento", status: "Ativo", responsavel: "Patricia Ramos do Rosario", n3Responsavel: "Paula Formentini" } },
   { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "João da Silva", summaryOfChanges: "Solicitação de alteração cr1 enviada.", relatedChangeRequestId: "cr1" },
   { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 28).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle ITG-005 Criado.", newValues: { controlName: "Aprovação de Acesso ao Sistema", status: "Ativo", responsavel: "Fernanda Lima", n3Responsavel: "Diretoria de TI" } },
   { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 26).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle PRO-012 Criado.", newValues: { controlName: "Due Diligence de Integridade", status: "Ativo", responsavel: "Mariana Costa", n3Responsavel: "Gerência de Suprimentos" } },
@@ -204,24 +233,24 @@ export const mockVersionHistory: VersionHistoryEntry[] = [
     changeDate: new Date(Date.now() - 86400000 * 18).toISOString(),
     changedBy: "Carlos Ferreira",
     summaryOfChanges: "Alterações da solicitação cr5-approved aplicadas.",
-    previousValues: { controlFrequency: "Por Novo Fornecedor", description: "Contagens cíclicas regulares de estoque para garantir a precisão." },
+    previousValues: { controlFrequency: "Por ocorrência", description: "Contagens cíclicas regulares de estoque para garantir a precisão." },
     newValues: { controlFrequency: "Semanal", description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente.", responsavel: "Ana Silva (Atualizado)" },
     relatedChangeRequestId: "cr5-approved"
   },
 ];
 
-export const mockProcessos = ["Todos", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
-export const mockSubProcessos = ["Todos", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção", "Monitoramento de Segurança", "Processamento de Pedidos"];
-export const mockDonos = ["Todos", "Ana Clara Souza", "Pedro Oliveira", "João da Silva", "Carlos Ferreira", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
-export const mockResponsaveis = ["Todos", "Carlos Pereira", "Fernanda Lima", "Mariana Costa", "Ricardo Alves", "Ana Silva (Atualizado)", "Equipe de Vendas", "Novo Responsável TI", "João Silva", "Maria Oliveira", "Beatriz Santos", "Rafael Almeida"];
-export const mockN3Responsaveis = ["Todos", "Gerência Financeira", "Diretoria de TI", "Gerência de Suprimentos", "CSO Office", "Gerência Comercial", "CFO", "VP Financeiro", "Diretoria de Operações", "Head de Compras", "Superintendência de Riscos"];
+export const mockProcessos = ["Todos", "Ativo Fixo", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
+export const mockSubProcessos = ["Todos", "1.Gestão de Projetos de Investimento", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção", "Monitoramento de Segurança", "Processamento de Pedidos"];
+export const mockDonos = ["Todos", "Helenize Maria Dubiela", "Ana Clara Souza", "Pedro Oliveira", "João da Silva", "Carlos Ferreira", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
+export const mockResponsaveis = ["Todos", "Patricia Ramos do Rosario", "Gustavo Alberto Peixoto", "Webert Soares Dias Raspante", "Carlos Pereira", "Fernanda Lima", "Mariana Costa", "Ricardo Alves", "Ana Silva (Atualizado)", "Equipe de Vendas", "Novo Responsável TI", "João Silva", "Maria Oliveira", "Beatriz Santos", "Rafael Almeida"];
+export const mockN3Responsaveis = ["Todos", "Paula Formentini", "Gerência Financeira", "Diretoria de TI", "Gerência de Suprimentos", "CSO Office", "Gerência Comercial", "CFO", "VP Financeiro", "Diretoria de Operações", "Head de Compras", "Superintendência de Riscos"];
 
 
 export const mockNotifications: Notification[] = [
   {
     id: "notif-cr1-pending-adm",
     userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Nova solicitação de alteração (cr1) para o controle FIN-001 por João da Silva.`,
+    message: `Nova solicitação de alteração (cr1) para o controle RUMO.AF.01 por João da Silva.`,
     date: new Date(Date.now() - 86400000 * 10 + 10000).toISOString(), // Um pouco depois da solicitação
     read: false,
   },
@@ -242,7 +271,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "notif-cr4-feedback-owner",
     userId: "user-owner-1", // Para João da Silva (Dono)
-    message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle FIN-001.`,
+    message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle RUMO.AF.01.`,
     date: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
     read: false,
   },
@@ -263,7 +292,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "notif-fin001-details-adm",
     userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Ana Clara Souza enviou uma nova solicitação (cr-fin001-pending-details) para o controle FIN-001.`,
+    message: `Ana Clara Souza enviou uma nova solicitação (cr-fin001-pending-details) para o controle RUMO.AF.01.`,
     date: new Date(Date.now() - 86400000 * 1 + 10000).toISOString(),
     read: false,
   },
@@ -282,5 +311,3 @@ export const mockNotifications: Notification[] = [
     read: false,
   },
 ];
-
-    
