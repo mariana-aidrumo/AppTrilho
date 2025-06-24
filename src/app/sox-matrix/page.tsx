@@ -273,8 +273,8 @@ export default function SoxMatrixPage() {
     setSelectedItem(item);
   };
 
-  const handleExtractXlsx = () => {
-    const dataToExport = unifiedTableData.map(item => ({
+  const handleExtractXlsx = (data: UnifiedTableItem[]) => {
+    const dataToExport = data.map(item => ({
       "Cód Controle ANTERIOR": item.previousDisplayId || "",
       "Processo": item.processo || "",
       "Sub-Processo": item.subProcesso || "",
@@ -416,12 +416,9 @@ export default function SoxMatrixPage() {
           </Select>
         </div>
       </div>
-      <div className="flex justify-end space-x-2 pt-4">
+      <div className="flex justify-end pt-4">
         <Button variant="outline" onClick={handleResetFilters}>
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
-        </Button>
-        <Button variant="default" onClick={handleExtractXlsx} disabled={unifiedTableData.length === 0}>
-          <Download className="mr-2 h-4 w-4" /> Extrair matriz
         </Button>
       </div>
     </div>
@@ -490,11 +487,16 @@ export default function SoxMatrixPage() {
             </Accordion>
             
             <Card className="shadow-md w-full">
-              <CardHeader>
-                <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
-                <CardDescription>
-                  Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> para ver detalhes.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
+                  <CardDescription>
+                    Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
+                  </CardDescription>
+                </div>
+                <Button variant="default" onClick={() => handleExtractXlsx(unifiedTableData)} disabled={unifiedTableData.length === 0}>
+                  <Download className="mr-2 h-4 w-4" /> Extrair matriz
+                </Button>
               </CardHeader>
               <CardContent>
                 {renderUnifiedTable(unifiedTableData)}
@@ -540,11 +542,20 @@ export default function SoxMatrixPage() {
                 </Card>
             </div>
              <Card className="shadow-md col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mt-6 w-full">
-                <CardHeader>
-                    <CardTitle>Visão Geral dos Controles Ativos</CardTitle>
-                    <CardDescription>
-                        Explore todos os controles internos atualmente ativos na organização. Use o ícone <Eye className="inline h-4 w-4" /> para ver detalhes.
-                    </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Visão Geral dos Controles Ativos</CardTitle>
+                      <CardDescription>
+                          Explore todos os controles internos atualmente ativos na organização. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      variant="default" 
+                      onClick={() => handleExtractXlsx(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))} 
+                      disabled={unifiedTableData.filter(item => item.itemType === 'Controle Ativo').length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Extrair matriz
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <Accordion type="single" collapsible className="w-full mb-6">
