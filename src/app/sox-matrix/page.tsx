@@ -19,7 +19,8 @@ interface UnifiedTableItem {
   key: string;
   originalId: string;
   itemType: UnifiedTableItemType;
-  displayId: string;
+  previousDisplayId?: string; // Cód Controle ANTERIOR
+  displayId: string; // Código NOVO
   name: string;
   description?: string;
   processo?: string;
@@ -61,7 +62,8 @@ export default function SoxMatrixPage() {
           key: `control-${control.id}`,
           originalId: control.id,
           itemType: 'Controle Ativo',
-          displayId: control.controlId,
+          previousDisplayId: "N/A", // Não há código anterior para um controle ativo
+          displayId: control.controlId, // Código Novo é o código atual
           name: control.controlName,
           description: control.description,
           processo: control.processo,
@@ -85,20 +87,24 @@ export default function SoxMatrixPage() {
         const isNewControl = req.controlId.startsWith("NEW-CTRL-");
         const controlDetails = !isNewControl ? mockSoxControls.find(c => c.controlId === req.controlId) : undefined;
         
-        let name = "";
-        let displayId = "";
+        let name: string;
+        let previousDisplayId: string | undefined;
+        let displayId: string;
         let processo = req.changes.processo || controlDetails?.processo;
         let subProcesso = req.changes.subProcesso || controlDetails?.subProcesso;
         let responsavel = req.changes.responsavel || controlDetails?.responsavel;
         let n3Responsavel = req.changes.n3Responsavel || controlDetails?.n3Responsavel;
 
-
         if (isNewControl) {
           name = req.changes.controlName || "Nova Proposta Sem Nome";
-          displayId = req.changes.controlId || req.controlId;
+          previousDisplayId = "N/A";
+          displayId = req.changes.controlId || "(ID a ser definido)";
+        } else if (controlDetails) {
+          name = controlDetails.controlName;
+          previousDisplayId = controlDetails.controlId;
+          displayId = req.changes.controlId || controlDetails.controlId; // Mostra o novo ID se proposto, senão o antigo
         } else {
-          name = controlDetails?.controlName || "Controle Não Encontrado";
-          displayId = req.controlId;
+          return; // Skip if control details not found for an alteration
         }
         
         const summaryOfChanges = Object.entries(req.changes)
@@ -109,6 +115,7 @@ export default function SoxMatrixPage() {
           key: `request-${req.id}`,
           originalId: req.id,
           itemType: isNewControl ? 'Proposta de Novo Controle' : 'Solicitação de Alteração',
+          previousDisplayId: previousDisplayId,
           displayId: displayId,
           name: name,
           description: req.changes.description || controlDetails?.description || req.changes.justificativa || '',
@@ -135,6 +142,7 @@ export default function SoxMatrixPage() {
       const lowerSearchTerm = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === "" ||
         item.displayId.toLowerCase().includes(lowerSearchTerm) ||
+        (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
         item.name.toLowerCase().includes(lowerSearchTerm) ||
         (item.itemType !== 'Controle Ativo' && item.summaryOfChanges?.toLowerCase().includes(lowerSearchTerm));
 
@@ -177,12 +185,14 @@ export default function SoxMatrixPage() {
 
   const handleExtractCsv = () => {
     const headers = [
-      "Processo", "Sub-Processo", "Código", "Nome do Controle", 
+      "Cód Controle ANTERIOR",
+      "Processo", "Sub-Processo", "Código NOVO", "Nome do Controle", 
       "Descrição do controle ATUAL", "Frequência", "Modalidade", "P/D", 
       "Dono do Controle (Control owner)"
     ];
 
     const rows = unifiedTableData.map(item => [
+      escapeCsvCell(item.previousDisplayId),
       escapeCsvCell(item.processo),
       escapeCsvCell(item.subProcesso),
       escapeCsvCell(item.displayId),
@@ -219,9 +229,10 @@ export default function SoxMatrixPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Cód Controle ANTERIOR</TableHead>
             <TableHead>Processo</TableHead>
             <TableHead>Sub-Processo</TableHead>
-            <TableHead>Código</TableHead>
+            <TableHead>Código NOVO</TableHead>
             <TableHead>Nome do Controle</TableHead>
             <TableHead>Descrição do controle ATUAL</TableHead>
             <TableHead>Frequência</TableHead>
@@ -233,6 +244,7 @@ export default function SoxMatrixPage() {
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.key}>
+              <TableCell>{item.previousDisplayId || "N/A"}</TableCell>
               <TableCell>{item.processo || "N/A"}</TableCell>
               <TableCell>{item.subProcesso || "N/A"}</TableCell>
               <TableCell className="font-medium">{item.displayId}</TableCell>
@@ -262,7 +274,7 @@ export default function SoxMatrixPage() {
           <div className="relative">
             <Input
                 id="searchControl"
-                placeholder="ID, Nome, Descrição..."
+                placeholder="Código, Nome, Descrição..."
                 className="pr-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
