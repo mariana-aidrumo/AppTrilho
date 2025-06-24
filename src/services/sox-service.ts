@@ -46,7 +46,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     ipe_EO: 'E_x002f_O',
     ipe_VA: 'V_x002f_A',
     ipe_OR: 'O_x002f_R',
-    ipe_PD: 'P_x002f_D_x0020__x0028_IPE_x0029_',
+    ipe_PD: 'P_x002f_D_x0028_IPE_x0029_',
     responsavel: 'Respons_x00e1_vel',
     controlOwner: 'DonodoControle_x0028_Control_x00',
     executorControle: 'ExecutordoControle',
@@ -161,17 +161,19 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
           if (Array.isArray(value)) {
               fieldsToCreate[spKey] = value.join('; ');
           } else if (typeof value === 'boolean') {
-              // Convert boolean to "Sim"/"Não" for SharePoint text columns
+              // Convert boolean to "Sim"/"Não" which are common for Yes/No fields, or just text
               fieldsToCreate[spKey] = value ? 'Sim' : 'Não';
           } else {
-              // Convert all other types to string to be safe
+              // Convert all other types to string to be safe for text fields
               fieldsToCreate[spKey] = String(value);
           }
       }
   }
   
   // The Title field is special and mandatory. If codigoAnterior is empty, provide a placeholder.
-  fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
+  if(!fieldsToCreate['Title']) {
+    fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
+  }
   
   const newItem = {
       fields: fieldsToCreate
@@ -186,7 +188,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   } catch (error) {
       console.error("Error details sending to SharePoint:", {
         itemSent: newItem,
-        errorBody: error.body,
+        errorBody: error.body ? JSON.parse(error.body) : "No body",
       });
       throw error;
   }
