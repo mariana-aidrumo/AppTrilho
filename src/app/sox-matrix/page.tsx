@@ -16,28 +16,29 @@ import { useState, useMemo } from "react";
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
 interface UnifiedTableItem {
-  key: string; // Chave única para React (e.g., `control-${control.id}` ou `request-${request.id}`)
-  originalId: string; // ID original do controle ou da requisição
+  key: string;
+  originalId: string;
   itemType: UnifiedTableItemType;
-  displayId: string; // O que mostrar na coluna ID (controlId ou proposedId)
-  name: string; // Nome do controle ou da proposta
+  displayId: string;
+  name: string;
+  description?: string;
   processo?: string;
   subProcesso?: string;
-  ownerOrRequester: string; // Dono do controle ou solicitante
-  status: string; // Status do controle ou da solicitação
+  ownerOrRequester: string;
+  status: string;
   responsavel?: string;
   n3Responsavel?: string;
   controlFrequency?: string;
   controlType?: string;
   modalidade?: string;
   requestDate?: string;
-  lastUpdated?: string; 
-  requestedBy?: string; // Para CSV
-  summaryOfChanges?: string; // Para CSV - resumo das alterações
-  comments?: string; // Para CSV - comentários da solicitação
-  adminFeedback?: string; // Para CSV - feedback do admin
-  relatedRisks?: string[]; // Para CSV
-  testProcedures?: string; // Para CSV
+  lastUpdated?: string;
+  requestedBy?: string;
+  summaryOfChanges?: string;
+  comments?: string;
+  adminFeedback?: string;
+  relatedRisks?: string[];
+  testProcedures?: string;
 }
 
 
@@ -53,7 +54,6 @@ export default function SoxMatrixPage() {
   const unifiedTableData = useMemo(() => {
     const items: UnifiedTableItem[] = [];
 
-    // 1. Controles Ativos
     mockSoxControls
       .filter(control => control.status === "Ativo")
       .forEach(control => {
@@ -63,6 +63,7 @@ export default function SoxMatrixPage() {
           itemType: 'Controle Ativo',
           displayId: control.controlId,
           name: control.controlName,
+          description: control.description,
           processo: control.processo,
           subProcesso: control.subProcesso,
           ownerOrRequester: control.controlOwner,
@@ -78,7 +79,6 @@ export default function SoxMatrixPage() {
         });
       });
 
-    // 2. Solicitações Pendentes (Alterações e Novas Propostas)
     mockChangeRequests
       .filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
       .forEach(req => {
@@ -111,6 +111,7 @@ export default function SoxMatrixPage() {
           itemType: isNewControl ? 'Proposta de Novo Controle' : 'Solicitação de Alteração',
           displayId: displayId,
           name: name,
+          description: req.changes.description || controlDetails?.description || req.changes.justificativa || '',
           processo: processo,
           subProcesso: subProcesso,
           ownerOrRequester: req.requestedBy,
@@ -122,16 +123,14 @@ export default function SoxMatrixPage() {
           summaryOfChanges: summaryOfChanges,
           comments: req.comments,
           adminFeedback: req.adminFeedback,
-          // Campos de controle que podem estar nas 'changes' de uma solicitação
-          controlFrequency: req.changes.controlFrequency,
-          controlType: req.changes.controlType,
-          modalidade: req.changes.modalidade,
-          relatedRisks: req.changes.relatedRisks,
-          testProcedures: req.changes.testProcedures,
+          controlFrequency: req.changes.controlFrequency || controlDetails?.controlFrequency,
+          controlType: req.changes.controlType || controlDetails?.controlType,
+          modalidade: req.changes.modalidade || controlDetails?.modalidade,
+          relatedRisks: req.changes.relatedRisks || controlDetails?.relatedRisks,
+          testProcedures: req.changes.testProcedures || controlDetails?.testProcedures,
         });
       });
     
-    // Aplicar filtros
     return items.filter(item => {
       const lowerSearchTerm = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === "" ||
@@ -170,9 +169,7 @@ export default function SoxMatrixPage() {
       return "";
     }
     const stringData = String(cellData);
-    // If the string contains a comma, newline, or double quote, enclose it in double quotes.
     if (stringData.includes(',') || stringData.includes('\n') || stringData.includes('"')) {
-      // Escape double quotes by doubling them
       return `"${stringData.replace(/"/g, '""')}"`;
     }
     return stringData;
@@ -180,33 +177,21 @@ export default function SoxMatrixPage() {
 
   const handleExtractCsv = () => {
     const headers = [
-      "Tipo Item", "ID Controle/Proposta", "Nome Controle/Proposta", "Processo", "Subprocesso", 
-      "Dono/Solicitante", "Responsável Efetivo", "N3 Responsável Efetivo", "Status", 
-      "Frequência", "Tipo (P/D/C)", "Modalidade", "Data Solicitação/Últ. Atualização",
-      "Riscos Relacionados", "Procedimentos de Teste", "Solicitado Por (Requisições)", 
-      "Resumo das Mudanças (Requisições)", "Comentários (Requisições)", "Feedback Admin (Requisições)"
+      "Processo", "Sub-Processo", "Código", "Nome do Controle", 
+      "Descrição do controle ATUAL", "Frequência", "Modalidade", "P/D", 
+      "Dono do Controle (Control owner)"
     ];
 
     const rows = unifiedTableData.map(item => [
-      escapeCsvCell(item.itemType),
-      escapeCsvCell(item.displayId),
-      escapeCsvCell(item.name),
       escapeCsvCell(item.processo),
       escapeCsvCell(item.subProcesso),
-      escapeCsvCell(item.ownerOrRequester),
-      escapeCsvCell(item.responsavel),
-      escapeCsvCell(item.n3Responsavel),
-      escapeCsvCell(item.status),
+      escapeCsvCell(item.displayId),
+      escapeCsvCell(item.name),
+      escapeCsvCell(item.description),
       escapeCsvCell(item.controlFrequency),
-      escapeCsvCell(item.controlType),
       escapeCsvCell(item.modalidade),
-      escapeCsvCell(item.itemType === 'Controle Ativo' ? item.lastUpdated : item.requestDate),
-      escapeCsvCell(item.relatedRisks?.join('; ')),
-      escapeCsvCell(item.testProcedures),
-      escapeCsvCell(item.requestedBy),
-      escapeCsvCell(item.summaryOfChanges),
-      escapeCsvCell(item.comments),
-      escapeCsvCell(item.adminFeedback),
+      escapeCsvCell(item.controlType),
+      escapeCsvCell(item.ownerOrRequester),
     ]);
 
     const csvContent = [
@@ -234,64 +219,29 @@ export default function SoxMatrixPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Tipo</TableHead>
-            <TableHead>ID/Proposta</TableHead>
-            <TableHead>Nome/Descrição</TableHead>
             <TableHead>Processo</TableHead>
-            <TableHead>Subprocesso</TableHead>
-            <TableHead>Dono/Solicitante</TableHead>
-            <TableHead>Responsável</TableHead>
-            <TableHead>N3 Resp.</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right min-w-[120px]">Ações</TableHead>
+            <TableHead>Sub-Processo</TableHead>
+            <TableHead>Código</TableHead>
+            <TableHead>Nome do Controle</TableHead>
+            <TableHead>Descrição do controle ATUAL</TableHead>
+            <TableHead>Frequência</TableHead>
+            <TableHead>Modalidade</TableHead>
+            <TableHead>P/D</TableHead>
+            <TableHead>Dono do Controle (Control owner)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.key}>
-              <TableCell>
-                 <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
-                    item.itemType === "Controle Ativo" ? "bg-green-100 text-green-700" :
-                    item.itemType === "Solicitação de Alteração" ? "bg-blue-100 text-blue-700" :
-                    item.itemType === "Proposta de Novo Controle" ? "bg-purple-100 text-purple-700" :
-                    "bg-gray-100 text-gray-700"
-                  }`}>
-                    {item.itemType}
-                  </span>
-              </TableCell>
-              <TableCell className="font-medium">
-                {item.displayId}
-              </TableCell>
-              <TableCell className="max-w-xs truncate" title={item.itemType !== 'Controle Ativo' && item.summaryOfChanges ? item.summaryOfChanges : item.name}>
-                {item.name}
-                {item.itemType !== 'Controle Ativo' && item.summaryOfChanges && (
-                    <p className="text-xs text-muted-foreground mt-1 truncate">Mudanças: {item.summaryOfChanges}</p>
-                )}
-              </TableCell>
               <TableCell>{item.processo || "N/A"}</TableCell>
               <TableCell>{item.subProcesso || "N/A"}</TableCell>
+              <TableCell className="font-medium">{item.displayId}</TableCell>
+              <TableCell className="max-w-xs truncate" title={item.name}>{item.name}</TableCell>
+              <TableCell className="max-w-sm truncate" title={item.description}>{item.description || "N/A"}</TableCell>
+              <TableCell>{item.controlFrequency || "N/A"}</TableCell>
+              <TableCell>{item.modalidade || "N/A"}</TableCell>
+              <TableCell>{item.controlType || "N/A"}</TableCell>
               <TableCell>{item.ownerOrRequester}</TableCell>
-              <TableCell>{item.responsavel || "N/A"}</TableCell>
-              <TableCell>{item.n3Responsavel || "N/A"}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
-                  // Controle Ativo
-                  item.status === "Ativo" ? "bg-green-100 text-green-700" :
-                  // Status de Solicitação
-                  item.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
-                  item.status === "Em Análise" ? "bg-orange-100 text-orange-700" : // Mudado para laranja para diferenciar
-                  item.status === "Aguardando Feedback do Dono" ? "bg-sky-100 text-sky-700" : // Mudado para azul claro
-                  // Outros status (aprovado, rejeitado - não devem aparecer aqui se filtro for para pendentes)
-                  item.status === "Aprovado" ? "bg-green-100 text-green-600" : // Verde mais escuro se aprovado
-                  item.status === "Rejeitado" ? "bg-red-100 text-red-600" : // Vermelho mais escuro se rejeitado
-                  "bg-gray-100 text-gray-700"
-                }`}>
-                  {item.status}
-                </span>
-              </TableCell>
-              <TableCell className="text-right">
-                {/* Ações removidas pois as páginas de detalhes foram desativadas */}
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -343,8 +293,7 @@ export default function SoxMatrixPage() {
           <Select value={selectedOwner} onValueChange={setSelectedOwner}>
             <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono/Solicitante" /></SelectTrigger>
             <SelectContent>
-               {/* Combinar donos de controle com solicitantes únicos de change requests */}
-              {[...new Set([...mockDonos, ...mockChangeRequests.map(cr => cr.requestedBy)])].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+               {[...new Set([...mockDonos, ...mockChangeRequests.map(cr => cr.requestedBy)])].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -489,7 +438,6 @@ export default function SoxMatrixPage() {
                 </CardHeader>
                 <CardContent>
                    {renderFilters()}
-                   {/* Para o Dono, continuamos mostrando a tabela apenas de controles ativos, não a unificada completa do admin */}
                    {renderUnifiedTable(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))}
                 </CardContent>
             </Card>
