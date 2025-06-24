@@ -1,4 +1,3 @@
-
 // src/services/sox-service.ts
 'use server';
 
@@ -14,7 +13,8 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
 // --- SharePoint Integration ---
 
-const { SHAREPOINT_SITE_URL, SHAREPOINT_CONTROLS_LIST_NAME } = process.env;
+const { SHAREPOINT_SITE_URL } = process.env;
+const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 // Helper to map SharePoint list item (as text) to our typed SoxControl
 const mapSharePointItemToSoxControl = (item: any): SoxControl => {
