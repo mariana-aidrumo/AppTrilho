@@ -10,43 +10,47 @@ import { useRouter } from 'next/navigation'; // Import useRouter for logout redi
 
 interface UserProfileContextType {
   currentUser: MockUser | null;
+  loading: boolean; // Add loading state
   login: (email: string, password: string) => MockUser | undefined;
   logout: () => void;
   isUserAdmin: () => boolean;
   isUserControlOwner: () => boolean;
-  setActiveProfile: (profileType: UserProfileType) => void; // Added to switch active profile
+  setActiveProfile: (profileType: UserProfileType) => void;
 }
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<MockUser | null>(null);
+  const [loading, setLoading] = useState(true); // Initialize loading to true
   const router = useRouter();
 
   const login = (email: string, password: string): MockUser | undefined => {
     const user = mockUsers.find(u => u.email === email && u.password === password);
     if (user) {
-      // Determine default activeProfile based on roles if not already set (though mock data now includes it)
       let profileToSet = user.activeProfile;
-      if (!profileToSet) { // Fallback logic if activeProfile wasn't in mock
+      if (!profileToSet) {
         if (user.roles.includes('admin')) {
             profileToSet = "Administrador de Controles Internos";
         } else if (user.roles.includes('control-owner')) {
             profileToSet = "Dono do Controle";
         } else {
-            // Default to first role or a generic profile if necessary
-            profileToSet = "Dono do Controle"; // Or handle as an error/default
+            profileToSet = "Dono do Controle";
         }
       }
-      setCurrentUser({ ...user, activeProfile: profileToSet });
-      return { ...user, activeProfile: profileToSet };
+      const userToSet = { ...user, activeProfile: profileToSet };
+      setCurrentUser(userToSet);
+      localStorage.setItem('currentUser', JSON.stringify(userToSet)); // Persist immediately on login
+      return userToSet;
     }
     setCurrentUser(null);
+    localStorage.removeItem('currentUser');
     return undefined;
   };
 
   const logout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('currentUser');
     router.push('/login'); // Redirect to login page on logout
   };
 
@@ -55,16 +59,13 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
   const setActiveProfile = (profileType: UserProfileType) => {
     if (currentUser) {
-      // Basic check: does the user have a role corresponding to this profile?
-      // This logic can be more sophisticated based on your role-to-profile mapping.
       let canSwitch = false;
       if (profileType === "Administrador de Controles Internos" && currentUser.roles.includes('admin')) {
         canSwitch = true;
       } else if (profileType === "Dono do Controle" && currentUser.roles.includes('control-owner')) {
         canSwitch = true;
       }
-      // Add more profiles if needed
-
+      
       if (canSwitch) {
         setCurrentUser(prevUser => prevUser ? { ...prevUser, activeProfile: profileType } : null);
       } else {
@@ -73,47 +74,49 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Persist currentUser to localStorage (optional, for session persistence across reloads)
   useEffect(() => {
-    const storedUserJson = localStorage.getItem('currentUser');
-    if (storedUserJson) {
-      try {
+    try {
+      const storedUserJson = localStorage.getItem('currentUser');
+      if (storedUserJson) {
         const storedUser = JSON.parse(storedUserJson) as MockUser;
-         // Ensure activeProfile is set, even for users stored before this field was added
         if (!storedUser.activeProfile) {
             if (storedUser.roles.includes('admin')) {
                 storedUser.activeProfile = "Administrador de Controles Internos";
             } else if (storedUser.roles.includes('control-owner')) {
                 storedUser.activeProfile = "Dono do Controle";
             } else {
-                storedUser.activeProfile = "Dono do Controle"; // Default
+                storedUser.activeProfile = "Dono do Controle";
             }
         }
         setCurrentUser(storedUser);
-      } catch (e) {
-        console.error("Failed to parse stored user from localStorage", e);
-        localStorage.removeItem('currentUser');
       }
+    } catch (e) {
+      console.error("Failed to parse stored user from localStorage", e);
+      localStorage.removeItem('currentUser');
+    } finally {
+      setLoading(false); // Set loading to false after checking localStorage
     }
   }, []);
 
   useEffect(() => {
+    // This effect is now only for reacting to changes from within the app, like setActiveProfile
     if (currentUser) {
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('currentUser');
+      // On logout, removal is handled in the logout function to be immediate.
     }
   }, [currentUser]);
 
 
   const value = useMemo(() => ({
     currentUser,
+    loading, // Expose loading state
     login,
     logout,
     isUserAdmin,
     isUserControlOwner,
     setActiveProfile,
-  }), [currentUser]);
+  }), [currentUser, loading]);
 
   return (
     <UserProfileContext.Provider value={value}>

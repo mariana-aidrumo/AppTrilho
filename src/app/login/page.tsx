@@ -17,14 +17,14 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { login, currentUser } = useUserProfile();
+  const { login, currentUser, loading } = useUserProfile();
 
   useEffect(() => {
-    // Se o usuário já estiver logado, redireciona para a página principal
-    if (currentUser) {
-      router.push('/'); // Ou a rota principal da sua aplicação, ex: /sox-matrix
+    // If auth check is done and user is logged in, redirect to home.
+    if (!loading && currentUser) {
+      router.push('/');
     }
-  }, [currentUser, router]);
+  }, [currentUser, loading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,24 +37,24 @@ export default function LoginPage() {
     const user = login(email, password);
 
     if (user) {
-      // O redirecionamento será tratado pelo useEffect se o login for bem-sucedido
-      // e currentUser for atualizado.
-      // Se não houver redirecionamento imediato aqui, a UI pode piscar.
-      // Para evitar isso, pode-se redirecionar aqui também, embora o useEffect cubra.
-      router.push('/'); // Garante o redirecionamento imediato após o login.
+      // The useEffect hook will handle the redirection once currentUser is updated.
+      // No need to redirect here to avoid race conditions.
     } else {
       setError('Credenciais inválidas. Tente novamente.');
-      setIsSubmitting(false); // Garante que o botão seja reativado em caso de falha
+      setIsSubmitting(false);
     }
-    // Não é necessário setIsSubmitting(false) em caso de sucesso se houver redirecionamento
   };
 
-  // Enquanto currentUser está sendo verificado ou se já estiver logado (aguardando redirect do useEffect)
-  // não renderiza o formulário para evitar piscar a tela de login.
-  if (currentUser) {
-    return null; // Ou um componente de loading global
+  // While checking auth state or if user is logged in (and waiting for redirect), show a loader.
+  if (loading || currentUser) {
+    return (
+        <div className="flex items-center justify-center h-screen bg-background">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+    );
   }
 
+  // Only show the login form if auth is checked and there's no user.
   return (
     <div className="flex items-center justify-center h-screen bg-background">
       <div className="flex flex-col items-center p-4 sm:p-6">
