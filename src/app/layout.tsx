@@ -13,8 +13,8 @@ const fontSans = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Hub de Controles Internos',
-  description: 'Hub de Controles Internos.',
+  title: 'Portal de Controles Internos Rumo',
+  description: 'Portal de Controles Internos Rumo.',
 };
 
 export default function RootLayout({

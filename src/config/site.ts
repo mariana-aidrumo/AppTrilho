@@ -19,8 +19,8 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "SOX Hub", // Internal name/ID, can remain
-  description: "Hub de Controles Internos", // Displayed name updated
+  name: "Rumo SOX Hub", // Internal name/ID
+  description: "Portal de Controles Internos Rumo", // Displayed name updated
   navItems: [
     // Itens para Administrador de Controles Internos
     {
@@ -65,4 +65,3 @@ export const siteConfig: SiteConfig = {
     // Removido "Solicitar Novo Controle" daqui
   ],
 };
-

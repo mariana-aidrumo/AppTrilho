@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import NextLink from 'next/link';
-import Icons from "@/components/icons";
+import { Icons } from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { User, Bell, Users } from "lucide-react";
@@ -19,13 +19,10 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-// O layout da aplicação é agora o único componente exportado,
-// pois a lógica de login foi removida.
 export function AppLayout({ children }: AppLayoutProps) {
   const { currentUser, setActiveProfile } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
 
-  // Função para lidar com a mudança de perfil
   const handleProfileChange = (value: string) => {
     const profile = value as UserProfileType;
     if (currentUser.activeProfile !== profile) {
@@ -33,23 +30,21 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
-  // Como não há mais estado de carregamento, o layout é renderizado diretamente.
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-primary text-primary-foreground">
         <div className="flex items-center gap-3">
-          <NextLink href="/" className="flex items-center gap-2 text-primary hover:no-underline">
-            <Icons.AppLogo className="w-7 h-7" />
+          <NextLink href="/" className="flex items-center gap-2 text-primary-foreground hover:no-underline">
+            <Icons.AppLogo className="w-auto h-7" />
             <h1 className="text-xl font-semibold">
               {siteConfig.description}
             </h1>
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
-            {/* Seletor de Perfil */}
             <Select value={currentUser.activeProfile} onValueChange={handleProfileChange}>
-                <SelectTrigger className="w-auto sm:w-[280px] h-9">
-                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectTrigger className="w-auto sm:w-[280px] h-9 text-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
+                    <Users className="h-4 w-4 mr-2 text-primary-foreground/80" />
                     <SelectValue placeholder="Selecionar Perfil" />
                 </SelectTrigger>
                 <SelectContent>
@@ -62,24 +57,22 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </SelectContent>
             </Select>
 
-            {/* Informações do Usuário */}
             <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-muted-foreground hidden sm:block" />
-              <span className="text-sm text-muted-foreground hidden md:inline">
+              <User className="h-5 w-5 text-primary-foreground/80 hidden sm:block" />
+              <span className="text-sm text-primary-foreground hidden md:inline">
                 {currentUser.name}
               </span>
               <Avatar className="h-8 w-8">
-                <AvatarFallback>{currentUser.name?.substring(0,2).toUpperCase()}</AvatarFallback>
+                <AvatarFallback className='bg-primary-foreground text-primary'>{currentUser.name?.substring(0,2).toUpperCase()}</AvatarFallback>
               </Avatar>
             </div>
 
-            {/* Popover de Notificações */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="ghost" size="icon" className="relative hover:bg-primary-foreground/10">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-medium text-white">
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs font-medium text-destructive-foreground">
                       {unreadCount}
                     </span>
                   )}
@@ -149,5 +142,3 @@ export function AppLayout({ children }: AppLayoutProps) {
     </div>
   );
 }
-
-    

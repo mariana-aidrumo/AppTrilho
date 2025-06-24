@@ -18,7 +18,7 @@ body {
     --popover: 0 0% 100%; /* Branco */
     --popover-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
-    --primary: 205 100% 20%; /* Azul Primário #003B65 */
+    --primary: 207 100% 20%; /* Azul Primário Rumo #003865 */
     --primary-foreground: 0 0% 100%; /* Branco */
 
     --secondary: 201 79% 55%; /* Azul Claro #32A6E6 */
@@ -35,7 +35,7 @@ body {
 
     --border: 202 27% 87%; /* Cinza Médio #D7E0E5 (mais claro que o anterior #BDCCD4) */
     --input: 202 27% 87%; /* Cinza Médio #D7E0E5 (mais claro que o anterior #BDCCD4) */
-    --ring: 205 100% 20%; /* Azul Primário #003B65 para anéis de foco */
+    --ring: 207 100% 20%; /* Azul Primário Rumo #003865 para anéis de foco */
 
     --radius: 0.75rem; /* Increased border radius */
 
