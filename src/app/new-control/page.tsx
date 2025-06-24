@@ -43,7 +43,8 @@ export default function NewControlPage() {
     );
   }
 
-  const headerMapping: { [key: string]: keyof SoxControl | string } = {
+  // This mapping connects the exact Excel header names to our internal SoxControl type properties.
+  const headerMapping: { [key: string]: keyof SoxControl } = {
     "Cód Controle ANTERIOR": "codigoAnterior",
     "Matriz": "matriz",
     "Processo": "processo",
@@ -51,7 +52,7 @@ export default function NewControlPage() {
     "Risco": "riscoId",
     "Descrição do Risco": "riscoDescricao",
     "Classificação do Risco": "riscoClassificacao",
-    "Codigo NOVO": "controlId", 
+    "Codigo NOVO": "controlId",
     "Codigo COSAN": "codigoCosan",
     "Objetivo do Controle": "objetivoControle",
     "Nome do Controle": "controlName",
@@ -84,15 +85,8 @@ export default function NewControlPage() {
   };
   
   const handleDownloadTemplate = () => {
-    const orderedHeaders = [
-      "Cód Controle ANTERIOR", "Matriz", "Processo", "Sub-Processo", "Risco", "Descrição do Risco",
-      "Classificação do Risco", "Codigo NOVO", "Codigo COSAN", "Objetivo do Controle", "Nome do Controle",
-      "Descrição do controle ATUAL", "Tipo", "Frequência", "Modalidade", "P/D", "MRC?", "Evidência do controle",
-      "Implementação Data", "Data última alteração", "Sistemas Relacionados", "Transações/Telas/Menus críticos",
-      "Aplicável IPE?", "C", "E/O", "V/A", "O/R", "P/D (IPE)", "Responsável", "Dono do Controle (Control owner)",
-      "Executor do Controle", "Executado por", "N3 Responsável", "Área", "VP Responsável", "Impacto Malha Sul",
-      "Sistema Armazenamento"
-    ];
+    // These headers MUST match the keys in the headerMapping object exactly.
+    const orderedHeaders = Object.keys(headerMapping);
     const ws = xlsx.utils.json_to_sheet([{}], { header: orderedHeaders });
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
@@ -117,66 +111,39 @@ export default function NewControlPage() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const data = event.target?.result;
-        const workbook = xlsx.read(data, { type: 'binary' });
+        const workbook = xlsx.read(data, { type: 'binary', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+        const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
         const controlsToCreate: Partial<SoxControl>[] = [];
-        jsonFromSheet.forEach((row) => {
-          const mappedRow: any = {};
-          for (const key in row) {
-              if (headerMapping[key as keyof typeof headerMapping]) {
-                  const mappedKey = headerMapping[key as keyof typeof headerMapping]
-                  if(typeof mappedKey === 'string') {
-                     mappedRow[mappedKey] = row[key];
-                  }
+        for (const row of jsonFromSheet) {
+          const mappedRow: Partial<SoxControl> = {};
+          for (const excelHeader in headerMapping) {
+            if (Object.prototype.hasOwnProperty.call(row, excelHeader)) {
+              const soxKey = headerMapping[excelHeader];
+              const rawValue = row[excelHeader];
+              
+              // Parse boolean-like fields consistently
+              const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+              if (booleanFields.includes(soxKey)) {
+                (mappedRow as any)[soxKey] = parseSharePointBoolean(rawValue);
+              } 
+              // Parse array-like fields
+              else if (soxKey === 'sistemasRelacionados' || soxKey === 'executorControle') {
+                 (mappedRow as any)[soxKey] = typeof rawValue === 'string' ? String(rawValue).split(/[,;]/).map(s => s.trim()) : [];
               }
+              // Keep other values as they are (string, number, date)
+              else {
+                (mappedRow as any)[soxKey] = rawValue;
+              }
+            }
           }
           
-          if (mappedRow.controlId && mappedRow.controlName && mappedRow.description) {
-             const newSoxControl: Partial<SoxControl> = {
-              controlId: mappedRow.controlId,
-              controlName: mappedRow.controlName,
-              description: mappedRow.description,
-              controlOwner: mappedRow.controlOwner,
-              controlFrequency: mappedRow.controlFrequency,
-              controlType: mappedRow.controlType,
-              processo: mappedRow.processo,
-              subProcesso: mappedRow.subProcesso,
-              modalidade: mappedRow.modalidade,
-              responsavel: mappedRow.responsavel,
-              n3Responsavel: mappedRow.n3Responsavel,
-              codigoAnterior: mappedRow.codigoAnterior,
-              matriz: mappedRow.matriz,
-              riscoId: mappedRow.riscoId,
-              riscoDescricao: mappedRow.riscoDescricao,
-              riscoClassificacao: mappedRow.riscoClassificacao,
-              codigoCosan: mappedRow.codigoCosan,
-              objetivoControle: mappedRow.objetivoControle,
-              tipo: mappedRow.tipo,
-              mrc: parseSharePointBoolean(mappedRow.mrc),
-              evidenciaControle: mappedRow.evidenciaControle,
-              implementacaoData: mappedRow.implementacaoData,
-              dataUltimaAlteracao: mappedRow.dataUltimaAlteracao,
-              sistemasRelacionados: mappedRow.sistemasRelacionados ? String(mappedRow.sistemasRelacionados).split(',').map(r => r.trim()) : [],
-              transacoesTelasMenusCriticos: mappedRow.transacoesTelasMenusCriticos,
-              aplicavelIPE: parseSharePointBoolean(mappedRow.aplicavelIPE),
-              ipe_C: parseSharePointBoolean(mappedRow.ipe_C),
-              ipe_EO: parseSharePointBoolean(mappedRow.ipe_EO),
-              ipe_VA: parseSharePointBoolean(mappedRow.ipe_VA),
-              ipe_OR: parseSharePointBoolean(mappedRow.ipe_OR),
-              ipe_PD: parseSharePointBoolean(mappedRow.ipe_PD),
-              executorControle: mappedRow.executorControle ? String(mappedRow.executorControle).split(';').map(r => r.trim()) : [],
-              executadoPor: mappedRow.executadoPor,
-              area: mappedRow.area,
-              vpResponsavel: mappedRow.vpResponsavel,
-              impactoMalhaSul: parseSharePointBoolean(mappedRow.impactoMalhaSul),
-              sistemaArmazenamento: mappedRow.sistemaArmazenamento,
-            };
-            controlsToCreate.push(newSoxControl);
+          if (mappedRow.controlId || mappedRow.controlName) {
+            controlsToCreate.push(mappedRow);
           }
-        });
+        }
         
         if (controlsToCreate.length > 0) {
             const { controlsAdded, errors } = await addSoxControlsInBulk(controlsToCreate);
@@ -201,12 +168,14 @@ export default function NewControlPage() {
         } else {
             toast({
               title: "Nenhum controle válido encontrado",
-              description: "Verifique se a planilha está preenchida corretamente com ID, Nome e Descrição.",
+              description: "Verifique se a planilha está preenchida corretamente e possui as colunas necessárias.",
               variant: "destructive"
             });
         }
 
         setExcelFile(null);
+        const fileInput = document.getElementById('excel-upload') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
       };
       reader.onerror = () => {
           toast({ title: "Erro ao ler arquivo", description: "Não foi possível ler o arquivo selecionado.", variant: "destructive" });
