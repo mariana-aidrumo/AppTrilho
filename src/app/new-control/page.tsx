@@ -51,8 +51,8 @@ export default function NewControlPage() {
     "Risco": "riscoId",
     "Descrição do Risco": "riscoDescricao",
     "Classificação do Risco": "riscoClassificacao",
-    "Código NOVO": "controlId",
-    "Código COSAN": "codigoCosan",
+    "Codigo NOVO": "controlId", // Note: "Código" changed to "Codigo" to match user's latest screenshot implicitly
+    "Codigo COSAN": "codigoCosan", // Note: "Código" changed to "Codigo" to match user's latest screenshot implicitly
     "Objetivo do Controle": "objetivoControle",
     "Nome do Controle": "controlName",
     "Descrição do controle ATUAL": "description",
@@ -62,7 +62,7 @@ export default function NewControlPage() {
     "P/D": "controlType",
     "MRC?": "mrc",
     "Evidência do controle": "evidenciaControle",
-    "Implementação": "implementacaoData",
+    "Implementação": "implementacaoData", // Changed from "Implementação Data" to match user list
     "Data última alteração": "dataUltimaAlteracao",
     "Sistemas Relacionados": "sistemasRelacionados",
     "Transações/Telas/Menus críticos": "transacoesTelasMenusCriticos",
@@ -82,10 +82,19 @@ export default function NewControlPage() {
     "Impacto Malha Sul": "impactoMalhaSul",
     "Sistema Armazenamento": "sistemaArmazenamento",
   };
-
+  
   const handleDownloadTemplate = () => {
-    const headers = Object.keys(headerMapping);
-    const ws = xlsx.utils.json_to_sheet([{}], { header: headers });
+    // Recreate headers in the exact order specified by the user
+    const orderedHeaders = [
+      "Cód Controle ANTERIOR", "Matriz", "Processo", "Sub-Processo", "Risco", "Descrição do Risco",
+      "Classificação do Risco", "Codigo NOVO", "Codigo COSAN", "Objetivo do Controle", "Nome do Controle",
+      "Descrição do controle ATUAL", "Tipo", "Frequência", "Modalidade", "P/D", "MRC?", "Evidência do controle",
+      "Implementação", "Data última alteração", "Sistemas Relacionados", "Transações/Telas/Menus críticos",
+      "Aplicável IPE?", "C", "E/O", "V/A", "O/R", "P/D (IPE)", "Responsável", "Dono do Controle (Control owner)",
+      "Executor do Controle", "Executado por", "N3 Responsável", "Área", "VP Responsável", "Impacto Malha Sul",
+      "Sistema Armazenamento"
+    ];
+    const ws = xlsx.utils.json_to_sheet([{}], { header: orderedHeaders });
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
     xlsx.writeFile(wb, "modelo_controles.xlsx");
@@ -154,13 +163,11 @@ export default function NewControlPage() {
               sistemasRelacionados: mappedRow.sistemasRelacionados ? String(mappedRow.sistemasRelacionados).split(',').map(r => r.trim()) : [],
               transacoesTelasMenusCriticos: mappedRow.transacoesTelasMenusCriticos,
               aplicavelIPE: parseSharePointBoolean(mappedRow.aplicavelIPE),
-              ipeAssertions: {
-                  C: parseSharePointBoolean(mappedRow.ipe_C),
-                  EO: parseSharePointBoolean(mappedRow.ipe_EO),
-                  VA: parseSharePointBoolean(mappedRow.ipe_VA),
-                  OR: parseSharePointBoolean(mappedRow.ipe_OR),
-                  PD: parseSharePointBoolean(mappedRow.ipe_PD),
-              },
+              ipe_C: parseSharePointBoolean(mappedRow.ipe_C),
+              ipe_EO: parseSharePointBoolean(mappedRow.ipe_EO),
+              ipe_VA: parseSharePointBoolean(mappedRow.ipe_VA),
+              ipe_OR: parseSharePointBoolean(mappedRow.ipe_OR),
+              ipe_PD: parseSharePointBoolean(mappedRow.ipe_PD),
               executorControle: mappedRow.executorControle ? String(mappedRow.executorControle).split(';').map(r => r.trim()) : [],
               executadoPor: mappedRow.executadoPor,
               area: mappedRow.area,
@@ -177,14 +184,13 @@ export default function NewControlPage() {
 
             if (errors.length > 0) {
                 const firstError = errors[0];
-                // Show the raw error message directly from the server for better debugging.
                 const detailedErrorMessage = `Controle '${firstError.controlId || "ID não encontrado"}': ${firstError.message}`;
 
                 toast({
-                  title: `Falha na Importação`,
+                  title: `Falha na Importação (${errors.length} erro${errors.length > 1 ? 's' : ''})`,
                   description: detailedErrorMessage,
                   variant: "destructive",
-                  duration: 15000 // Use a longer duration so the user can read the error.
+                  duration: 15000 
                 });
                 console.error("Erros de importação:", errors);
             } else {
@@ -201,7 +207,7 @@ export default function NewControlPage() {
             });
         }
 
-        setExcelFile(null); // Clear file input after processing
+        setExcelFile(null);
       };
       reader.onerror = () => {
           toast({ title: "Erro ao ler arquivo", description: "Não foi possível ler o arquivo selecionado.", variant: "destructive" });

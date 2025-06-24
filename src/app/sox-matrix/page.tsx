@@ -1,9 +1,8 @@
-
 // src/app/sox-matrix/page.tsx
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl, ChangeRequest, IPEAssertions } from "@/types";
+import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -87,16 +86,16 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
                 <DetailRow label="P/D" value={item.controlType} />
                 <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />
                 <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />
-                <DetailRow label="Implementação Data" value={item.implementacaoData} />
+                <DetailRow label="Implementação" value={item.implementacaoData} />
                 <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />
                 <DetailRow label="Sistemas Relacionados" value={item.sistemasRelacionados?.join(', ')} />
                 <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />
                 <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />
-                <DetailRow label="C" value={item.ipeAssertions?.C ? 'X' : ''} />
-                <DetailRow label="E/O" value={item.ipeAssertions?.EO ? 'X' : ''} />
-                <DetailRow label="V/A" value={item.ipeAssertions?.VA ? 'X' : ''} />
-                <DetailRow label="O/R" value={item.ipeAssertions?.OR ? 'X' : ''} />
-                <DetailRow label="P/D (IPE)" value={item.ipeAssertions?.PD ? 'X' : ''} />
+                <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />
+                <DetailRow label="E/O" value={item.ipe_EO ? 'X' : ''} />
+                <DetailRow label="V/A" value={item.ipe_VA ? 'X' : ''} />
+                <DetailRow label="O/R" value={item.ipe_OR ? 'X' : ''} />
+                <DetailRow label="P/D (IPE)" value={item.ipe_PD ? 'X' : ''} />
             </dl>
             
             <SectionHeader title="Responsabilidades" />
@@ -586,4 +585,3 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
-

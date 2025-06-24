@@ -2,7 +2,7 @@
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, IPEAssertions, ControlFrequency, ControlType, SoxControlStatus, ControlModalidade } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, ControlFrequency, ControlType, SoxControlStatus, ControlModalidade } from '@/types';
 import {
   mockChangeRequests,
   mockUsers,
@@ -16,29 +16,25 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// This mapping translates our internal SoxControl property names to the expected SharePoint internal column names.
-// This is crucial because SharePoint may have different internal names than our property names.
-// Assumption: SharePoint column names are based on Excel headers with spaces/special chars removed.
+// This mapping translates our internal SoxControl property names to the SharePoint internal column names.
+// SharePoint mangles names with spaces, special chars, and accents. This map is our best guess based on common patterns.
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     codigoAnterior: 'Title',
-    controlId: 'CodigoNOVO',
-    controlName: 'NomedoControle',
-    description: 'DescricaodocontroleATUAL',
-    controlOwner: 'DonodoControle_x0028_Control_x00',
-    controlFrequency: 'Frequ_x00eancia_',
-    controlType: 'P_x002f_D',
+    matriz: 'Matriz',
     processo: 'Processo',
     subProcesso: 'Sub_x002d_Processo',
-    modalidade: 'Modalidade',
-    responsavel: 'Respons_x00e1_vel',
-    n3Responsavel: 'N3Respons_x00e1_vel',
-    matriz: 'Matriz',
     riscoId: 'Risco',
     riscoDescricao: 'Descri_x00e7__x00e3_odoRisco',
     riscoClassificacao: 'Classifica_x00e7__x00e3_odoRisco',
-    codigoCosan: 'C_x00f3_digoCOSAN',
+    controlId: 'CodigoNOVO',
+    codigoCosan: 'CodigoCOSAN',
     objetivoControle: 'ObjetivodoControle',
+    controlName: 'NomedoControle',
+    description: 'DescricaodocontroleATUAL',
     tipo: 'Tipo',
+    controlFrequency: 'Frequ_x00eancia_',
+    modalidade: 'Modalidade',
+    controlType: 'P_x002f_D',
     mrc: 'MRC_x003f_',
     evidenciaControle: 'Evid_x00ea_nciadocontrole',
     implementacaoData: 'Implementa_x00e7__x00e3_o',
@@ -46,77 +42,72 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     sistemasRelacionados: 'SistemasRelacionados',
     transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas',
     aplicavelIPE: 'Aplic_x00e1_velIPE_x003f_',
-    ipeAssertions: 'ipeAssertions', // Assuming a simple name for the JSON string
+    ipe_C: 'C',
+    ipe_EO: 'E_x002f_O',
+    ipe_VA: 'V_x002f_A',
+    ipe_OR: 'O_x002f_R',
+    ipe_PD: 'P_x002f_D_x0020__x0028_IPE_x0029_',
+    responsavel: 'Respons_x00e1_vel',
+    controlOwner: 'DonodoControle_x0028_Control_x00',
     executorControle: 'ExecutordoControle',
     executadoPor: 'Executadopor',
+    n3Responsavel: 'N3Respons_x00e1_vel',
     area: '_x00c1_rea',
     vpResponsavel: 'VPRespons_x00e1_vel',
     impactoMalhaSul: 'ImpactoMalhaSul',
     sistemaArmazenamento: 'SistemaArmazenamento',
 };
 
+
 // Helper to map SharePoint list item to our typed SoxControl
 const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   const fields = item.fields;
-
-  // Since all fields can be text, we need to parse them back to their correct types.
-  let ipeAssertions: IPEAssertions = { C: false, EO: false, VA: false, OR: false, PD: false };
-  // Using the mapped field name to read the data
-  const ipeString = fields[spFieldMapping.ipeAssertions!] || fields['ipe_C'] || fields['ipe_EO']; // Fallback for older data structures
-  if (ipeString && typeof ipeString === 'string') {
-      try {
-          const parsed = JSON.parse(ipeString);
-          if(typeof parsed === 'object' && parsed !== null) {
-            ipeAssertions = { 
-                C: parseSharePointBoolean(parsed.C),
-                EO: parseSharePointBoolean(parsed.EO),
-                VA: parseSharePointBoolean(parsed.VA),
-                OR: parseSharePointBoolean(parsed.OR),
-                PD: parseSharePointBoolean(parsed.PD),
-            };
-          }
-      } catch (e) {
-          console.error(`Failed to parse ipeAssertions for item ${fields.id}:`, ipeString);
-      }
-  }
-
+  
   return {
     id: item.id, // Use SharePoint's internal item ID
-    controlId: fields[spFieldMapping.controlId!] || '',
-    controlName: fields[spFieldMapping.controlName!] || '',
-    codigoAnterior: fields[spFieldMapping.codigoAnterior!] || '', // "Cód Controle ANTERIOR" is the Title field
-    description: fields[spFieldMapping.description!] || '',
-    controlOwner: fields[spFieldMapping.controlOwner!] || '', 
-    controlFrequency: (fields[spFieldMapping.controlFrequency!] as ControlFrequency) || 'Ad-hoc',
-    controlType: (fields[spFieldMapping.controlType!] as ControlType) || 'Preventivo',
-    status: (fields.status as SoxControlStatus) || 'Inativo', // Status field might not be in the mapping if it's system-managed
+    status: (fields.status as SoxControlStatus) || 'Ativo', // Status field might not be in the mapping if it's system-managed
     lastUpdated: item.lastModifiedDateTime,
+    
+    // Map fields using spFieldMapping
+    codigoAnterior: fields[spFieldMapping.codigoAnterior!] || '', // "Cód Controle ANTERIOR" is the Title field
+    matriz: fields[spFieldMapping.matriz!] || '',
     processo: fields[spFieldMapping.processo!] || '',
     subProcesso: fields[spFieldMapping.subProcesso!] || '',
-    modalidade: (fields[spFieldMapping.modalidade!] as ControlModalidade) || 'Híbrido',
-    responsavel: fields[spFieldMapping.responsavel!] || '',
-    n3Responsavel: fields[spFieldMapping.n3Responsavel!] || '',
-    matriz: fields[spFieldMapping.matriz!] || '',
     riscoId: fields[spFieldMapping.riscoId!] || '',
     riscoDescricao: fields[spFieldMapping.riscoDescricao!] || '',
     riscoClassificacao: fields[spFieldMapping.riscoClassificacao!] || '',
+    controlId: fields[spFieldMapping.controlId!] || '',
     codigoCosan: fields[spFieldMapping.codigoCosan!] || '',
     objetivoControle: fields[spFieldMapping.objetivoControle!] || '',
+    controlName: fields[spFieldMapping.controlName!] || '',
+    description: fields[spFieldMapping.description!] || '',
     tipo: fields[spFieldMapping.tipo!] || '',
+    controlFrequency: (fields[spFieldMapping.controlFrequency!] as ControlFrequency) || 'Ad-hoc',
+    modalidade: (fields[spFieldMapping.modalidade!] as ControlModalidade) || 'Híbrido',
+    controlType: (fields[spFieldMapping.controlType!] as ControlType) || 'Preventivo',
     mrc: parseSharePointBoolean(fields[spFieldMapping.mrc!]),
     evidenciaControle: fields[spFieldMapping.evidenciaControle!] || '',
     implementacaoData: fields[spFieldMapping.implementacaoData!] || '',
     dataUltimaAlteracao: fields[spFieldMapping.dataUltimaAlteracao!] || '',
     sistemasRelacionados: fields[spFieldMapping.sistemasRelacionados!] ? String(fields[spFieldMapping.sistemasRelacionados!]).split(';').map((s:string) => s.trim()) : [],
     transacoesTelasMenusCriticos: fields[spFieldMapping.transacoesTelasMenusCriticos!] || '',
-    aplicavelIPE: parseSharePointBoolean(fields[spFieldMapping.aplicavelIPE!]),
-    ipeAssertions: ipeAssertions,
+    responsavel: fields[spFieldMapping.responsavel!] || '',
+    controlOwner: fields[spFieldMapping.controlOwner!] || '',
     executorControle: fields[spFieldMapping.executorControle!] ? String(fields[spFieldMapping.executorControle!]).split(';').map((s:string) => s.trim()) : [],
     executadoPor: fields[spFieldMapping.executadoPor!] || '',
+    n3Responsavel: fields[spFieldMapping.n3Responsavel!] || '',
     area: fields[spFieldMapping.area!] || '',
     vpResponsavel: fields[spFieldMapping.vpResponsavel!] || '',
     impactoMalhaSul: parseSharePointBoolean(fields[spFieldMapping.impactoMalhaSul!]),
     sistemaArmazenamento: fields[spFieldMapping.sistemaArmazenamento!] || '',
+    
+    // Parse boolean fields for IPE
+    aplicavelIPE: parseSharePointBoolean(fields[spFieldMapping.aplicavelIPE!]),
+    ipe_C: parseSharePointBoolean(fields[spFieldMapping.ipe_C!]),
+    ipe_EO: parseSharePointBoolean(fields[spFieldMapping.ipe_EO!]),
+    ipe_VA: parseSharePointBoolean(fields[spFieldMapping.ipe_VA!]),
+    ipe_OR: parseSharePointBoolean(fields[spFieldMapping.ipe_OR!]),
+    ipe_PD: parseSharePointBoolean(fields[spFieldMapping.ipe_PD!]),
   };
 };
 
@@ -166,21 +157,22 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
       if (spKey && controlData[soxKey] !== undefined && controlData[soxKey] !== null) {
           const value = controlData[soxKey];
+          
           if (Array.isArray(value)) {
               fieldsToCreate[spKey] = value.join('; ');
-          } else if (typeof value === 'object') {
-              fieldsToCreate[spKey] = JSON.stringify(value);
+          } else if (typeof value === 'boolean') {
+              // Convert boolean to "Sim"/"Não" for SharePoint text columns
+              fieldsToCreate[spKey] = value ? 'Sim' : 'Não';
           } else {
+              // Convert all other types to string to be safe
               fieldsToCreate[spKey] = String(value);
           }
       }
   }
-
-  // Ensure Title is set, as it's often mandatory in SharePoint
-  if (!fieldsToCreate.Title) {
-      fieldsToCreate.Title = controlData.codigoAnterior || '-';
-  }
-
+  
+  // The Title field is special and mandatory. If codigoAnterior is empty, provide a placeholder.
+  fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
+  
   const newItem = {
       fields: fieldsToCreate
   };

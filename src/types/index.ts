@@ -1,16 +1,7 @@
-
 export type SoxControlStatus = "Ativo" | "Inativo" | "Rascunho" | "Pendente Aprovação";
 export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc" | "Por ocorrência";
 export type ControlType = "Preventivo" | "Detectivo" | "Corretivo";
 export type ControlModalidade = "Manual" | "Automático" | "Híbrido" | "ITDM";
-
-export interface IPEAssertions {
-  C: boolean;
-  EO: boolean;
-  VA: boolean;
-  OR: boolean;
-  PD: boolean;
-}
 
 export interface SoxControl {
   id: string; // Internal ID (from SharePoint list item ID)
@@ -49,7 +40,14 @@ export interface SoxControl {
   sistemasRelacionados?: string[];
   transacoesTelasMenusCriticos?: string;
   aplicavelIPE?: boolean;
-  ipeAssertions?: IPEAssertions;
+  
+  // Individual IPE assertion fields to match SharePoint columns
+  ipe_C?: boolean;
+  ipe_EO?: boolean;
+  ipe_VA?: boolean;
+  ipe_OR?: boolean;
+  ipe_PD?: boolean;
+
   executorControle?: string[];
   executadoPor?: string;
   area?: string;
