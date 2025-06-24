@@ -1,4 +1,3 @@
-
 // src/components/layout/app-layout.tsx
 "use client";
 
@@ -7,41 +6,34 @@ import NextLink from 'next/link';
 import Icons from "@/components/icons";
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users, LogOut, Loader2 } from "lucide-react";
+import { User, Bell, Users } from "lucide-react";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNotification } from '@/contexts/notification-context';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { HorizontalNavItems } from "@/components/layout/horizontal-nav-items";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { UserProfileType } from '@/types';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
-// Componente interno que contém o layout da aplicação principal (com header, top-nav, etc.)
-function AppLayoutInternal({ children }: AppLayoutProps) {
-  const { currentUser, logout, loading } = useUserProfile();
+// O layout da aplicação é agora o único componente exportado,
+// pois a lógica de login foi removida.
+export function AppLayout({ children }: AppLayoutProps) {
+  const { currentUser, setActiveProfile } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
-  const router = useRouter();
 
-  useEffect(() => {
-    // Redirect to login if auth check is complete and there's no user
-    if (!loading && !currentUser) {
-      router.push('/login');
+  // Função para lidar com a mudança de perfil
+  const handleProfileChange = (value: string) => {
+    const profile = value as UserProfileType;
+    if (currentUser.activeProfile !== profile) {
+      setActiveProfile(profile);
     }
-  }, [currentUser, loading, router]);
+  };
 
-  // Show a global loader while checking for user authentication
-  if (loading || !currentUser) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
+  // Como não há mais estado de carregamento, o layout é renderizado diretamente.
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 flex items-center justify-between h-16 px-4 border-b md:px-6 bg-background/80 backdrop-blur-sm">
@@ -54,13 +46,23 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
-          <>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">
-                {currentUser.activeProfile}
-              </span>
-            </div>
+            {/* Seletor de Perfil */}
+            <Select value={currentUser.activeProfile} onValueChange={handleProfileChange}>
+                <SelectTrigger className="w-auto sm:w-[280px] h-9">
+                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Selecionar Perfil" />
+                </SelectTrigger>
+                <SelectContent>
+                    {currentUser.roles.includes('admin') && (
+                        <SelectItem value="Administrador de Controles Internos">Administrador de Controles Internos</SelectItem>
+                    )}
+                    {currentUser.roles.includes('control-owner') && (
+                        <SelectItem value="Dono do Controle">Dono do Controle</SelectItem>
+                    )}
+                </SelectContent>
+            </Select>
+
+            {/* Informações do Usuário */}
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-muted-foreground hidden sm:block" />
               <span className="text-sm text-muted-foreground hidden md:inline">
@@ -71,6 +73,7 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
               </Avatar>
             </div>
 
+            {/* Popover de Notificações */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
@@ -131,12 +134,6 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
                 )}
               </PopoverContent>
             </Popover>
-
-            <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground">
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </Button>
-          </>
         </div>
       </header>
       
@@ -153,13 +150,4 @@ function AppLayoutInternal({ children }: AppLayoutProps) {
   );
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
-  const pathname = usePathname();
-
-  if (pathname === '/login') {
-    return <>{children}</>;
-  }
-  return (
-      <AppLayoutInternal>{children}</AppLayoutInternal>
-  );
-}
+    

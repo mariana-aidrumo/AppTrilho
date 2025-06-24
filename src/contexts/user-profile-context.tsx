@@ -1,18 +1,15 @@
-
 // src/contexts/user-profile-context.tsx
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { createContext, useContext, useState, useMemo } from 'react';
 import type { UserProfileType } from '@/types';
 import { mockUsers, type MockUser } from '@/data/mock-data';
-import { useRouter } from 'next/navigation'; // Import useRouter for logout redirect
 
 interface UserProfileContextType {
-  currentUser: MockUser | null;
-  loading: boolean; // Add loading state
-  login: (email: string, password: string) => MockUser | undefined;
-  logout: () => void;
+  currentUser: MockUser; // O usuário nunca será nulo
+  login: (email: string, password: string) => MockUser | undefined; // Mantido para tipagem, mas não será usado
+  logout: () => void; // Mantido para tipagem, mas não será usado
   isUserAdmin: () => boolean;
   isUserControlOwner: () => boolean;
   setActiveProfile: (profileType: UserProfileType) => void;
@@ -20,45 +17,17 @@ interface UserProfileContextType {
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
+// Define um usuário padrão para carregar a aplicação.
+// O usuário administrador agora tem ambos os papéis para permitir a troca de perfis.
+const defaultUser = mockUsers.find(u => u.id === 'user-adm-1')!;
+
 export function UserProfileProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<MockUser | null>(null);
-  const [loading, setLoading] = useState(true); // Initialize loading to true
-  const router = useRouter();
-
-  const login = (email: string, password: string): MockUser | undefined => {
-    const user = mockUsers.find(u => u.email === email && u.password === password);
-    if (user) {
-      let profileToSet = user.activeProfile;
-      if (!profileToSet) {
-        if (user.roles.includes('admin')) {
-            profileToSet = "Administrador de Controles Internos";
-        } else if (user.roles.includes('control-owner')) {
-            profileToSet = "Dono do Controle";
-        } else {
-            profileToSet = "Dono do Controle";
-        }
-      }
-      const userToSet = { ...user, activeProfile: profileToSet };
-      setCurrentUser(userToSet);
-      localStorage.setItem('currentUser', JSON.stringify(userToSet)); // Persist immediately on login
-      return userToSet;
-    }
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    return undefined;
-  };
-
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    router.push('/login'); // Redirect to login page on logout
-  };
+  const [currentUser, setCurrentUser] = useState<MockUser>(defaultUser);
 
   const isUserAdmin = () => currentUser?.roles.includes('admin') ?? false;
   const isUserControlOwner = () => currentUser?.roles.includes('control-owner') ?? false;
 
   const setActiveProfile = (profileType: UserProfileType) => {
-    if (currentUser) {
       let canSwitch = false;
       if (profileType === "Administrador de Controles Internos" && currentUser.roles.includes('admin')) {
         canSwitch = true;
@@ -67,56 +36,32 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       }
       
       if (canSwitch) {
-        setCurrentUser(prevUser => prevUser ? { ...prevUser, activeProfile: profileType } : null);
+        setCurrentUser(prevUser => ({ ...prevUser, activeProfile: profileType }));
       } else {
-        console.warn(`User ${currentUser.name} cannot switch to profile ${profileType} based on their roles.`);
+        // Se a troca não for permitida, reverte para o perfil principal do usuário
+        const primaryProfile = currentUser.roles.includes('admin') ? "Administrador de Controles Internos" : "Dono do Controle";
+        setCurrentUser(prevUser => ({ ...prevUser, activeProfile: primaryProfile }));
+        console.warn(`User ${currentUser.name} cannot switch to profile ${profileType}. Reverting to primary profile.`);
       }
-    }
   };
-
-  useEffect(() => {
-    try {
-      const storedUserJson = localStorage.getItem('currentUser');
-      if (storedUserJson) {
-        const storedUser = JSON.parse(storedUserJson) as MockUser;
-        if (!storedUser.activeProfile) {
-            if (storedUser.roles.includes('admin')) {
-                storedUser.activeProfile = "Administrador de Controles Internos";
-            } else if (storedUser.roles.includes('control-owner')) {
-                storedUser.activeProfile = "Dono do Controle";
-            } else {
-                storedUser.activeProfile = "Dono do Controle";
-            }
-        }
-        setCurrentUser(storedUser);
-      }
-    } catch (e) {
-      console.error("Failed to parse stored user from localStorage", e);
-      localStorage.removeItem('currentUser');
-    } finally {
-      setLoading(false); // Set loading to false after checking localStorage
-    }
-  }, []);
-
-  useEffect(() => {
-    // This effect is now only for reacting to changes from within the app, like setActiveProfile
-    if (currentUser) {
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    } else {
-      // On logout, removal is handled in the logout function to be immediate.
-    }
-  }, [currentUser]);
-
+  
+  // Funções de login e logout são mantidas para evitar quebrar a tipagem, mas não fazem nada.
+  const login = (email: string, password: string): MockUser | undefined => {
+    console.warn("Login function is disabled.");
+    return undefined;
+  };
+  const logout = () => {
+    console.warn("Logout function is disabled.");
+  };
 
   const value = useMemo(() => ({
     currentUser,
-    loading, // Expose loading state
     login,
     logout,
     isUserAdmin,
     isUserControlOwner,
     setActiveProfile,
-  }), [currentUser, loading]);
+  }), [currentUser]);
 
   return (
     <UserProfileContext.Provider value={value}>
@@ -132,3 +77,5 @@ export function useUserProfile() {
   }
   return context;
 }
+
+    
