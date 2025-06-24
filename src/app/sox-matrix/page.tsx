@@ -382,7 +382,7 @@ export default function SoxMatrixPage() {
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
         </Button>
         <Button variant="default" onClick={handleExtractXlsx} disabled={unifiedTableData.length === 0}>
-          <Download className="mr-2 h-4 w-4" /> Extrair XLSX
+          <Download className="mr-2 h-4 w-4" /> Extrair matriz
         </Button>
       </div>
     </div>
