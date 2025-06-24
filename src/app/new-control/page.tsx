@@ -1,7 +1,6 @@
 // src/app/new-control/page.tsx
 "use client";
 
-import { useState } from 'react';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Lightbulb, ArrowLeft } from "lucide-react";
-import { suggestRelatedControls, type SuggestRelatedControlsInput, type SuggestRelatedControlsOutput } from '@/ai/flows/suggest-related-controls';
+import { Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { mockChangeRequests, mockSoxControls, mockVersionHistory, mockProcessos, mockSubProcessos, mockDonos, mockResponsaveis, mockN3Responsaveis } from '@/data/mock-data';
@@ -61,42 +59,19 @@ const filteredN3Responsaveis = mockN3Responsaveis.filter(n3 => n3 !== "Todos");
 export default function NewControlPage() {
   const { toast } = useToast();
   const { currentUser, isUserAdmin } = useUserProfile();
-  const [descriptionForAI, setDescriptionForAI] = useState("");
-  const [suggestedControls, setSuggestedControls] = useState<string[]>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const [errorSuggestions, setErrorSuggestions] = useState<string | null>(null);
 
   const currentSchema = isUserAdmin() ? adminNewControlSchema : ownerNewControlSchema;
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting }, reset, setValue } = useForm<FormValues>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting }, reset } = useForm<FormValues>({
     resolver: zodResolver(currentSchema),
     defaultValues: isUserAdmin() ?
       { controlFrequency: undefined, controlType: undefined, modalidade: undefined, controlOwner: undefined, processo: undefined, subProcesso: undefined, responsavel: undefined, n3Responsavel: undefined } :
       {}
   });
 
-
-  const handleSuggestControls = async () => {
-    if (!descriptionForAI.trim()) {
-      setErrorSuggestions("Por favor, insira uma descrição/justificativa para o controle primeiro.");
-      return;
-    }
-    setIsLoadingSuggestions(true);
-    setErrorSuggestions(null);
-    setSuggestedControls([]);
-    try {
-      const input: SuggestRelatedControlsInput = { controlDescription: descriptionForAI };
-      const result: SuggestRelatedControlsOutput = await suggestRelatedControls(input);
-      setSuggestedControls(result.relatedControls);
-    } catch (error) {
-      console.error("Erro ao buscar sugestões:", error);
-      setErrorSuggestions("Falha ao buscar sugestões. Por favor, tente novamente.");
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  };
-
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    if (!currentUser) return; // Guard against null user
+
     if (isUserAdmin()) {
       const adminData = data as AdminFormValues;
       const newControlIdNumber = mockSoxControls.length + 1;
@@ -159,8 +134,6 @@ export default function NewControlPage() {
         description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
         variant: "default",
       });
-      setDescriptionForAI("");
-      setSuggestedControls([]);
     }
     reset();
   };
@@ -362,43 +335,9 @@ export default function NewControlPage() {
                     {...register("justificativa")}
                     placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário."
                     rows={5}
-                    onChange={(e) => {
-                        const { onChange } = register("justificativa");
-                        onChange(e);
-                        setDescriptionForAI(e.target.value);
-                    }}
                   />
                   {errors.justificativa && <p className="text-sm text-destructive mt-1">{(errors.justificativa as any).message}</p>}
                 </div>
-
-                <Card className="bg-accent/20 border-accent/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Lightbulb className="w-5 h-5 text-accent-foreground" />
-                      Sugestões de Controles Relacionados (IA)
-                    </CardTitle>
-                    <CardDescription>
-                      Com base na descrição/justificativa, a IA pode sugerir controles existentes que podem ser semelhantes ou complementares.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button type="button" onClick={handleSuggestControls} disabled={isLoadingSuggestions || !descriptionForAI.trim()} className="mb-4">
-                      {isLoadingSuggestions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Sugerir Controles Relacionados
-                    </Button>
-                    {errorSuggestions && <p className="text-sm text-destructive">{errorSuggestions}</p>}
-                    {suggestedControls.length > 0 && (
-                      <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                        {suggestedControls.map((suggestion, index) => (
-                          <li key={index}>{suggestion}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {suggestedControls.length === 0 && !isLoadingSuggestions && !errorSuggestions && (
-                      <p className="text-sm text-muted-foreground">Insira uma descrição e clique em sugerir.</p>
-                    )}
-                  </CardContent>
-                </Card>
               </>
             )}
           </CardContent>
