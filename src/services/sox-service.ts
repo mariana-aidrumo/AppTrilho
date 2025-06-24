@@ -26,18 +26,18 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     riscoId: 'Risco',
     riscoDescricao: 'Descri_x00e7__x00e3_odoRisco',
     riscoClassificacao: 'Classifica_x00e7__x00e3_odoRisco',
-    controlId: 'CodigoNOVO',
+    controlId: 'Codigo_x0020_NOVO', // Corrected to handle space
     codigoCosan: 'CodigoCOSAN',
     objetivoControle: 'ObjetivodoControle',
     controlName: 'NomedoControle',
     description: 'Descri_x00e7__x00e3_odocontroleA', // SharePoint likely truncates this
     tipo: 'Tipo',
-    controlFrequency: 'Frequ_x00ea_ncia_',
+    controlFrequency: 'Frequ_x00ea_ncia',
     modalidade: 'Modalidade',
     controlType: 'P_x002f_D',
     mrc: 'MRC_x003f_',
     evidenciaControle: 'Evid_x00ea_nciadocontrole',
-    implementacaoData: 'Implementa_x00e7__x00e3_oData', // From "Implementação Data"
+    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data', // Corrected to handle space
     dataUltimaAlteracao: 'Data_x00fa_ltimaaltera_x00e7__x0',
     sistemasRelacionados: 'SistemasRelacionados',
     transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas', // Truncated guess
@@ -50,7 +50,7 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
     responsavel: 'Respons_x00e1_vel',
     controlOwner: 'DonodoControle_x0028_Control_x00', // Truncated guess
     executorControle: 'ExecutordoControle',
-    executadoPor: 'Executadopor',
+    executadoPor: 'Executado_x0020_por', // Corrected to handle space
     n3Responsavel: 'N3Respons_x00e1_vel',
     area: '_x00c1_rea',
     vpResponsavel: 'VPRespons_x00e1_vel',
@@ -127,7 +127,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
 
   const fieldsToCreate: { [key: string]: any } = {};
-
+  
   for (const key in controlData) {
       const soxKey = key as keyof SoxControl;
       const spKey = spFieldMapping[soxKey];
@@ -150,7 +150,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   };
 
   try {
-      console.log("Attempting to create item in SharePoint with payload:", JSON.stringify(newItem, null, 2));
       const response = await graphClient
           .api(`/sites/${siteId}/lists/${listId}/items`)
           .post(newItem);
