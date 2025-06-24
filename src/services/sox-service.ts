@@ -16,46 +16,46 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// This mapping translates our internal SoxControl property names to the SharePoint internal column names.
-// It's built based on user-provided column names and SharePoint's typical encoding for special characters.
+// This mapping translates our internal SoxControl property names to the SharePoint DISPLAY NAMES.
+// This is more reliable when internal names with special character encodings are unknown.
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: 'Title', // Confirmed as Title field
+    codigoAnterior: 'Title', // Confirmed as Title field, which is a special case
     matriz: 'Matriz',
     processo: 'Processo',
-    subProcesso: 'Sub_x002d_Processo',
+    subProcesso: 'Sub-Processo',
     riscoId: 'Risco',
-    riscoDescricao: 'Descri_x00e7__x00e3_odoRisco',
-    riscoClassificacao: 'Classifica_x00e7__x00e3_odoRisco',
-    controlId: 'CodigoNOVO',
-    codigoCosan: 'CodigoCOSAN',
-    objetivoControle: 'ObjetivodoControle',
-    controlName: 'NomedoControle',
-    description: 'Descri_x00e7__x00e3_odocontroleA', // SharePoint likely truncates "Descrição do controle ATUAL"
+    riscoDescricao: 'Descrição do Risco',
+    riscoClassificacao: 'Classificação do Risco',
+    controlId: 'Codigo NOVO',
+    codigoCosan: 'Codigo COSAN',
+    objetivoControle: 'Objetivo do Controle',
+    controlName: 'Nome do Controle',
+    description: 'Descrição do controle ATUAL',
     tipo: 'Tipo',
-    controlFrequency: 'Frequ_x00ea_ncia',
+    controlFrequency: 'Frequência',
     modalidade: 'Modalidade',
-    controlType: 'P_x002f_D',
-    mrc: 'MRC_x003f_',
-    evidenciaControle: 'Evid_x00ea_nciadocontrole',
-    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data',
-    dataUltimaAlteracao: 'Data_x00fa_ltimaaltera_x00e7__x0', // Truncated
-    sistemasRelacionados: 'SistemasRelacionados',
-    transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas_x002f_Menus_x0020_cr_x00ed_ticos',
-    aplicavelIPE: 'Aplic_x00e1_velIPE_x003f_',
+    controlType: 'P/D',
+    mrc: 'MRC?',
+    evidenciaControle: 'Evidência do controle',
+    implementacaoData: 'Implementação Data',
+    dataUltimaAlteracao: 'Data última alteração',
+    sistemasRelacionados: 'Sistemas Relacionados',
+    transacoesTelasMenusCriticos: 'Transações/Telas/Menus críticos',
+    aplicavelIPE: 'Aplicável IPE?',
     ipe_C: 'C',
-    ipe_EO: 'E_x002f_O',
-    ipe_VA: 'V_x002f_A',
-    ipe_OR: 'O_x002f_R',
-    ipe_PD: 'P_x002f_D_x0028_IPE_x0029_',
-    responsavel: 'Respons_x00e1_vel',
-    controlOwner: 'DonodoControle_x0028_Control_x00', // Truncated
-    executorControle: 'ExecutordoControle',
-    executadoPor: 'Executado_x0020_por',
-    n3Responsavel: 'N3Respons_x00e1_vel',
-    area: '_x00c1_rea',
-    vpResponsavel: 'VPRespons_x00e1_vel',
-    impactoMalhaSul: 'ImpactoMalhaSul',
-    sistemaArmazenamento: 'SistemaArmazenamento',
+    ipe_EO: 'E/O',
+    ipe_VA: 'V/A',
+    ipe_OR: 'O/R',
+    ipe_PD: 'P/D (IPE)',
+    responsavel: 'Responsável',
+    controlOwner: 'Dono do Controle (Control owner)',
+    executorControle: 'Executor do Controle',
+    executadoPor: 'Executado por',
+    n3Responsavel: 'N3 Responsável',
+    area: 'Área',
+    vpResponsavel: 'VP Responsável',
+    impactoMalhaSul: 'Impacto Malha Sul',
+    sistemaArmazenamento: 'Sistema Armazenamento',
 };
 
 
@@ -90,6 +90,12 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
         (soxControl as any)[soxKey] = value;
     }
   }
+
+  // Handle the title field separately since its display name might be different from 'Title'
+  if (fields.Title) {
+      soxControl.codigoAnterior = fields.Title;
+  }
+
 
   return soxControl as SoxControl;
 };
@@ -162,7 +168,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     
     // Ensure the required Title field has a value, even if it's just a placeholder
     if (!fieldsToCreate['Title']) {
-        fieldsToCreate['Title'] = '-';
+        fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
     }
 
     const newItem = {
