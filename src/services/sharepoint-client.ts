@@ -45,6 +45,7 @@ const cca = new ConfidentialClientApplication(msalConfig);
 const scopes = ['https://graph.microsoft.com/.default'];
 
 let graphClient: Client | undefined;
+const idCache: { siteId?: string; listId?: string } = {};
 
 /**
  * Initializes and returns a Microsoft Graph client instance.
@@ -83,15 +84,51 @@ export async function getGraphClient(): Promise<Client> {
  * The format is: {hostname},{site-collection-id},{site-id}
  */
 export async function getSiteId(client: Client, siteUrl: string): Promise<string> {
+    if (idCache.siteId) {
+        return idCache.siteId;
+    }
     const url = new URL(siteUrl);
     const sitePath = url.pathname;
     const hostname = url.hostname;
     
     try {
         const site = await client.api(`/sites/${hostname}:${sitePath}`).get();
+        idCache.siteId = site.id;
         return site.id;
     } catch(error) {
         console.error(`Error fetching site ID for ${siteUrl}:`, error);
         throw new Error("Could not retrieve SharePoint Site ID.");
+    }
+}
+
+/**
+ * Retrieves the SharePoint List ID from a given list name.
+ */
+export async function getListId(client: Client, siteId: string, listName: string): Promise<string> {
+    if (idCache.listId) {
+        return idCache.listId;
+    }
+    
+    try {
+        const response = await client.api(`/sites/${siteId}/lists`)
+            .filter(`displayName eq '${listName}'`)
+            .select('id')
+            .get();
+
+        if (response.value && response.value.length === 1) {
+            idCache.listId = response.value[0].id;
+            return idCache.listId;
+        } else if (response.value && response.value.length > 1) {
+            throw new Error(`Multiple lists found with the name '${listName}'. Please use a unique name.`);
+        } else {
+            throw new Error(`List '${listName}' not found in the specified SharePoint site.`);
+        }
+    } catch(error) {
+        console.error(`Error fetching list ID for '${listName}':`, error);
+        // Re-throw the original error if it's more specific, otherwise throw the generic one
+        if (error.message.includes('not found')) {
+            throw error;
+        }
+        throw new Error(`Could not retrieve SharePoint List ID for '${listName}'.`);
     }
 }

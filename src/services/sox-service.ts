@@ -2,7 +2,7 @@
 // src/services/sox-service.ts
 'use server';
 
-import { getGraphClient, getSiteId } from './sharepoint-client';
+import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
 import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, IPEAssertions, ControlFrequency, ControlType, SoxControlStatus, ControlModalidade } from '@/types';
 import {
   mockChangeRequests,
@@ -87,9 +87,10 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     try {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${SHAREPOINT_CONTROLS_LIST_NAME}/items?expand=fields(select=*)`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`)
             .get();
 
         if (response && response.value) {
@@ -109,6 +110,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
   const graphClient = await getGraphClient();
   const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+  const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
 
   const fieldsToCreate: { [key: string]: any } = {};
 
@@ -172,7 +174,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
   try {
       const response = await graphClient
-          .api(`/sites/${siteId}/lists/${SHAREPOINT_CONTROLS_LIST_NAME}/items`)
+          .api(`/sites/${siteId}/lists/${listId}/items`)
           .post(newItem);
       return mapSharePointItemToSoxControl(response);
   } catch (error) {
