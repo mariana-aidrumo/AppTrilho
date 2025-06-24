@@ -71,7 +71,7 @@ export default function NewControlPage() {
     "E/O": "ipe_EO",
     "V/A": "ipe_VA",
     "O/R": "ipe_OR",
-    "P/D": "ipe_PD",
+    "P/D (IPE)": "ipe_PD",
     "Responsável": "responsavel",
     "Dono do Controle (Control owner)": "controlOwner",
     "Executor do Controle": "executorControle",
