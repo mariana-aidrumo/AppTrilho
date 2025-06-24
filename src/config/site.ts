@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from "lucide-react";
-import { ListChecks, FilePlus2, Home, History, CheckSquare, Layers, LayoutDashboard } from "lucide-react";
+import { ListChecks, FilePlus2, Home, History, CheckSquare, Layers, LayoutDashboard, UserCog } from "lucide-react";
 import type { UserProfileType } from "@/types";
 
 export type NavItem = {
@@ -39,6 +39,12 @@ export const siteConfig: SiteConfig = {
       title: "Criar Novo Controle",
       href: "/new-control",
       icon: FilePlus2,
+      allowedProfiles: ["Administrador de Controles Internos"],
+    },
+    {
+      title: "Gestão de Acessos",
+      href: "/access-management",
+      icon: UserCog,
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     
