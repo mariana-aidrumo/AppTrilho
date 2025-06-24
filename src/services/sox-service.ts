@@ -17,46 +17,46 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// This mapping translates our internal SoxControl property names to the SharePoint DISPLAY NAMES.
-// This is more reliable when internal names with special character encodings are unknown.
+// This mapping translates our internal SoxControl property names to SharePoint's internal field names.
+// This is a more robust approach than using display names, which can have special characters.
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: 'Cód Controle ANTERIOR',
+    codigoAnterior: 'Title', // Special case: Maps to the default Title field
     matriz: 'Matriz',
     processo: 'Processo',
-    subProcesso: 'Sub-Processo',
+    subProcesso: 'Sub_x002d_Processo',
     riscoId: 'Risco',
-    riscoDescricao: 'Descrição do Risco',
-    riscoClassificacao: 'Classificação do Risco',
-    controlId: 'Codigo NOVO',
-    codigoCosan: 'Codigo COSAN',
-    objetivoControle: 'Objetivo do Controle',
-    controlName: 'Nome do Controle',
-    description: 'Descrição do controle ATUAL',
+    riscoDescricao: 'Descri_x00e7__x00e3_o_x0020_do_x0020_Risco',
+    riscoClassificacao: 'Classifica_x00e7__x00e3_o_x0020_do_x0020_Risco',
+    controlId: 'Codigo_x0020_NOVO',
+    codigoCosan: 'Codigo_x0020_COSAN',
+    objetivoControle: 'Objetivo_x0020_do_x0020_Controle',
+    controlName: 'Nome_x0020_do_x0020_Controle',
+    description: 'Descri_x00e7__x00e3_o_x0020_do_x0020_controle_x0020_ATUAL',
     tipo: 'Tipo',
-    controlFrequency: 'Frequência',
+    controlFrequency: 'Frequ_x00ea_ncia',
     modalidade: 'Modalidade',
-    controlType: 'P/D',
-    mrc: 'MRC?',
-    evidenciaControle: 'Evidência do controle',
-    implementacaoData: 'Implementação Data',
-    dataUltimaAlteracao: 'Data última alteração',
-    sistemasRelacionados: 'Sistemas Relacionados',
-    transacoesTelasMenusCriticos: 'Transações/Telas/Menus críticos',
-    aplicavelIPE: 'Aplicável IPE?',
+    controlType: 'P_x002f_D',
+    mrc: 'MRC_x003f_',
+    evidenciaControle: 'Evid_x00ea_ncia_x0020_do_x0020_controle',
+    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data',
+    dataUltimaAlteracao: 'Data_x0020__x00fa_ltima_x0020_altera_x00e7__x00e3_o',
+    sistemasRelacionados: 'Sistemas_x0020_Relacionados',
+    transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas_x002f_Menus_x0020_cr_x00ed_ticos',
+    aplicavelIPE: 'Aplic_x00e1_vel_x0020_IPE_x003f_',
     ipe_C: 'C',
-    ipe_EO: 'E/O',
-    ipe_VA: 'V/A',
-    ipe_OR: 'O/R',
-    ipe_PD: 'P/D (IPE)',
-    responsavel: 'Responsável',
-    controlOwner: 'Dono do Controle (Control owner)',
-    executorControle: 'Executor do Controle',
-    executadoPor: 'Executado por',
-    n3Responsavel: 'N3 Responsável',
-    area: 'Área',
-    vpResponsavel: 'VP Responsável',
-    impactoMalhaSul: 'Impacto Malha Sul',
-    sistemaArmazenamento: 'Sistema Armazenamento',
+    ipe_EO: 'E_x002f_O',
+    ipe_VA: 'V_x002f_A',
+    ipe_OR: 'O_x002f_R',
+    ipe_PD: 'P_x002f_D_x0020__x0028_IPE_x0029_',
+    responsavel: 'Respons_x00e1_vel',
+    controlOwner: 'Dono_x0020_do_x0020_Controle_x0020__x0028_Control_x0020_owner_x0029_',
+    executorControle: 'Executor_x0020_do_x0020_Controle',
+    executadoPor: 'Executado_x0020_por',
+    n3Responsavel: 'N3_x0020_Respons_x00e1_vel',
+    area: '_x00c1_rea',
+    vpResponsavel: 'VP_x0020_Respons_x00e1_vel',
+    impactoMalhaSul: 'Impacto_x0020_Malha_x0020_Sul',
+    sistemaArmazenamento: 'Sistema_x0020_Armazenamento',
 };
 
 
@@ -64,7 +64,6 @@ const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
 const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   const fields = item.fields;
   
-  // Create a reverse mapping to read data from SharePoint
   const readMapping: { [spKey: string]: keyof SoxControl } = {};
   for (const key in spFieldMapping) {
       const soxKey = key as keyof SoxControl;
@@ -138,13 +137,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   
     for (const key in controlData) {
         const soxKey = key as keyof SoxControl;
-        let spKey = spFieldMapping[soxKey];
-
-        // Special handling for the title field
-        if (soxKey === 'codigoAnterior') {
-            spKey = 'Title';
-        }
-
+        const spKey = spFieldMapping[soxKey];
         const value = controlData[soxKey];
 
         if (spKey) {
@@ -166,10 +159,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
         }
     }
     
-    if (!fieldsToCreate['Title']) {
-        fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
-    }
-
     const newItem = {
         fields: fieldsToCreate
     };
@@ -182,7 +171,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     } catch (error: any) {
         let errorMessage;
         
-        // The Graph client often nests the real error. Let's dig for it.
         if (error.body) {
             try {
                 const errorDetails = JSON.parse(error.body);
@@ -195,12 +183,10 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
             }
         }
         
-        // If we still don't have a message, try the top-level error message.
         if (!errorMessage && error.message) {
             errorMessage = error.message;
         }
 
-        // If all else fails, provide a generic message and log the full object for debugging.
         if (!errorMessage) {
             errorMessage = 'An unknown error occurred. Check server logs for the full error object.';
             console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
@@ -211,7 +197,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
           parsedErrorMessage: errorMessage,
         });
         
-        // Re-throw with the most specific message we could find
         throw new Error(errorMessage);
     }
 };
@@ -223,7 +208,6 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
     
     for (const control of controls) {
         try {
-            // A control is valid if it has at least a name or an ID from the sheet
             if (control.controlName || control.controlId) {
                 await addSoxControl(control);
                 controlsAdded++;
