@@ -1,4 +1,3 @@
-
 // src/app/my-registered-controls/page.tsx
 "use client";
 
@@ -110,15 +109,10 @@ export default function MyControlsPage() {
 
   return (
     <div className="space-y-6 w-full">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center">
         <Button variant="outline" asChild>
           <Link href="/sox-matrix">
             <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel (Visão Geral)
-          </Link>
-        </Button>
-        <Button asChild>
-          <Link href="/new-control">
-            <FilePlus2 className="mr-2 h-4 w-4" /> Solicitar Novo Controle
           </Link>
         </Button>
       </div>

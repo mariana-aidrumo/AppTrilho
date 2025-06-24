@@ -1,107 +1,48 @@
-
 // src/app/new-control/page.tsx
 "use client";
 
 import { useState } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addChangeRequest, addSoxControl, addSoxControlsInBulk } from '@/services/sox-service';
-import type { ChangeRequest, SoxControl } from '@/types';
+import { addSoxControlsInBulk } from '@/services/sox-service';
+import type { SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
 import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
-const ownerNewControlSchema = z.object({
-  controlName: z.string().min(3, "Nome do controle é obrigatório (mínimo 3 caracteres)."),
-  justificativa: z.string().min(10, "Descrição/Justificativa é obrigatória (mínimo 10 caracteres)."),
-});
-
-const adminNewControlSchema = z.object({
-  controlId: z.string().min(3, "ID do Controle é obrigatório."),
-  controlName: z.string().min(3, "Nome do controle é obrigatório."),
-  description: z.string().min(10, "Descrição é obrigatória."),
-});
-
-type OwnerFormValues = z.infer<typeof ownerNewControlSchema>;
-type AdminFormValues = z.infer<typeof adminNewControlSchema>;
-type FormValues = OwnerFormValues | AdminFormValues;
-
 export default function NewControlPage() {
   const { toast } = useToast();
-  const { currentUser, isUserAdmin } = useUserProfile();
+  const { isUserAdmin } = useUserProfile();
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 
-  const currentSchema = isUserAdmin() ? adminNewControlSchema : ownerNewControlSchema;
+  if (!isUserAdmin()) {
+    return (
+      <div className="space-y-6 w-full max-w-4xl mx-auto">
+        <div className="flex items-center">
+            <Button variant="outline" asChild>
+            <Link href="/sox-matrix">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel
+            </Link>
+            </Button>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Acesso Negado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Esta funcionalidade está disponível apenas para Administradores de Controles Internos.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<FormValues>({
-    resolver: zodResolver(currentSchema),
-  });
-
-  const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    if (!currentUser) return;
-
-    try {
-      if (isUserAdmin()) {
-        const adminData = data as AdminFormValues;
-        const newSoxControl: Partial<SoxControl> = {
-          controlId: adminData.controlId,
-          controlName: adminData.controlName,
-          description: adminData.description,
-        };
-        
-        await addSoxControl(newSoxControl);
-        
-        toast({
-          title: "Controle Criado!",
-          description: `O controle "${adminData.controlName}" foi criado com sucesso.`,
-          variant: "default",
-        });
-
-      } else {
-        const ownerData = data as OwnerFormValues;
-        const tempProposedId = `TEMP-${Date.now()}`;
-
-        const newChangeRequest: Partial<ChangeRequest> = {
-          controlId: `NEW-CTRL-${tempProposedId.toUpperCase().replace(/\s+/g, '-')}`,
-          requestedBy: currentUser.name,
-          changes: {
-            controlName: ownerData.controlName,
-            justificativa: ownerData.justificativa,
-            description: ownerData.justificativa,
-            controlOwner: currentUser.name,
-            status: "Rascunho",
-          },
-          status: "Pendente",
-          comments: `Proposta de novo controle: ${ownerData.controlName}.`,
-        };
-        await addChangeRequest(newChangeRequest);
-        toast({
-          title: "Proposta Enviada!",
-          description: `Sua proposta para o controle "${ownerData.controlName}" foi enviada para aprovação.`,
-          variant: "default",
-        });
-      }
-      reset();
-    } catch(error) {
-        toast({
-            title: "Erro ao Salvar",
-            description: "Não foi possível salvar os dados. Tente novamente.",
-            variant: "destructive"
-        });
-        console.error("Failed to submit new control/request:", error);
-    }
-  };
-  
   const headerMapping: { [key: string]: keyof SoxControl | string } = {
     "Cód Controle ANTERIOR": "codigoAnterior",
     "Matriz": "matriz",
@@ -272,102 +213,40 @@ export default function NewControlPage() {
     }
   };
 
-
-  const pageTitle = isUserAdmin() ? "Criar Novo Controle" : "Solicitar Novo Controle";
-  const pageDescription = isUserAdmin()
-    ? "Preencha os detalhes para criar um novo controle ou use o upload em massa."
-    : "Descreva o nome e a justificativa para o novo controle. Sua proposta será enviada para análise.";
-
   return (
     <div className="space-y-6 w-full max-w-4xl mx-auto">
       <div className="flex items-center">
         <Button variant="outline" asChild>
-          <Link href={isUserAdmin() ? "/sox-matrix" : "/my-registered-controls"}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para {isUserAdmin() ? "Painel" : "Meus Controles"}
+          <Link href="/sox-matrix">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para o Painel
           </Link>
         </Button>
       </div>
 
-      {isUserAdmin() && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Criação em Massa via Excel</CardTitle>
-            <CardDescription>Para adicionar múltiplos controles de uma vez, baixe o modelo, preencha e faça o upload.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto">
-                <Download className="mr-2 h-4 w-4" />
-                Baixar Modelo Excel
-              </Button>
-              <div className="flex-1">
-                <Label htmlFor="excel-upload" className="sr-only">Upload Excel</Label>
-                <Input id="excel-upload" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
-              </div>
-            </div>
-            {excelFile && <p className="text-sm text-muted-foreground">Arquivo selecionado: {excelFile.name}</p>}
-          </CardContent>
-          <CardFooter className="flex justify-end">
-            <Button onClick={handleProcessFile} disabled={!excelFile || isProcessingFile}>
-              {isProcessingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
-              Processar Arquivo
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      <Card className="w-full">
+      <Card>
         <CardHeader>
-          <CardTitle>{isUserAdmin() ? "Criação de Controle Individual" : pageTitle}</CardTitle>
-          <CardDescription>{pageDescription}</CardDescription>
+          <CardTitle>Adicionar Novos Controles</CardTitle>
+          <CardDescription>Para adicionar controles, baixe o modelo, preencha e faça o upload.</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="w-full">
-          <CardContent className="space-y-4">
-            {isUserAdmin() ? (
-              <>
-                <div>
-                  <Label htmlFor="controlId">ID do Controle</Label>
-                  <Input id="controlId" {...register("controlId")} placeholder="Ex: FIN-010, IT-ABC" />
-                  {errors.controlId && <p className="text-sm text-destructive mt-1">{(errors.controlId as any).message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="controlName">Nome do Controle</Label>
-                  <Input id="controlName" {...register("controlName")} placeholder="Nome conciso e claro" />
-                  {errors.controlName && <p className="text-sm text-destructive mt-1">{(errors.controlName as any).message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="description">Descrição Completa do Controle</Label>
-                  <Textarea id="description" {...register("description")} placeholder="Descreva detalhadamente o controle." rows={5} />
-                  {errors.description && <p className="text-sm text-destructive mt-1">{(errors.description as any).message}</p>}
-                </div>
-              </>
-            ) : (
-              <> {/* Campos SIMPLIFICADOS para Dono do Controle */}
-                <div>
-                  <Label htmlFor="controlName">Nome do Controle</Label>
-                  <Input id="controlName" {...register("controlName")} placeholder="Nome conciso e claro para o controle" />
-                  {errors.controlName && <p className="text-sm text-destructive mt-1">{(errors.controlName as any).message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="justificativa">Descrição / Justificativa do Controle</Label>
-                  <Textarea
-                    id="justificativa"
-                    {...register("justificativa")}
-                    placeholder="Descreva o objetivo do controle, como ele funciona e por que ele é necessário."
-                    rows={5}
-                  />
-                  {errors.justificativa && <p className="text-sm text-destructive mt-1">{(errors.justificativa as any).message}</p>}
-                </div>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isUserAdmin() ? "Criar Controle" : "Enviar Proposta para Análise"}
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto">
+              <Download className="mr-2 h-4 w-4" />
+              Baixar Modelo Excel
             </Button>
-          </CardFooter>
-        </form>
+            <div className="flex-1">
+              <Label htmlFor="excel-upload" className="sr-only">Upload Excel</Label>
+              <Input id="excel-upload" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+            </div>
+          </div>
+          {excelFile && <p className="text-sm text-muted-foreground">Arquivo selecionado: {excelFile.name}</p>}
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={handleProcessFile} disabled={!excelFile || isProcessingFile}>
+            {isProcessingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
+            Processar Arquivo
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );
