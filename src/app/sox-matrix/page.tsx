@@ -472,11 +472,11 @@ export default function SoxMatrixPage() {
               </Card>
             </div>
 
-            <Accordion type="single" collapsible defaultValue="item-1" className="w-full">
-              <AccordionItem value="item-1" className="border rounded-lg shadow-md bg-card">
-                <AccordionTrigger className="p-6 hover:no-underline">
-                  <div className="flex items-center gap-2 text-xl font-semibold text-card-foreground">
-                    <Filter className="h-5 w-5 text-primary" />
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1" className="border rounded-lg shadow-sm bg-card">
+                <AccordionTrigger className="p-4 hover:no-underline">
+                  <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                    <Filter className="h-4 w-4 text-primary" />
                     <span>Filtrar Matriz Geral</span>
                   </div>
                 </AccordionTrigger>
@@ -559,11 +559,11 @@ export default function SoxMatrixPage() {
                 </CardHeader>
                 <CardContent>
                     <Accordion type="single" collapsible className="w-full mb-6">
-                        <AccordionItem value="item-1" className="border rounded-lg bg-muted/50">
-                            <AccordionTrigger className="px-4 py-3 hover:no-underline font-semibold">
-                                <div className="flex items-center gap-2">
-                                    <Filter className="h-4 w-4" />
-                                    Mostrar/Ocultar Filtros
+                        <AccordionItem value="item-1" className="border rounded-lg shadow-sm bg-card">
+                            <AccordionTrigger className="p-4 hover:no-underline">
+                                <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                                    <Filter className="h-4 w-4 text-primary" />
+                                    <span>Filtrar Controles</span>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="p-4 border-t">
