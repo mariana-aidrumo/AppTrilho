@@ -3,7 +3,7 @@
 'use server';
 
 import { getGraphClient, getSiteId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, IPEAssertions } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, IPEAssertions, ControlFrequency, ControlType, SoxControlStatus, ControlModalidade } from '@/types';
 import {
   mockChangeRequests,
   mockUsers,
@@ -16,13 +16,13 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
 const { SHAREPOINT_SITE_URL, SHAREPOINT_CONTROLS_LIST_NAME } = process.env;
 
-// Helper to map SharePoint list item to our SoxControl type
+// Helper to map SharePoint list item (as text) to our typed SoxControl
 const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   const fields = item.fields;
 
-  // Safely parse JSON for ipeAssertions
+  // Since all fields can be text, we need to parse them back to their correct types.
   let ipeAssertions: IPEAssertions = { C: false, EO: false, VA: false, OR: false, PD: false };
-  if (fields.ipeAssertions) {
+  if (fields.ipeAssertions && typeof fields.ipeAssertions === 'string') {
       try {
           const parsed = JSON.parse(fields.ipeAssertions);
           if(typeof parsed === 'object' && parsed !== null) {
@@ -42,40 +42,40 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   return {
     id: item.id, // Use SharePoint's internal item ID
     controlId: fields.controlId || '',
-    controlName: fields.controlName || '', // Use the dedicated controlName field
+    controlName: fields.controlName || '',
     codigoAnterior: fields.Title || '', // "Cód Controle ANTERIOR" is the Title field
     description: fields.description || '',
     controlOwner: fields.controlOwner || '', 
-    controlFrequency: fields.controlFrequency || 'Ad-hoc',
-    controlType: fields.controlType || 'Preventivo',
-    status: fields.status || 'Inativo',
+    controlFrequency: (fields.controlFrequency as ControlFrequency) || 'Ad-hoc',
+    controlType: (fields.controlType as ControlType) || 'Preventivo',
+    status: (fields.status as SoxControlStatus) || 'Inativo',
     lastUpdated: item.lastModifiedDateTime,
-    processo: fields.processo,
-    subProcesso: fields.subProcesso,
-    modalidade: fields.modalidade,
+    processo: fields.processo || '',
+    subProcesso: fields.subProcesso || '',
+    modalidade: (fields.modalidade as ControlModalidade) || 'Híbrido',
     responsavel: fields.responsavel || '',
     n3Responsavel: fields.n3Responsavel || '',
-    matriz: fields.matriz,
-    riscoId: fields.riscoId,
-    riscoDescricao: fields.riscoDescricao,
-    riscoClassificacao: fields.riscoClassificacao,
-    codigoCosan: fields.codigoCosan,
-    objetivoControle: fields.objetivoControle,
-    tipo: fields.tipo,
+    matriz: fields.matriz || '',
+    riscoId: fields.riscoId || '',
+    riscoDescricao: fields.riscoDescricao || '',
+    riscoClassificacao: fields.riscoClassificacao || '',
+    codigoCosan: fields.codigoCosan || '',
+    objetivoControle: fields.objetivoControle || '',
+    tipo: fields.tipo || '',
     mrc: parseSharePointBoolean(fields.mrc),
-    evidenciaControle: fields.evidenciaControle,
-    implementacaoData: fields.implementacaoData,
-    dataUltimaAlteracao: fields.dataUltimaAlteracao,
-    sistemasRelacionados: fields.sistemasRelacionados ? fields.sistemasRelacionados.split(';').map((s:string) => s.trim()) : [],
-    transacoesTelasMenusCriticos: fields.transacoesTelasMenusCriticos,
+    evidenciaControle: fields.evidenciaControle || '',
+    implementacaoData: fields.implementacaoData || '',
+    dataUltimaAlteracao: fields.dataUltimaAlteracao || '',
+    sistemasRelacionados: fields.sistemasRelacionados ? String(fields.sistemasRelacionados).split(';').map((s:string) => s.trim()) : [],
+    transacoesTelasMenusCriticos: fields.transacoesTelasMenusCriticos || '',
     aplicavelIPE: parseSharePointBoolean(fields.aplicavelIPE),
     ipeAssertions: ipeAssertions,
-    executorControle: fields.executorControle ? fields.executorControle.split(';').map((s:string) => s.trim()) : [],
-    executadoPor: fields.executadoPor,
-    area: fields.area,
-    vpResponsavel: fields.vpResponsavel,
+    executorControle: fields.executorControle ? String(fields.executorControle).split(';').map((s:string) => s.trim()) : [],
+    executadoPor: fields.executadoPor || '',
+    area: fields.area || '',
+    vpResponsavel: fields.vpResponsavel || '',
     impactoMalhaSul: parseSharePointBoolean(fields.impactoMalhaSul),
-    sistemaArmazenamento: fields.sistemaArmazenamento,
+    sistemaArmazenamento: fields.sistemaArmazenamento || '',
   };
 };
 
@@ -114,7 +114,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     // Map "Cód Controle ANTERIOR" to the SharePoint 'Title' field.
     Title: controlData.codigoAnterior,
 
-    // All other fields are mapped to their corresponding text columns
     controlId: controlData.controlId,
     controlName: controlData.controlName,
     description: controlData.description,
@@ -143,25 +142,25 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     responsavel: controlData.responsavel,
     n3Responsavel: controlData.n3Responsavel,
     
-    // Convert boolean-like values to strings "true" or "false"
-    mrc: controlData.mrc !== undefined ? String(controlData.mrc) : undefined,
-    aplicavelIPE: controlData.aplicavelIPE !== undefined ? String(controlData.aplicavelIPE) : undefined,
-    impactoMalhaSul: controlData.impactoMalhaSul !== undefined ? String(controlData.impactoMalhaSul) : undefined,
+    // Explicitly convert all boolean-like values to strings for text columns
+    mrc: String(controlData.mrc),
+    aplicavelIPE: String(controlData.aplicavelIPE),
+    impactoMalhaSul: String(controlData.impactoMalhaSul),
 
     // Convert arrays to semi-colon separated strings
     sistemasRelacionados: controlData.sistemasRelacionados?.join('; '),
     executorControle: controlData.executorControle?.join('; '),
 
-    // Stringify JSON object
+    // Stringify the IPE Assertions object into a JSON string
     ipeAssertions: controlData.ipeAssertions ? JSON.stringify(controlData.ipeAssertions) : undefined,
   };
 
-  // Remove any keys that are undefined, null, or empty to avoid sending empty values
-  Object.keys(fieldsToCreate).forEach(key => {
-    if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null || fieldsToCreate[key] === "") {
+  // Ensure we don't send undefined or null values to SharePoint
+  for (const key in fieldsToCreate) {
+    if (fieldsToCreate[key] === undefined || fieldsToCreate[key] === null) {
       delete fieldsToCreate[key];
     }
-  });
+  }
   
   const newItem = {
       fields: fieldsToCreate
@@ -173,6 +172,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 
   return mapSharePointItemToSoxControl(response);
 };
+
 
 export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Promise<{ controlsAdded: number; errors: { controlId?: string; message: string }[] }> => {
     let controlsAdded = 0;
