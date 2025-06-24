@@ -20,7 +20,7 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 // This mapping translates our internal SoxControl property names to the SharePoint DISPLAY NAMES.
 // This is more reliable when internal names with special character encodings are unknown.
 const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: 'Title',
+    codigoAnterior: 'Cód Controle ANTERIOR',
     matriz: 'Matriz',
     processo: 'Processo',
     subProcesso: 'Sub-Processo',
@@ -136,38 +136,36 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // Process each field from the provided control data
     for (const key in controlData) {
         const soxKey = key as keyof SoxControl;
-        const spKey = spFieldMapping[soxKey];
+        let spKey = spFieldMapping[soxKey];
+
+        // Special handling for the title field
+        if (soxKey === 'codigoAnterior') {
+            spKey = 'Title';
+        }
+
         const value = controlData[soxKey];
 
-        // Ensure we have a corresponding SharePoint key to prevent sending unknown fields
         if (spKey) {
-            // Handle null or undefined values by sending an empty string
             if (value === null || value === undefined) {
                 fieldsToCreate[spKey] = "";
             } 
-            // Convert arrays to a semicolon-separated string
             else if (Array.isArray(value)) {
                 fieldsToCreate[spKey] = value.join('; ');
             } 
-            // Convert booleans to "Sim" or "Não" for text fields
             else if (typeof value === 'boolean') {
                 fieldsToCreate[spKey] = value ? 'Sim' : 'Não';
             }
-             // Convert dates to a standard string format if they are Date objects
             else if (value instanceof Date) {
                  fieldsToCreate[spKey] = value.toLocaleDateString('pt-BR');
             }
-            // For all other types, convert to a plain string
             else {
                 fieldsToCreate[spKey] = String(value);
             }
         }
     }
     
-    // Ensure the required Title field has a value, even if it's just a placeholder
     if (!fieldsToCreate['Title']) {
         fieldsToCreate['Title'] = controlData.codigoAnterior || '-';
     }
@@ -182,22 +180,38 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
             .post(newItem);
         return mapSharePointItemToSoxControl(response);
     } catch (error: any) {
-        let errorMessage = 'An unknown error occurred while adding the control.';
+        let errorMessage;
+        
+        // The Graph client often nests the real error. Let's dig for it.
         if (error.body) {
             try {
                 const errorDetails = JSON.parse(error.body);
-                errorMessage = errorDetails?.error?.message || JSON.stringify(errorDetails.error);
+                const nestedError = errorDetails.error;
+                if (nestedError?.message) {
+                    errorMessage = nestedError.message;
+                }
             } catch (e) {
-                errorMessage = String(error.body);
+                // Ignore parsing errors, fallback to other methods
             }
-        } else if (error.message) {
+        }
+        
+        // If we still don't have a message, try the top-level error message.
+        if (!errorMessage && error.message) {
             errorMessage = error.message;
         }
+
+        // If all else fails, provide a generic message and log the full object for debugging.
+        if (!errorMessage) {
+            errorMessage = 'An unknown error occurred. Check server logs for the full error object.';
+            console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
+        }
+
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
-          errorMessage: errorMessage,
+          parsedErrorMessage: errorMessage,
         });
-        // Re-throw with a more specific message for the UI
+        
+        // Re-throw with the most specific message we could find
         throw new Error(errorMessage);
     }
 };
