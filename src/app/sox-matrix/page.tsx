@@ -541,38 +541,36 @@ export default function SoxMatrixPage() {
                     </CardContent>
                 </Card>
             </div>
-             <Card className="shadow-md col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mt-6 w-full">
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>Visão Geral dos Controles Ativos</CardTitle>
-                      <CardDescription>
-                          Explore todos os controles internos atualmente ativos na organização. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
-                      </CardDescription>
-                    </div>
-                    <Button 
-                      variant="default" 
-                      onClick={() => handleExtractXlsx(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))} 
-                      disabled={unifiedTableData.filter(item => item.itemType === 'Controle Ativo').length === 0}
-                    >
-                      <Download className="mr-2 h-4 w-4" /> Extrair matriz
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <Accordion type="single" collapsible className="w-full mb-6">
-                        <AccordionItem value="item-1" className="border rounded-lg shadow-sm bg-card">
-                            <AccordionTrigger className="p-4 hover:no-underline">
-                                <div className="flex items-center gap-2 font-semibold text-card-foreground">
-                                    <Filter className="h-4 w-4 text-primary" />
-                                    <span>Filtrar Controles</span>
-                                </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="p-4 border-t">
-                                {renderFilters()}
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                   {renderUnifiedTable(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))}
-                </CardContent>
+            
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1" className="border rounded-lg shadow-sm bg-card">
+                <AccordionTrigger className="p-4 hover:no-underline">
+                  <div className="flex items-center gap-2 font-semibold text-card-foreground">
+                    <Filter className="h-4 w-4 text-primary" />
+                    <span>Filtrar Matriz Geral</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-6 pt-0">
+                  {renderFilters()}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+            
+            <Card className="shadow-md w-full">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
+                  <CardDescription>
+                    Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
+                  </CardDescription>
+                </div>
+                <Button variant="default" onClick={() => handleExtractXlsx(unifiedTableData)} disabled={unifiedTableData.length === 0}>
+                  <Download className="mr-2 h-4 w-4" /> Extrair matriz
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {renderUnifiedTable(unifiedTableData)}
+              </CardContent>
             </Card>
         </div>
       )}
