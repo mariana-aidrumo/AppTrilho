@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
@@ -354,7 +355,7 @@ export default function SoxMatrixPage() {
   );
 
   const renderFilters = () => (
-    <div className="mb-6 space-y-4">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
         <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
           <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar</label>
@@ -415,7 +416,7 @@ export default function SoxMatrixPage() {
           </Select>
         </div>
       </div>
-      <div className="flex justify-end space-x-2">
+      <div className="flex justify-end space-x-2 pt-4">
         <Button variant="outline" onClick={handleResetFilters}>
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
         </Button>
@@ -474,18 +475,20 @@ export default function SoxMatrixPage() {
               </Card>
             </div>
 
-            <Card className="shadow-md w-full">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-xl">Filtrar Matriz Geral</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {renderFilters()}
-              </CardContent>
-            </Card>
-
+            <Accordion type="single" collapsible defaultValue="item-1" className="w-full">
+              <AccordionItem value="item-1" className="border rounded-lg shadow-md bg-card">
+                <AccordionTrigger className="p-6 hover:no-underline">
+                  <div className="flex items-center gap-2 text-xl font-semibold text-card-foreground">
+                    <Filter className="h-5 w-5 text-primary" />
+                    <span>Filtrar Matriz Geral</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-6 pt-0">
+                  {renderFilters()}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+            
             <Card className="shadow-md w-full">
               <CardHeader>
                 <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
@@ -544,7 +547,19 @@ export default function SoxMatrixPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                   {renderFilters()}
+                    <Accordion type="single" collapsible className="w-full mb-6">
+                        <AccordionItem value="item-1" className="border rounded-lg bg-muted/50">
+                            <AccordionTrigger className="px-4 py-3 hover:no-underline font-semibold">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4" />
+                                    Mostrar/Ocultar Filtros
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-4 border-t">
+                                {renderFilters()}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                    {renderUnifiedTable(unifiedTableData.filter(item => item.itemType === 'Controle Ativo'))}
                 </CardContent>
             </Card>
@@ -562,3 +577,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+
