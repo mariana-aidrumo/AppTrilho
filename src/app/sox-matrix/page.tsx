@@ -42,7 +42,7 @@ interface UnifiedTableItem {
 
 
 export default function SoxMatrixPage() {
-  const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+  const { currentUser } = useUserProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProcess, setSelectedProcess] = useState("Todos");
   const [selectedSubProcess, setSelectedSubProcess] = useState("Todos");
@@ -381,7 +381,7 @@ export default function SoxMatrixPage() {
 
   return (
     <div className="space-y-6 w-full">
-      {isUserAdmin() && (
+      {currentUser.activeProfile === "Administrador de Controles Internos" && (
           <>
             <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
               <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
@@ -444,7 +444,7 @@ export default function SoxMatrixPage() {
           </>
         )}
 
-      {isUserControlOwner() && (
+      {currentUser.activeProfile === "Dono do Controle" && (
         <div className="space-y-6 w-full">
             <CardHeader className="px-0">
                 <CardTitle className="text-2xl">Painel (Visão Geral)</CardTitle>
