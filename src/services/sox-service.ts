@@ -3,7 +3,7 @@
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, ControlFrequency, ControlType, SoxControlStatus, ControlModalidade } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus } from '@/types';
 import {
   mockChangeRequests,
   mockUsers,
@@ -17,58 +17,139 @@ import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// This mapping translates our internal SoxControl property names to SharePoint's internal field names.
-// This is a more robust approach than using display names, which can have special characters.
-const spFieldMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: 'Title', // Special case: Maps to the default Title field
-    matriz: 'Matriz',
-    processo: 'Processo',
-    subProcesso: 'Sub_x002d_Processo',
-    riscoId: 'Risco',
-    riscoDescricao: 'Descri_x00e7__x00e3_o_x0020_do_x0020_Risco',
-    riscoClassificacao: 'Classifica_x00e7__x00e3_o_x0020_do_x0020_Risco',
-    controlId: 'Codigo_x0020_NOVO',
-    codigoCosan: 'Codigo_x0020_COSAN',
-    objetivoControle: 'Objetivo_x0020_do_x0020_Controle',
-    controlName: 'Nome_x0020_do_x0020_Controle',
-    description: 'Descri_x00e7__x00e3_o_x0020_do_x0020_controle_x0020_ATUAL',
-    tipo: 'Tipo',
-    controlFrequency: 'Frequ_x00ea_ncia',
-    modalidade: 'Modalidade',
-    controlType: 'P_x002f_D',
-    mrc: 'MRC_x003f_',
-    evidenciaControle: 'Evid_x00ea_ncia_x0020_do_x0020_controle',
-    implementacaoData: 'Implementa_x00e7__x00e3_o_x0020_Data',
-    dataUltimaAlteracao: 'Data_x0020__x00fa_ltima_x0020_altera_x00e7__x00e3_o',
-    sistemasRelacionados: 'Sistemas_x0020_Relacionados',
-    transacoesTelasMenusCriticos: 'Transa_x00e7__x00f5_es_x002f_Telas_x002f_Menus_x0020_cr_x00ed_ticos',
-    aplicavelIPE: 'Aplic_x00e1_vel_x0020_IPE_x003f_',
-    ipe_C: 'C',
-    ipe_EO: 'E_x002f_O',
-    ipe_VA: 'V_x002f_A',
-    ipe_OR: 'O_x002f_R',
-    ipe_PD: 'P_x002f_D_x0020__x0028_IPE_x0029_',
-    responsavel: 'Respons_x00e1_vel',
-    controlOwner: 'Dono_x0020_do_x0020_Controle_x0020__x0028_Control_x0020_owner_x0029_',
-    executorControle: 'Executor_x0020_do_x0020_Controle',
-    executadoPor: 'Executado_x0020_por',
-    n3Responsavel: 'N3_x0020_Respons_x00e1_vel',
-    area: '_x00c1_rea',
-    vpResponsavel: 'VP_x0020_Respons_x00e1_vel',
-    impactoMalhaSul: 'Impacto_x0020_Malha_x0020_Sul',
-    sistemaArmazenamento: 'Sistema_x0020_Armazenamento',
+// This is the new "source of truth" mapping our internal SoxControl property names
+// to the EXACT SharePoint DISPLAY names. This will be used to build the dynamic map.
+export const appToSpDisplayNameMapping: { [key in keyof Partial<SoxControl>]: string } = {
+    codigoAnterior: "Cód Controle ANTERIOR",
+    matriz: "Matriz",
+    processo: "Processo",
+    subProcesso: "Sub-Processo",
+    riscoId: "Risco",
+    riscoDescricao: "Descrição do Risco",
+    riscoClassificacao: "Classificação do Risco",
+    controlId: "Codigo NOVO",
+    codigoCosan: "Codigo COSAN",
+    objetivoControle: "Objetivo do Controle",
+    controlName: "Nome do Controle",
+    description: "Descrição do controle ATUAL",
+    tipo: "Tipo",
+    controlFrequency: "Frequência",
+    modalidade: "Modalidade",
+    controlType: "P/D",
+    mrc: "MRC?",
+    evidenciaControle: "Evidência do controle",
+    implementacaoData: "Implementação Data",
+    dataUltimaAlteracao: "Data última alteração",
+    sistemasRelacionados: "Sistemas Relacionados",
+    transacoesTelasMenusCriticos: "Transações/Telas/Menus críticos",
+    aplicavelIPE: "Aplicável IPE?",
+    ipe_C: "C",
+    ipe_EO: "E/O",
+    ipe_VA: "V/A",
+    ipe_OR: "O/R",
+    ipe_PD: "P/D (IPE)",
+    responsavel: "Responsável",
+    controlOwner: "Dono do Controle (Control owner)",
+    executorControle: "Executor do Controle",
+    executadoPor: "Executado por",
+    n3Responsavel: "N3 Responsável",
+    area: "Área",
+    vpResponsavel: "VP Responsável",
+    impactoMalhaSul: "Impacto Malha Sul",
+    sistemaArmazenamento: "Sistema Armazenamento",
 };
+
+// Cache for the dynamically generated mapping.
+let dynamicSpFieldMapping: { [key: string]: string } | null = null;
+let reverseDynamicSpFieldMapping: { [key: string]: string } | null = null;
+
+/**
+ * Fetches column definitions from SharePoint and builds a dynamic mapping.
+ * This is the core of the new creative solution.
+ */
+const buildAndCacheDynamicMapping = async (): Promise<void> => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing.");
+    }
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+
+        const response = await graphClient
+            .api(`/sites/${siteId}/lists/${listId}/columns`)
+            .get();
+
+        if (!response || !response.value) {
+            throw new Error("Could not fetch column definitions from SharePoint.");
+        }
+
+        const spColumns = response.value;
+        const newMapping: { [key: string]: string } = {};
+        const newReverseMapping: { [key: string]: string } = {};
+        const spDisplayNameToInternalNameMap: { [key: string]: string } = {};
+
+        for (const column of spColumns) {
+            spDisplayNameToInternalNameMap[column.displayName] = column.name;
+            newReverseMapping[column.name] = column.displayName; // For reading data back
+        }
+
+        // Build the final mapping from our app's keys to SharePoint's internal names
+        for (const appKey in appToSpDisplayNameMapping) {
+            const displayName = (appToSpDisplayNameMapping as any)[appKey];
+            const internalName = spDisplayNameToInternalNameMap[displayName];
+            
+            if (internalName) {
+                (newMapping as any)[appKey] = internalName;
+            } else if (displayName === "Cód Controle ANTERIOR") {
+                // Special case for the Title field, whose display name might be customized.
+                const titleColumn = spColumns.find((c: any) => c.name === 'Title');
+                if (titleColumn) {
+                    (newMapping as any)[appKey] = 'Title';
+                } else {
+                     console.warn(`Could not find a mapping for display name: '${displayName}' (Title field).`);
+                }
+            }
+            else {
+                 console.warn(`Could not find a mapping for display name: '${displayName}'. Skipping this field.`);
+            }
+        }
+        
+        dynamicSpFieldMapping = newMapping;
+        // Build the reverse map for reading data
+        const reverseMapForReading: { [key: string]: string } = {};
+        for(const appKey in newMapping) {
+            const internalName = (newMapping as any)[appKey];
+            reverseMapForReading[internalName] = appKey;
+        }
+        reverseDynamicSpFieldMapping = reverseMapForReading;
+
+
+    } catch (error) {
+        console.error("FATAL: Failed to build dynamic SharePoint mapping.", error);
+        throw new Error("Could not initialize connection with SharePoint list schema.");
+    }
+};
+
+const getWriteMapping = async () => {
+    if (!dynamicSpFieldMapping) {
+        await buildAndCacheDynamicMapping();
+    }
+    return dynamicSpFieldMapping!;
+};
+
+const getReadMapping = async () => {
+    if(!reverseDynamicSpFieldMapping) {
+        await buildAndCacheDynamicMapping();
+    }
+    return reverseDynamicSpFieldMapping!;
+}
 
 
 // Helper to map SharePoint list item to our typed SoxControl
-const mapSharePointItemToSoxControl = (item: any): SoxControl => {
+const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => {
   const fields = item.fields;
-  
-  const readMapping: { [spKey: string]: keyof SoxControl } = {};
-  for (const key in spFieldMapping) {
-      const soxKey = key as keyof SoxControl;
-      readMapping[spFieldMapping[soxKey]] = soxKey;
-  }
+  const readMapping = await getReadMapping();
   
   const soxControl: Partial<SoxControl> = {
     id: item.id,
@@ -77,25 +158,19 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
   };
 
   for(const spKey in fields) {
-    const soxKey = readMapping[spKey];
-    if (soxKey) {
+    const appKey = readMapping[spKey];
+    if (appKey) {
         let value = fields[spKey];
         const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
         
-        if (soxKey === 'sistemasRelacionados' || soxKey === 'executorControle') {
+        if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
             value = typeof value === 'string' ? value.split(';').map(s => s.trim()) : [];
-        } else if (booleanFields.includes(soxKey)) {
+        } else if (booleanFields.includes(appKey as any)) {
             value = parseSharePointBoolean(value);
         }
-        (soxControl as any)[soxKey] = value;
+        (soxControl as any)[appKey] = value;
     }
   }
-
-  // Handle the title field separately since its display name might be different from 'Title'
-  if (fields.Title) {
-      soxControl.codigoAnterior = fields.Title;
-  }
-
 
   return soxControl as SoxControl;
 };
@@ -115,7 +190,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             .get();
 
         if (response && response.value) {
-            return response.value.map(mapSharePointItemToSoxControl);
+            return Promise.all(response.value.map(mapSharePointItemToSoxControl));
         }
         return [];
     } catch (error) {
@@ -132,15 +207,17 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+    const spFieldMapping = await getWriteMapping();
   
     const fieldsToCreate: { [key: string]: any } = {};
   
     for (const key in controlData) {
-        const soxKey = key as keyof SoxControl;
-        const spKey = spFieldMapping[soxKey];
-        const value = controlData[soxKey];
+        const appKey = key as keyof SoxControl;
+        const spKey = (spFieldMapping as any)[appKey];
+        const value = controlData[appKey];
 
         if (spKey) {
+            // All columns are multiline text, so we format everything as a string.
             if (value === null || value === undefined) {
                 fieldsToCreate[spKey] = "";
             } 
@@ -167,7 +244,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .post(newItem);
-        return mapSharePointItemToSoxControl(response);
+        return await mapSharePointItemToSoxControl(response);
     } catch (error: any) {
         let errorMessage;
         
@@ -206,6 +283,9 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
+    // Ensure mapping is built before starting the loop
+    await getWriteMapping();
+
     for (const control of controls) {
         try {
             if (control.controlName || control.controlId) {

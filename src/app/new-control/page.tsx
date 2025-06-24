@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addSoxControlsInBulk } from '@/services/sox-service';
+import { addSoxControlsInBulk, appToSpDisplayNameMapping } from '@/services/sox-service';
 import type { SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
@@ -43,50 +43,20 @@ export default function NewControlPage() {
     );
   }
 
-  // This mapping connects the exact Excel header names to our internal SoxControl type properties.
-  const headerMapping: { [key: string]: keyof SoxControl } = {
-    "Cód Controle ANTERIOR": "codigoAnterior",
-    "Matriz": "matriz",
-    "Processo": "processo",
-    "Sub-Processo": "subProcesso",
-    "Risco": "riscoId",
-    "Descrição do Risco": "riscoDescricao",
-    "Classificação do Risco": "riscoClassificacao",
-    "Codigo NOVO": "controlId",
-    "Codigo COSAN": "codigoCosan",
-    "Objetivo do Controle": "objetivoControle",
-    "Nome do Controle": "controlName",
-    "Descrição do controle ATUAL": "description",
-    "Tipo": "tipo",
-    "Frequência": "controlFrequency",
-    "Modalidade": "modalidade",
-    "P/D": "controlType",
-    "MRC?": "mrc",
-    "Evidência do controle": "evidenciaControle",
-    "Implementação Data": "implementacaoData",
-    "Data última alteração": "dataUltimaAlteracao",
-    "Sistemas Relacionados": "sistemasRelacionados",
-    "Transações/Telas/Menus críticos": "transacoesTelasMenusCriticos",
-    "Aplicável IPE?": "aplicavelIPE",
-    "C": "ipe_C",
-    "E/O": "ipe_EO",
-    "V/A": "ipe_VA",
-    "O/R": "ipe_OR",
-    "P/D (IPE)": "ipe_PD",
-    "Responsável": "responsavel",
-    "Dono do Controle (Control owner)": "controlOwner",
-    "Executor do Controle": "executorControle",
-    "Executado por": "executadoPor",
-    "N3 Responsável": "n3Responsavel",
-    "Área": "area",
-    "VP Responsável": "vpResponsavel",
-    "Impacto Malha Sul": "impactoMalhaSul",
-    "Sistema Armazenamento": "sistemaArmazenamento",
-  };
+  // This mapping connects the app's internal SoxControl type properties to the Excel header names.
+  // It now uses the centralized mapping from the service as the source of truth.
+  const appKeyToExcelHeader: { [key: string]: string } = {};
+  const excelHeaderToAppKey: { [key: string]: string } = {};
+  for(const key in appToSpDisplayNameMapping) {
+      const appKey = key as keyof SoxControl;
+      const excelHeader = (appToSpDisplayNameMapping as any)[appKey];
+      appKeyToExcelHeader[appKey] = excelHeader;
+      excelHeaderToAppKey[excelHeader] = appKey;
+  }
   
   const handleDownloadTemplate = () => {
-    // These headers MUST match the keys in the headerMapping object exactly.
-    const orderedHeaders = Object.keys(headerMapping);
+    // These headers MUST match the display names in SharePoint.
+    const orderedHeaders = Object.values(appToSpDisplayNameMapping);
     const ws = xlsx.utils.json_to_sheet([{}], { header: orderedHeaders });
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
@@ -119,23 +89,23 @@ export default function NewControlPage() {
         const controlsToCreate: Partial<SoxControl>[] = [];
         for (const row of jsonFromSheet) {
           const mappedRow: Partial<SoxControl> = {};
-          for (const excelHeader in headerMapping) {
-            if (Object.prototype.hasOwnProperty.call(row, excelHeader)) {
-              const soxKey = headerMapping[excelHeader];
+          for (const excelHeader in row) {
+            if (Object.prototype.hasOwnProperty.call(excelHeaderToAppKey, excelHeader)) {
+              const appKey = excelHeaderToAppKey[excelHeader] as keyof SoxControl;
               const rawValue = row[excelHeader];
               
               // Parse boolean-like fields consistently
               const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-              if (booleanFields.includes(soxKey)) {
-                (mappedRow as any)[soxKey] = parseSharePointBoolean(rawValue);
+              if (booleanFields.includes(appKey)) {
+                (mappedRow as any)[appKey] = parseSharePointBoolean(rawValue);
               } 
               // Parse array-like fields
-              else if (soxKey === 'sistemasRelacionados' || soxKey === 'executorControle') {
-                 (mappedRow as any)[soxKey] = typeof rawValue === 'string' ? String(rawValue).split(/[,;]/).map(s => s.trim()) : [];
+              else if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
+                 (mappedRow as any)[appKey] = typeof rawValue === 'string' ? String(rawValue).split(/[,;]/).map(s => s.trim()) : [];
               }
               // Keep other values as they are (string, number, date)
               else {
-                (mappedRow as any)[soxKey] = rawValue;
+                (mappedRow as any)[appKey] = rawValue;
               }
             }
           }
