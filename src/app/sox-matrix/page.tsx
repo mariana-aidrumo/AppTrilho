@@ -15,6 +15,7 @@ import { mockSoxControls, mockProcessos, mockSubProcessos, mockDonos, mockChange
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import * as xlsx from 'xlsx';
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
@@ -233,54 +234,24 @@ export default function SoxMatrixPage() {
     setSelectedItem(item);
   };
 
-  const escapeCsvCell = (cellData: any): string => {
-    if (cellData === null || cellData === undefined) {
-      return "";
-    }
-    const stringData = String(cellData);
-    if (stringData.includes(',') || stringData.includes('\n') || stringData.includes('"')) {
-      return `"${stringData.replace(/"/g, '""')}"`;
-    }
-    return stringData;
-  };
+  const handleExtractXlsx = () => {
+    const dataToExport = unifiedTableData.map(item => ({
+      "Cód Controle ANTERIOR": item.previousDisplayId || "",
+      "Processo": item.processo || "",
+      "Sub-Processo": item.subProcesso || "",
+      "Código NOVO": item.displayId || "",
+      "Nome do Controle": item.name || "",
+      "Descrição do controle ATUAL": item.description || "",
+      "Frequência": item.controlFrequency || "",
+      "Modalidade": item.modalidade || "",
+      "P/D": item.controlType || "",
+      "Dono do Controle (Control owner)": item.ownerOrRequester || "",
+    }));
 
-  const handleExtractCsv = () => {
-    const headers = [
-      "Cód Controle ANTERIOR", "Processo", "Sub-Processo", "Código NOVO", "Nome do Controle", 
-      "Descrição do controle ATUAL", "Frequência", "Modalidade", "P/D", 
-      "Dono do Controle (Control owner)"
-    ];
-
-    const rows = unifiedTableData.map(item => [
-      escapeCsvCell(item.previousDisplayId),
-      escapeCsvCell(item.processo),
-      escapeCsvCell(item.subProcesso),
-      escapeCsvCell(item.displayId),
-      escapeCsvCell(item.name),
-      escapeCsvCell(item.description),
-      escapeCsvCell(item.controlFrequency),
-      escapeCsvCell(item.modalidade),
-      escapeCsvCell(item.controlType),
-      escapeCsvCell(item.ownerOrRequester),
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", "matriz_geral_controles.csv");
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
+    const ws = xlsx.utils.json_to_sheet(dataToExport);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Matriz de Controles");
+    xlsx.writeFile(wb, "matriz_geral_controles.xlsx");
   };
 
 
@@ -342,7 +313,7 @@ export default function SoxMatrixPage() {
         </p>
       )}
     </div>
-  )
+  );
 
   const renderFilters = () => (
     <div className="mb-6 space-y-4">
@@ -410,12 +381,12 @@ export default function SoxMatrixPage() {
         <Button variant="outline" onClick={handleResetFilters}>
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
         </Button>
-        <Button variant="default" onClick={handleExtractCsv} disabled={unifiedTableData.length === 0}>
-          <Download className="mr-2 h-4 w-4" /> Extrair CSV
+        <Button variant="default" onClick={handleExtractXlsx} disabled={unifiedTableData.length === 0}>
+          <Download className="mr-2 h-4 w-4" /> Extrair XLSX
         </Button>
       </div>
     </div>
-  )
+  );
 
   return (
     <div className="space-y-6 w-full">
