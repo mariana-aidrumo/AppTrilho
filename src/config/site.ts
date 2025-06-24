@@ -24,7 +24,7 @@ export const siteConfig: SiteConfig = {
   navItems: [
     // Itens para Administrador de Controles Internos
     {
-      title: "Painel da Matriz SOX",
+      title: "Painel Matriz",
       href: "/sox-matrix",
       icon: LayoutDashboard,
       allowedProfiles: ["Administrador de Controles Internos"],
@@ -36,7 +36,7 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
-      title: "Criar Novo Controle",
+      title: "Criar Controle",
       href: "/new-control",
       icon: FilePlus2,
       allowedProfiles: ["Administrador de Controles Internos"],
