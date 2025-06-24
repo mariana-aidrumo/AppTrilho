@@ -9,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    --background: 206 27% 92%; /* #E5EBEE */
+    --background: 206 28% 86%; /* #CAD6DD */
     --foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
     --card: 0 0% 100%; /* Branco */
@@ -24,7 +24,7 @@ body {
     --secondary: 201 79% 55%; /* Azul Claro #32A6E6 */
     --secondary-foreground: 206 100% 8%; /* Azul Escuro #001728 */
 
-    --muted: 206 27% 92%; /* #E5EBEE */
+    --muted: 206 28% 86%; /* #CAD6DD */
     --muted-foreground: 203 10% 40%; /* Cinza Médio #5A6870 (escurecido de #8A98A0 para melhor contraste) */
 
     --accent: 21 92% 62%; /* Laranja #F78344 */
@@ -33,8 +33,8 @@ body {
     --destructive: 0 72% 51%; /* Vermelho Destrutivo (padrão) */
     --destructive-foreground: 0 0% 98%; /* Branco para texto em Vermelho */
 
-    --border: 202 27% 87%; /* Cinza Médio #D7E0E5 (mais claro que o anterior #BDCCD4) */
-    --input: 202 27% 87%; /* Cinza Médio #D7E0E5 (mais claro que o anterior #BDCCD4) */
+    --border: 206 28% 80%; /* #C2CFD6 */
+    --input: 206 28% 80%; /* #C2CFD6 */
     --ring: 207 100% 20%; /* Azul Primário Rumo #003865 para anéis de foco */
 
     --radius: 0.75rem; /* Increased border radius */
