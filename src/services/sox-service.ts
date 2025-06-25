@@ -192,31 +192,31 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
   
-    // Create a reverse mapping from Display Name -> { internalName, type }
-    const displayNameMap = new Map<string, { internalName: string; type: ColumnMapping['type'] }>();
-    for (const [, mapping] of spColumnMap.entries()) {
-        displayNameMap.set(mapping.displayName, { internalName: mapping.internalName, type: mapping.type });
-    }
-
     const fieldsToCreate: { [key: string]: any } = {};
 
-    // Iterate over the keys from the uploaded Excel file (rowData)
-    for (const displayNameFromExcel of Object.keys(rowData)) {
-        // Check if this column from Excel is one we recognize and want to import
-        const mapping = displayNameMap.get(displayNameFromExcel);
+    // The 'Whitelist' approach: Iterate over OUR list of known, valid fields.
+    // This is the source of truth, not the Excel file.
+    for (const appKey of Object.keys(appToSpDisplayNameMapping)) {
+        const mapping = spColumnMap.get(appKey);
+        const displayName = (appToSpDisplayNameMapping as any)[appKey];
 
-        if (mapping) {
-            // It's a valid column, process it
-            const { internalName, type } = mapping;
-            const rawValue = rowData[displayNameFromExcel];
-            const formattedValue = formatValueForSharePoint(rawValue, type);
-
-            if (formattedValue !== null && formattedValue !== undefined && formattedValue !== '') {
-                fieldsToCreate[internalName] = formattedValue;
+        // Ensure we have a mapping for this field and the Excel file has this column.
+        if (mapping && rowData.hasOwnProperty(displayName)) {
+            const rawValue = rowData[displayName];
+            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+            
+            // Only add the field if it has a meaningful value after formatting.
+            if (formattedValue !== null && formattedValue !== undefined && String(formattedValue).trim() !== '') {
+                fieldsToCreate[mapping.internalName] = formattedValue;
             }
         }
-        // If 'mapping' is undefined, it means the column from Excel (e.g., 'LinkTitle')
-        // is not in our list of valid fields, so it's automatically ignored.
+    }
+  
+    // Check if we have any data to send. If not, maybe the Excel was empty or headers didn't match.
+    if (Object.keys(fieldsToCreate).length === 0) {
+        // This can be treated as a success (skipping an empty row) or a specific error.
+        // Let's treat it as skipping an empty row. The bulk function already handles this.
+        return { message: "No valid data found in row to create an item." }; 
     }
   
     const newItem = { fields: fieldsToCreate };
@@ -237,6 +237,7 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
                     detailedMessage = `Resposta da API: ${error.body}`;
                 }
             } catch (e) {
+                // The body is not a JSON object, return it as-is.
                 detailedMessage = `Resposta da API: ${error.body}`;
             }
         } else if (error && error.message) {
@@ -366,3 +367,5 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
+
+    
