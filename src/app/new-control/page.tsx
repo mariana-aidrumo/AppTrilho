@@ -1,4 +1,3 @@
-
 // src/app/new-control/page.tsx
 "use client";
 
@@ -90,8 +89,10 @@ export default function NewControlPage() {
         const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
         if (jsonFromSheet.length > 0) {
-            // Pass raw JSON data directly to the server. The server will handle all mapping.
-            const { controlsAdded, errors } = await addSoxControlsInBulk(jsonFromSheet);
+            // Serialize the data to ensure only plain objects are passed to the server function.
+            // This converts Date objects to ISO strings, a supported type, preventing errors.
+            const plainObjects = JSON.parse(JSON.stringify(jsonFromSheet));
+            const { controlsAdded, errors } = await addSoxControlsInBulk(plainObjects);
 
             if (errors.length > 0) {
                 const firstError = errors[0];
