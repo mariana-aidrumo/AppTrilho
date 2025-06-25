@@ -18,15 +18,31 @@ const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 // Caches for mappings
-let readMapping: { [key: string]: string } | null = null;
-let writeMapping: { [key: string]: string } | null = null;
+type ColumnMapping = {
+    internalName: string;
+    displayName: string;
+    type: 'text' | 'note' | 'boolean' | 'dateTime' | 'choice' | 'multiChoice' | 'unsupported';
+};
+
+let spColumnMap: Map<string, ColumnMapping> | null = null; // Keyed by appKey (e.g., 'controlName')
+
+const getColumnType = (spColumn: any): ColumnMapping['type'] => {
+    if (spColumn.boolean) return 'boolean';
+    if (spColumn.dateTime) return 'dateTime';
+    if (spColumn.choice) {
+        return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
+    }
+    if (spColumn.note) return 'note';
+    if (spColumn.text) return 'text';
+    return 'unsupported';
+};
 
 /**
- * Fetches column definitions from SharePoint and builds dynamic mappings for reading and writing.
- * This is the single source of truth for field name translations.
+ * Fetches column definitions from SharePoint and builds a dynamic map.
+ * This map includes internal name, display name, and data type for each relevant column.
  */
 const buildAndCacheMappings = async (): Promise<void> => {
-    if (readMapping && writeMapping) return;
+    if (spColumnMap) return;
 
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
@@ -45,34 +61,28 @@ const buildAndCacheMappings = async (): Promise<void> => {
         }
 
         const spColumns = response.value;
-        const newReadMapping: { [key: string]: string } = {};
-        const newWriteMapping: { [key: string]: string } = {};
-        const spDisplayNameToInternalNameMap: { [key: string]: string } = {};
-
-        for (const column of spColumns) {
-            spDisplayNameToInternalNameMap[column.displayName] = column.name;
-        }
-
+        const newColumnMap = new Map<string, ColumnMapping>();
+        
+        // Create a reverse map from SP Display Name -> App Key for quick lookup
+        const displayNameToAppKeyMap: { [key: string]: string } = {};
         for (const appKey in appToSpDisplayNameMapping) {
             const displayName = (appToSpDisplayNameMapping as any)[appKey];
-            const internalName = spDisplayNameToInternalNameMap[displayName];
-            
-            if (internalName) {
-                (newReadMapping as any)[appKey] = internalName;
-                newWriteMapping[displayName] = internalName;
+            displayNameToAppKeyMap[displayName] = appKey;
+        }
+
+        for (const column of spColumns) {
+            const appKey = displayNameToAppKeyMap[column.displayName];
+            if (appKey) {
+                newColumnMap.set(appKey, {
+                    internalName: column.name,
+                    displayName: column.displayName,
+                    type: getColumnType(column),
+                });
             }
         }
         
-        // Handle the special case for the 'Title' field which is mapped to 'codigoAnterior'
-        if(spDisplayNameToInternalNameMap['Cód Controle ANTERIOR']) {
-            newReadMapping.codigoAnterior = spDisplayNameToInternalNameMap['Cód Controle ANTERIOR'];
-        } else {
-            newReadMapping.codigoAnterior = 'Title'; // Fallback
-        }
-        newWriteMapping['Cód Controle ANTERIOR'] = newReadMapping.codigoAnterior;
-        
-        readMapping = newReadMapping;
-        writeMapping = newWriteMapping;
+        spColumnMap = newColumnMap;
+
     } catch (error) {
         console.error("FATAL: Failed to build dynamic SharePoint mappings.", error);
         throw new Error("Could not initialize connection with SharePoint list schema.");
@@ -81,9 +91,9 @@ const buildAndCacheMappings = async (): Promise<void> => {
 
 
 // Helper to map SharePoint list item to our typed SoxControl
-const mapSharePointItemToSoxControl = (item: any, mapping: { [key: string]: string }): SoxControl => {
+const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     const spFields = item.fields;
-    if (!spFields) return {} as SoxControl;
+    if (!spFields || !spColumnMap) return {} as SoxControl;
 
     const soxControl: Partial<SoxControl> = {
         id: item.id,
@@ -91,26 +101,22 @@ const mapSharePointItemToSoxControl = (item: any, mapping: { [key: string]: stri
         lastUpdated: item.lastModifiedDateTime,
     };
     
-    for (const appKey in appToSpDisplayNameMapping) {
-        // Skip keys that are not meant to be read directly or are handled specially
-        if (appKey === 'ipeAssertions' ) continue;
-
-        const spInternalName = mapping[appKey];
-        
-        if (spInternalName && spFields[spInternalName] !== undefined) {
-             let value = spFields[spInternalName];
-             
-             const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-             const arrayFields: (keyof SoxControl)[] = ['sistemasRelacionados', 'executorControle'];
-
-             if (arrayFields.includes(appKey as any)) {
-                 value = typeof value === 'string' ? value.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
-             } else if (booleanFields.includes(appKey as any)) {
-                 value = parseSharePointBoolean(value);
-             }
-             
-             (soxControl as any)[appKey] = value;
+    for (const [appKey, mapping] of spColumnMap.entries()) {
+        const value = spFields[mapping.internalName];
+        if (value !== undefined && value !== null) {
+            if (mapping.type === 'boolean') {
+                (soxControl as any)[appKey] = parseSharePointBoolean(value);
+            } else if (mapping.type === 'multiChoice') {
+                (soxControl as any)[appKey] = Array.isArray(value) ? value : String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+            } else {
+                (soxControl as any)[appKey] = value;
+            }
         }
+    }
+    
+    // Manual override for complex fields if necessary in the future
+    if (spFields.Title) {
+      soxControl.codigoAnterior = spFields.Title;
     }
 
     return soxControl as SoxControl;
@@ -122,7 +128,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
     
     try {
-        if (!readMapping) await buildAndCacheMappings();
+        if (!spColumnMap) await buildAndCacheMappings();
         
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
@@ -133,7 +139,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             .get();
 
         if (response && response.value) {
-            return response.value.map(item => mapSharePointItemToSoxControl(item, readMapping!));
+            return response.value.map(item => mapSharePointItemToSoxControl(item));
         }
         return [];
     } catch (error) {
@@ -142,11 +148,44 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
 };
 
+const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any => {
+    if (value === undefined || value === null || String(value).trim() === '') {
+        return null;
+    }
+
+    switch (type) {
+        case 'boolean':
+            return parseSharePointBoolean(value);
+        case 'dateTime':
+             // Handle Excel's numeric date format
+            if (typeof value === 'number' && value > 1) {
+                const excelEpoch = new Date(1899, 11, 30);
+                const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+                return date.toISOString();
+            }
+             // Handle standard string dates
+            const parsedDate = new Date(value);
+            if (!isNaN(parsedDate.getTime())) {
+                return parsedDate.toISOString();
+            }
+            return null; // Invalid date
+        case 'multiChoice':
+             return String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+        case 'note':
+        case 'text':
+        case 'choice':
+             return String(value);
+        default:
+            return String(value);
+    }
+};
+
+
 export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
       throw new Error("SharePoint site URL or list name is not configured.");
     }
-    if (!writeMapping) {
+    if (!spColumnMap) {
         await buildAndCacheMappings();
     }
 
@@ -156,24 +195,18 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // STRATEGY: Iterate over the KNOWN display names from our write mapping.
+    // STRATEGY: Iterate over the KNOWN, MAPPED fields. This is the "allow-list".
     // This ensures we only try to write to fields we know about and are valid for creation.
-    for (const displayName in writeMapping!) {
-        const internalName = writeMapping![displayName];
-        const value = rowData[displayName];
-        
-        // Don't try to write read-only system fields
-        if (['id', 'lastUpdated', 'status'].includes(internalName.toLowerCase())) {
-            continue;
-        }
+    for (const [appKey, mapping] of spColumnMap!.entries()) {
+        const rawValue = rowData[mapping.displayName];
+        const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
 
-        if (value === undefined || value === null || String(value).trim() === '') {
-          fieldsToCreate[internalName] = null;
-        } else {
-          fieldsToCreate[internalName] = String(value); // Convert everything to string for safety
+        // Only add field if it has a non-null value after formatting
+        if (formattedValue !== null) {
+            fieldsToCreate[mapping.internalName] = formattedValue;
         }
     }
-
+    
     const newItem = { fields: fieldsToCreate };
   
     try {
@@ -182,18 +215,18 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
-        // Robust error handling to extract the real message
         console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
     
         let detailedMessage = 'Um erro desconhecido ocorreu.';
+        
+        // Attempt to parse modern Graph API error response
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
                 if (errorBody.error && errorBody.error.message) {
-                    detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
+                    detailedMessage = errorBody.error.message;
                 }
             } catch (e) {
-                // If parsing fails, the body might just be a plain text message
                 detailedMessage = `Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada: ${error.body}`;
             }
         } else if (error.message) {
@@ -215,7 +248,7 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     const errors: { controlId?: string; message: string }[] = [];
     
     // Ensure mappings are built before starting the loop
-    if (!writeMapping) {
+    if (!spColumnMap) {
         try {
             await buildAndCacheMappings();
         } catch (mappingError: any) {
@@ -318,3 +351,5 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
+
+    
