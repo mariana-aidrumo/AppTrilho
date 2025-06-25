@@ -17,16 +17,16 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// Cache for the dynamically generated mapping from appKey -> spInternalName
-let dynamicSpFieldMapping: { [key: string]: string } | null = null;
+// Caches for mappings
+let readMapping: { [key: string]: string } | null = null; // App Key -> SP Internal Name
+let writeMapping: { [key: string]: string } | null = null; // SP Display Name -> SP Internal Name
 
 /**
- * Fetches column definitions from SharePoint and builds a dynamic mapping
- * from our application's keys (e.g., 'controlName') to SharePoint's internal
- * field names (e.g., 'Nome_x0020_do_x0020_Controle').
+ * Fetches column definitions from SharePoint and builds dynamic mappings for reading and writing.
+ * This is the single source of truth for field name translations.
  */
-const buildAndCacheDynamicMapping = async (): Promise<void> => {
-    if (dynamicSpFieldMapping) return;
+const buildAndCacheMappings = async (): Promise<void> => {
+    if (readMapping && writeMapping) return;
 
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
@@ -45,46 +45,36 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
         }
 
         const spColumns = response.value;
-        const newMapping: { [key: string]: string } = {};
+        const newReadMapping: { [key: string]: string } = {};
+        const newWriteMapping: { [key: string]: string } = {};
         const spDisplayNameToInternalNameMap: { [key: string]: string } = {};
 
-        // First, create a map of Display Name -> Internal Name from the SharePoint response
         for (const column of spColumns) {
             spDisplayNameToInternalNameMap[column.displayName] = column.name;
         }
 
-        // Then, build our final mapping from App Key -> Internal Name
         for (const appKey in appToSpDisplayNameMapping) {
             const displayName = (appToSpDisplayNameMapping as any)[appKey];
             const internalName = spDisplayNameToInternalNameMap[displayName];
             
             if (internalName) {
-                (newMapping as any)[appKey] = internalName;
-            } else {
-                 console.warn(`Could not find a SharePoint column with display name: '${displayName}'. Skipping this field for writes.`);
+                (newReadMapping as any)[appKey] = internalName;
+                newWriteMapping[displayName] = internalName;
             }
         }
         
-        // The user confirmed "Cód Controle ANTERIOR" is the Title field.
-        // The internal name for the Title field is always "Title".
-        newMapping.codigoAnterior = 'Title';
+        // Handle the special case for the 'Title' field
+        newReadMapping.codigoAnterior = 'Title';
+        newWriteMapping['Cód Controle ANTERIOR'] = 'Title';
         
-        dynamicSpFieldMapping = newMapping;
+        readMapping = newReadMapping;
+        writeMapping = newWriteMapping;
     } catch (error) {
-        console.error("FATAL: Failed to build dynamic SharePoint mapping.", error);
+        console.error("FATAL: Failed to build dynamic SharePoint mappings.", error);
         throw new Error("Could not initialize connection with SharePoint list schema.");
     }
 };
 
-/**
- * Returns the cached dynamic mapping, building it if it doesn't exist.
- */
-const getWriteMapping = async () => {
-    if (!dynamicSpFieldMapping) {
-        await buildAndCacheDynamicMapping();
-    }
-    return dynamicSpFieldMapping!;
-};
 
 // Helper to map SharePoint list item to our typed SoxControl
 const mapSharePointItemToSoxControl = (item: any, mapping: { [key: string]: string }): SoxControl => {
@@ -92,23 +82,21 @@ const mapSharePointItemToSoxControl = (item: any, mapping: { [key: string]: stri
     if (!spFields) return {} as SoxControl;
 
     const soxControl: Partial<SoxControl> = {
-        id: item.id, // Use top-level item ID
-        status: (spFields.status as SoxControlStatus) || 'Ativo', // Assuming 'status' is an internal name
-        lastUpdated: item.lastModifiedDateTime, // Use top-level datetime
+        id: item.id,
+        status: (spFields.status as SoxControlStatus) || 'Ativo',
+        lastUpdated: item.lastModifiedDateTime,
     };
     
-    // Iterate over OUR app's defined fields
     for (const appKey in appToSpDisplayNameMapping) {
-        // Find the corresponding SharePoint internal name from our dynamic map
         const spInternalName = mapping[appKey];
         
-        // If we have a mapping and the field exists in the response
         if (spInternalName && spFields[spInternalName] !== undefined) {
              let value = spFields[spInternalName];
              
-             // Same data processing logic as before
              const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-             if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
+             const arrayFields: (keyof SoxControl)[] = ['sistemasRelacionados', 'executorControle'];
+
+             if (arrayFields.includes(appKey as any)) {
                  value = typeof value === 'string' ? value.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
              } else if (booleanFields.includes(appKey as any)) {
                  value = parseSharePointBoolean(value);
@@ -127,18 +115,18 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
     
     try {
+        if (!readMapping) await buildAndCacheMappings();
+        
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-        const mapping = await getWriteMapping(); // Get the dynamic mapping
         
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items?expand=fields`)
             .get();
 
         if (response && response.value) {
-            // Use the mapping to correctly interpret the response
-            return response.value.map(item => mapSharePointItemToSoxControl(item, mapping));
+            return response.value.map(item => mapSharePointItemToSoxControl(item, readMapping!));
         }
         return [];
     } catch (error) {
@@ -147,74 +135,54 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
 };
 
-export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<SoxControl> => {
+export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
       throw new Error("SharePoint site URL or list name is not configured.");
+    }
+    if (!writeMapping) {
+        await buildAndCacheMappings();
     }
 
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
   
-    const writeMapping = await getWriteMapping();
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // STRATEGY: Iterate over the KNOWN, VALID fields from our mapping.
-    // Do NOT iterate over the `controlData` object from the client.
-    for (const appKey in writeMapping) {
-      const spInternalName = (writeMapping as any)[appKey];
-      
-      if (spInternalName) {
-        const value = (controlData as any)[appKey];
-        
+    // STRATEGY: Iterate over the KNOWN display names from our write mapping.
+    // This ensures we only try to write to fields we know about.
+    for (const displayName in writeMapping!) {
+        const internalName = writeMapping![displayName];
+        const value = rowData[displayName];
+
         if (value === undefined || value === null || String(value).trim() === '') {
-          fieldsToCreate[spInternalName] = null; 
-        } else if (Array.isArray(value)) {
-          fieldsToCreate[spInternalName] = value.join('; ');
-        } else if (typeof value === 'boolean') {
-          // Send boolean as 'Sim'/'Não' as text fields are expected
-          fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
-        } else if (value instanceof Date) {
-          // Format as dd/MM/yyyy to be safe with locale
-          const day = String(value.getDate()).padStart(2, '0');
-          const month = String(value.getMonth() + 1).padStart(2, '0');
-          const year = value.getFullYear();
-          fieldsToCreate[spInternalName] = `${day}/${month}/${year}`;
+          fieldsToCreate[internalName] = null;
         } else {
-          fieldsToCreate[spInternalName] = String(value);
+          fieldsToCreate[internalName] = String(value);
         }
-      }
     }
-    
-    const newItem = {
-        fields: fieldsToCreate
-    };
+
+    const newItem = { fields: fieldsToCreate };
   
     try {
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .post(newItem);
-        return mapSharePointItemToSoxControl(response, writeMapping);
+        return response;
     } catch (error: any) {
         console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
     
         let detailedMessage = 'Um erro desconhecido ocorreu.';
-        
-        try {
-             if (error.body) {
+        if (error.body) {
+            try {
                 const errorBody = JSON.parse(error.body);
                 if (errorBody.error && errorBody.error.message) {
                     detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
-                } else {
-                    detailedMessage = `SharePoint Error: ${error.body}`;
                 }
-            } else {
-                detailedMessage = `General Error: ${JSON.stringify(error)}`;
+            } catch (e) {
+                detailedMessage = `Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada: ${error.body}`;
             }
-        } catch (stringifyError) {
-             detailedMessage = "Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada.";
         }
-
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
           parsedErrorMessage: detailedMessage,
@@ -225,21 +193,30 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
 };
 
 
-export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Promise<{ controlsAdded: number; errors: { controlId?: string; message: string }[] }> => {
+export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): Promise<{ controlsAdded: number; errors: { controlId?: string; message: string }[] }> => {
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
-    for (const control of controls) {
+    if (!writeMapping) {
+        await buildAndCacheMappings();
+    }
+    
+    for (const row of controls) {
+        // Use display names from our mapping to identify the control in error messages
+        const controlIdDisplayName = appToSpDisplayNameMapping.controlId!;
+        const controlNameDisplayName = appToSpDisplayNameMapping.controlName!;
+        const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'ID Desconhecido';
+
         try {
-            if (control.controlName || control.controlId) {
-                await addSoxControl(control);
+            if (controlIdentifier !== 'ID Desconhecido') {
+                await addSoxControl(row);
                 controlsAdded++;
             } else {
                 errors.push({ controlId: 'Linha vazia', message: 'A linha parece estar vazia ou não possui um ID ou Nome de controle.' });
             }
         } catch (error: any) {
             errors.push({ 
-                controlId: control.controlId || control.controlName || 'ID Desconhecido', 
+                controlId: controlIdentifier, 
                 message: error.message || 'Um erro desconhecido ocorreu durante o processamento em lote.' 
             });
         }

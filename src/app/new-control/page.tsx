@@ -12,10 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { addSoxControlsInBulk } from '@/services/sox-service';
 import { appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
-import type { SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
-import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
 
 export default function NewControlPage() {
   const { toast } = useToast();
@@ -46,13 +44,6 @@ export default function NewControlPage() {
     );
   }
 
-  const excelHeaderToAppKey: { [key: string]: string } = {};
-  for(const key in appToSpDisplayNameMapping) {
-      const appKey = key as keyof SoxControl;
-      const excelHeader = (appToSpDisplayNameMapping as any)[appKey];
-      excelHeaderToAppKey[excelHeader] = appKey;
-  }
-  
   const handleDownloadTemplate = async () => {
     setIsDownloading(true);
     toast({ title: "Preparando download...", description: "Gerando o template com os cabeçalhos." });
@@ -98,34 +89,9 @@ export default function NewControlPage() {
         const worksheet = workbook.Sheets[sheetName];
         const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
-        const controlsToCreate: Partial<SoxControl>[] = [];
-        for (const row of jsonFromSheet) {
-          const mappedRow: Partial<SoxControl> = {};
-          for (const excelHeader in row) {
-            if (Object.prototype.hasOwnProperty.call(excelHeaderToAppKey, excelHeader)) {
-              const appKey = excelHeaderToAppKey[excelHeader] as keyof SoxControl;
-              const rawValue = row[excelHeader];
-              
-              const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-              if (booleanFields.includes(appKey)) {
-                (mappedRow as any)[appKey] = parseSharePointBoolean(rawValue);
-              } 
-              else if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
-                 (mappedRow as any)[appKey] = typeof rawValue === 'string' ? String(rawValue).split(/[,;]/).map(s => s.trim()) : [];
-              }
-              else {
-                (mappedRow as any)[appKey] = rawValue;
-              }
-            }
-          }
-          
-          if (mappedRow.controlId || mappedRow.controlName) {
-            controlsToCreate.push(mappedRow);
-          }
-        }
-        
-        if (controlsToCreate.length > 0) {
-            const { controlsAdded, errors } = await addSoxControlsInBulk(controlsToCreate);
+        if (jsonFromSheet.length > 0) {
+            // Pass raw JSON data directly to the server. The server will handle all mapping.
+            const { controlsAdded, errors } = await addSoxControlsInBulk(jsonFromSheet);
 
             if (errors.length > 0) {
                 const firstError = errors[0];
