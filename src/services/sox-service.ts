@@ -17,11 +17,13 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
-// Cache for the dynamically generated mapping.
+// Cache for the dynamically generated mapping from appKey -> spInternalName
 let dynamicSpFieldMapping: { [key: string]: string } | null = null;
 
 /**
- * Fetches column definitions from SharePoint and builds a dynamic mapping.
+ * Fetches column definitions from SharePoint and builds a dynamic mapping
+ * from our application's keys (e.g., 'controlName') to SharePoint's internal
+ * field names (e.g., 'Nome_x0020_do_x0020_Controle').
  */
 const buildAndCacheDynamicMapping = async (): Promise<void> => {
     if (dynamicSpFieldMapping) return;
@@ -46,10 +48,12 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
         const newMapping: { [key: string]: string } = {};
         const spDisplayNameToInternalNameMap: { [key: string]: string } = {};
 
+        // First, create a map of Display Name -> Internal Name from the SharePoint response
         for (const column of spColumns) {
             spDisplayNameToInternalNameMap[column.displayName] = column.name;
         }
 
+        // Then, build our final mapping from App Key -> Internal Name
         for (const appKey in appToSpDisplayNameMapping) {
             const displayName = (appToSpDisplayNameMapping as any)[appKey];
             const internalName = spDisplayNameToInternalNameMap[displayName];
@@ -57,11 +61,12 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
             if (internalName) {
                 (newMapping as any)[appKey] = internalName;
             } else {
-                 console.warn(`Could not find a mapping for display name: '${displayName}'. Skipping this field.`);
+                 console.warn(`Could not find a SharePoint column with display name: '${displayName}'. Skipping this field for writes.`);
             }
         }
         
-        // Explicitly force the mapping for 'codigoAnterior' to the correct writable field 'Title'
+        // The user confirmed "Cód Controle ANTERIOR" is the Title field.
+        // The internal name for the Title field is always "Title".
         newMapping.codigoAnterior = 'Title';
         
         dynamicSpFieldMapping = newMapping;
@@ -71,6 +76,9 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
     }
 };
 
+/**
+ * Returns the cached dynamic mapping, building it if it doesn't exist.
+ */
 const getWriteMapping = async () => {
     if (!dynamicSpFieldMapping) {
         await buildAndCacheDynamicMapping();
@@ -79,8 +87,9 @@ const getWriteMapping = async () => {
 };
 
 // Helper to map SharePoint list item to our typed SoxControl
-const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => {
+const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     const spFields = item.fields;
+    if (!spFields) return {} as SoxControl;
 
     const soxControl: Partial<SoxControl> = {
         id: item.id,
@@ -88,7 +97,7 @@ const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => 
         lastUpdated: item.lastModifiedDateTime,
     };
     
-    // Iterate over OUR app's defined fields to prevent reading internal SP fields like DocIcon
+    // Iterate over OUR app's defined fields to prevent reading internal SP fields
     for (const appKey in appToSpDisplayNameMapping) {
         const displayName = (appToSpDisplayNameMapping as any)[appKey];
         const spValue = spFields[displayName];
@@ -104,11 +113,6 @@ const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => 
              }
              (soxControl as any)[appKey] = value;
         }
-    }
-    
-    // Explicitly handle the 'Title' field for 'codigoAnterior' since it's special
-    if (spFields.Title) {
-        soxControl.codigoAnterior = spFields.Title;
     }
 
     return soxControl as SoxControl;
@@ -129,26 +133,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             .get();
 
         if (response && response.value) {
-            // Mapping now happens inside this function
-            const mappedControls = response.value.map((item: any) => {
-                 const spFields = item.fields;
-                 const soxControl: Partial<SoxControl> = { id: item.id };
-                 for (const appKey in appToSpDisplayNameMapping) {
-                    const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
-                    if (Object.prototype.hasOwnProperty.call(spFields, spDisplayName)) {
-                         let value = spFields[spDisplayName];
-                         const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-                         if (booleanFields.includes(appKey as any)) {
-                            value = parseSharePointBoolean(value);
-                         } else if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
-                            value = typeof value === 'string' ? value.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
-                         }
-                         (soxControl as any)[appKey] = value;
-                    }
-                 }
-                 return soxControl as SoxControl;
-            });
-            return mappedControls;
+            return response.value.map(mapSharePointItemToSoxControl);
         }
         return [];
     } catch (error) {
@@ -166,28 +151,25 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
   
+    const writeMapping = await getWriteMapping();
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // Use the definitive mapping to build the request body
-    for (const appKey in appToSpDisplayNameMapping) {
-        const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
+    // Use the dynamic mapping to build the request body with correct internal names
+    for (const appKey in controlData) {
+        const spInternalName = (writeMapping as any)[appKey];
         const value = (controlData as any)[appKey];
 
-        if (spDisplayName) {
-             if (value === null || value === undefined) {
-                fieldsToCreate[spDisplayName] = ""; // Send empty string for missing values
-            } 
-            else if (Array.isArray(value)) {
-                fieldsToCreate[spDisplayName] = value.join('; ');
-            } 
-            else if (typeof value === 'boolean') {
-                fieldsToCreate[spDisplayName] = value ? 'Sim' : 'Não';
-            }
-            else if (value instanceof Date) {
-                 fieldsToCreate[spDisplayName] = value.toLocaleDateString('pt-BR');
-            }
-            else {
-                fieldsToCreate[spDisplayName] = String(value);
+        if (spInternalName) {
+            if (value === null || value === undefined) {
+                fieldsToCreate[spInternalName] = null; // Use null to clear values
+            } else if (Array.isArray(value)) {
+                fieldsToCreate[spInternalName] = value.join('; ');
+            } else if (typeof value === 'boolean') {
+                fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
+            } else if (value instanceof Date) {
+                 fieldsToCreate[spInternalName] = value.toISOString(); // Use standard ISO 8601 format
+            } else {
+                fieldsToCreate[spInternalName] = String(value);
             }
         }
     }
@@ -200,7 +182,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .post(newItem);
-        return await mapSharePointItemToSoxControl(response);
+        return mapSharePointItemToSoxControl(response);
     } catch (error: any) {
         console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
     
@@ -330,6 +312,3 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
-
-
-    
