@@ -151,14 +151,16 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    for (const key in controlData) {
+    // Iterate over all known fields from the mapping, not just what's in controlData.
+    // This ensures a complete object is sent to SharePoint.
+    for (const key in spFieldMapping) {
         const appKey = key as keyof SoxControl;
         const spKey = (spFieldMapping as any)[appKey];
         const value = controlData[appKey];
 
         if (spKey) {
             if (value === null || value === undefined) {
-                fieldsToCreate[spKey] = "";
+                fieldsToCreate[spKey] = ""; // Send empty string for missing values
             } 
             else if (Array.isArray(value)) {
                 fieldsToCreate[spKey] = value.join('; ');
@@ -191,7 +193,9 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
             if (error.body) {
                 const errorDetails = JSON.parse(error.body);
                 const nestedError = errorDetails.error;
-                if (nestedError?.message) {
+                if (nestedError?.innerError?.message) {
+                    errorMessage = nestedError.innerError.message;
+                } else if (nestedError?.message) {
                     errorMessage = nestedError.message;
                 }
             } else if (error.message) {
@@ -309,3 +313,6 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
+
+
+    
