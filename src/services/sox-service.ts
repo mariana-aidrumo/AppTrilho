@@ -202,19 +202,19 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // Safer Loop: Iterate over our defined mapping, which is the "source of truth".
-    // This ensures we ONLY try to write to fields we know about and have defined.
-    // It automatically ignores any other columns that might be in the Excel file (like LinkTitle, DocIcon, etc.).
+    // CORRECTED LOGIC:
+    // Iterate over our defined mapping (the "source of truth"), not the Excel headers.
+    // This ensures we only process fields we know about and can write to.
     for (const appKey in appToSpDisplayNameMapping) {
-        // Find the corresponding SharePoint column details from our cached map
         const mapping = [...spColumnMap!.values()].find(m => m.displayName === (appToSpDisplayNameMapping as any)[appKey]);
 
-        // Check if the mapping exists and if the Excel data has this column
+        // Check if the mapping exists and if the Excel data has a column with this display name
         if (mapping && rowData.hasOwnProperty(mapping.displayName)) {
             const rawValue = rowData[mapping.displayName];
             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
 
             // Only add the field if it has a non-null value after formatting
+            // And use the correct SharePoint internal name
             if (formattedValue !== null) {
                 fieldsToCreate[mapping.internalName] = formattedValue;
             }
@@ -231,7 +231,6 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     } catch (error: any) {
         let detailedMessage = '';
 
-        // 1. Try to parse the modern graph error body (most common)
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
@@ -239,38 +238,30 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
                 if (mainError && mainError.message) {
                     detailedMessage = mainError.message;
                     if (mainError.innerError && mainError.innerError.message) {
-                        detailedMessage += ` | Detalhes: ${mainError.innerError.message}`;
+                        detailedMessage += ` | Details: ${mainError.innerError.message}`;
                     }
                 }
             } catch (e) {
-                // Ignore parsing errors, we'll try other methods
+                // Parsing failed, fallback below
             }
         }
 
-        // 2. If no message yet, try the top-level message property
         if (!detailedMessage && error.message) {
             detailedMessage = error.message;
         }
 
-        // 3. If still no message, stringify the whole error object for raw details
         if (!detailedMessage) {
             try {
-                // Avoid circular references and simplify the object for readability
                 const simpleError = {
                     statusCode: error.statusCode,
                     code: error.code,
                     requestId: error.requestId,
-                    body: error.body, // Include the raw body if it failed parsing
+                    body: error.body,
                 };
-                detailedMessage = `Erro não-padrão do SharePoint: ${JSON.stringify(simpleError)}`;
+                detailedMessage = `Non-standard SharePoint Error: ${JSON.stringify(simpleError)}`;
             } catch {
-                detailedMessage = "Ocorreu um erro do SharePoint que não pôde ser serializado para detalhes.";
+                detailedMessage = "An unknown SharePoint error occurred that could not be serialized.";
             }
-        }
-
-        // 4. Fallback if everything else fails
-        if (!detailedMessage) {
-            detailedMessage = 'Um erro desconhecido ocorreu na API do SharePoint.';
         }
 
         console.error("Full SharePoint Error Object:", error);
@@ -288,24 +279,21 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
-    // Ensure mappings are built before starting the loop
     if (!spColumnMap) {
         try {
             await buildAndCacheMappings();
         } catch (mappingError: any) {
-            errors.push({ controlId: 'Setup', message: `Falha ao inicializar: ${mappingError.message}`});
+            errors.push({ controlId: 'Setup', message: `Initialization failed: ${mappingError.message}`});
             return { controlsAdded, errors };
         }
     }
     
     for (const row of controls) {
-        // Use display names from our mapping to identify the control in error messages
         const controlIdDisplayName = appToSpDisplayNameMapping.controlId!;
         const controlNameDisplayName = appToSpDisplayNameMapping.controlName!;
-        const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'ID Desconhecido';
+        const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'Unknown ID';
 
         try {
-            // Skip rows that seem empty
             if (Object.values(row).every(val => val === null || String(val).trim() === '')) {
                 continue;
             }
@@ -314,7 +302,7 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
         } catch (error: any) {
             errors.push({ 
                 controlId: controlIdentifier, 
-                message: error.message || 'Um erro desconhecido ocorreu durante o processamento em lote.' 
+                message: error.message || 'An unknown error occurred during bulk processing.' 
             });
         }
     }
