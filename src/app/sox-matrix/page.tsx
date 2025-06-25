@@ -12,14 +12,14 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuChe
 import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
 import { getSoxControls, getChangeRequests, getFilterOptions } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 
-type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
+type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração';
 
 // This interface combines fields from SoxControl and ChangeRequest for the unified table.
 interface UnifiedTableItem extends Partial<SoxControl> {
@@ -53,6 +53,20 @@ const tableColumnsConfig = [
     { key: 'ownerOrRequester', label: 'Dono do Controle (Control owner)' },
 ];
 const LOCAL_STORAGE_KEY_VISIBLE_COLUMNS = 'visibleSoxMatrixColumns';
+const LOCAL_STORAGE_KEY_COLUMN_WIDTHS = 'soxMatrixColumnWidths';
+
+const DEFAULT_WIDTHS: Record<string, number> = {
+    previousDisplayId: 150,
+    processo: 150,
+    subProcesso: 180,
+    displayId: 150,
+    name: 300,
+    description: 350,
+    controlFrequency: 120,
+    modalidade: 120,
+    controlType: 100,
+    ownerOrRequester: 200,
+};
 
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
@@ -203,24 +217,43 @@ export default function SoxMatrixPage() {
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
+  // UI state
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  
+  // Refs for column resizing
+  const isResizing = useRef<string | null>(null);
+  const startX = useRef<number>(0);
+  const startWidth = useRef<number>(0);
+
 
   useEffect(() => {
     // Load column visibility from localStorage
     try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
-      // By default, make all columns visible
+      const storedVisibility = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
       const defaultVisible = new Set(tableColumnsConfig.map(c => c.label));
-      if (stored) {
-        setVisibleColumns(new Set(JSON.parse(stored)));
+      if (storedVisibility) {
+        setVisibleColumns(new Set(JSON.parse(storedVisibility)));
       } else {
         setVisibleColumns(defaultVisible);
         localStorage.setItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(Array.from(defaultVisible)));
       }
     } catch (e) {
       console.error("Failed to parse visible columns from localStorage", e);
-      // Fallback to all visible on error
       setVisibleColumns(new Set(tableColumnsConfig.map(c => c.label)));
+    }
+    
+    // Load column widths from localStorage
+    try {
+      const storedWidths = localStorage.getItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS);
+      if (storedWidths) {
+        setColumnWidths(JSON.parse(storedWidths));
+      } else {
+        setColumnWidths(DEFAULT_WIDTHS);
+      }
+    } catch (e) {
+      console.error("Failed to parse column widths from localStorage", e);
+      setColumnWidths(DEFAULT_WIDTHS);
     }
   }, []);
 
@@ -242,7 +275,6 @@ export default function SoxMatrixPage() {
         setN3Responsaveis(filtersData.n3Responsaveis);
       } catch (error) {
         console.error("Failed to load SOX Matrix data:", error);
-        // Optionally, show a toast notification for the error
       } finally {
         setIsLoading(false);
       }
@@ -253,7 +285,6 @@ export default function SoxMatrixPage() {
   const unifiedTableData = useMemo(() => {
     const items: UnifiedTableItem[] = [];
 
-    // Add active controls
     soxControls
       .filter(control => control.status === "Ativo")
       .forEach(control => {
@@ -269,7 +300,6 @@ export default function SoxMatrixPage() {
         });
       });
 
-    // Add pending change requests for existing controls
     changeRequests
       .filter(req => 
         (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") &&
@@ -277,17 +307,12 @@ export default function SoxMatrixPage() {
       )
       .forEach(req => {
         const controlDetails = soxControls.find(c => c.controlId === req.controlId);
-        
-        // Only show change requests for controls that exist in the current view
-        if (!controlDetails) {
-          return;
-        }
+        if (!controlDetails) return;
         
         const summaryOfChanges = Object.entries(req.changes)
           .map(([key, value]) => `${key}: ${value}`)
           .join('; ');
         
-        // Combine original control data with proposed changes to show a preview
         const combinedData = { ...controlDetails, ...req.changes };
 
         items.push({
@@ -295,10 +320,10 @@ export default function SoxMatrixPage() {
           key: `request-${req.id}`,
           originalId: req.id,
           itemType: 'Solicitação de Alteração',
-          previousDisplayId: controlDetails.controlId, // The old ID is the current control ID
-          displayId: req.changes.controlId || controlDetails.controlId, // Show proposed new ID if any
-          name: controlDetails.controlName, // Name doesn't change in the list view
-          ownerOrRequester: req.requestedBy, // The requester is the effective owner in this view
+          previousDisplayId: controlDetails.controlId,
+          displayId: req.changes.controlId || controlDetails.controlId,
+          name: controlDetails.controlName,
+          ownerOrRequester: req.requestedBy,
           requestDate: req.requestDate,
           summaryOfChanges: summaryOfChanges,
           comments: req.comments,
@@ -364,14 +389,57 @@ export default function SoxMatrixPage() {
     xlsx.writeFile(wb, "matriz_geral_controles.xlsx");
   };
 
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, columnKey: string) => {
+    isResizing.current = columnKey;
+    startX.current = e.clientX;
+    startWidth.current = columnWidths[columnKey] || DEFAULT_WIDTHS[columnKey];
+    e.preventDefault();
+
+    const handleMouseMove = (mouseEvent: MouseEvent) => {
+        if (!isResizing.current) return;
+        const width = startWidth.current + (mouseEvent.clientX - startX.current);
+        if (width > 50) { // Minimum width 50px
+            setColumnWidths(prev => ({ ...prev, [isResizing.current!]: width }));
+        }
+    };
+
+    const handleMouseUp = () => {
+        isResizing.current = null;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        // Persist to localStorage after resizing is done
+        setColumnWidths(currentWidths => {
+          localStorage.setItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS, JSON.stringify(currentWidths));
+          return currentWidths;
+        });
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [columnWidths]);
+
 
   const renderUnifiedTable = (items: UnifiedTableItem[]) => (
      <div className="rounded-md border mt-4 overflow-x-auto">
-      <Table>
+      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && (
+                <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key]}px` }} />
+            ))}
+            <col style={{ width: '100px' }} /> {/* For actions column */}
+        </colgroup>
         <TableHeader>
           <TableRow>
-            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && <TableHead key={col.key}>{col.label}</TableHead>)}
-            <TableHead className="text-right min-w-[100px]">Ações</TableHead>
+            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && (
+              <TableHead key={col.key} className="relative group/th select-none">
+                {col.label}
+                <div
+                  onMouseDown={(e) => handleMouseDown(e, col.key)}
+                  className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-border/50 opacity-0 group-hover/th:opacity-100 transition-opacity"
+                />
+              </TableHead>
+            ))}
+            <TableHead className="text-right min-w-[100px] select-none">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -385,10 +453,7 @@ export default function SoxMatrixPage() {
                 if (!visibleColumns.has(col.label)) return null;
                 const value = (item as any)[col.key];
 
-                let cellClassName = "";
-                if (col.key === 'name') cellClassName = "max-w-xs truncate";
-                if (col.key === 'description') cellClassName = "max-w-sm truncate";
-                if (col.key === 'displayId') cellClassName = "font-medium";
+                const cellClassName = "truncate"; // Always truncate
                 
                 return (
                     <TableCell key={col.key} className={cellClassName} title={typeof value === 'string' ? value : undefined}>
