@@ -19,12 +19,13 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 // Cache for the dynamically generated mapping.
 let dynamicSpFieldMapping: { [key: string]: string } | null = null;
-let reverseDynamicSpFieldMapping: { [key: string]: string } | null = null;
 
 /**
  * Fetches column definitions from SharePoint and builds a dynamic mapping.
  */
 const buildAndCacheDynamicMapping = async (): Promise<void> => {
+    if (dynamicSpFieldMapping) return;
+
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
     }
@@ -43,45 +44,27 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
 
         const spColumns = response.value;
         const newMapping: { [key: string]: string } = {};
-        const newReverseMapping: { [key: string]: string } = {};
         const spDisplayNameToInternalNameMap: { [key: string]: string } = {};
 
         for (const column of spColumns) {
             spDisplayNameToInternalNameMap[column.displayName] = column.name;
-            newReverseMapping[column.name] = column.displayName; // For reading data back
         }
 
-        // Build the final mapping from our app's keys to SharePoint's internal names
         for (const appKey in appToSpDisplayNameMapping) {
             const displayName = (appToSpDisplayNameMapping as any)[appKey];
-            
-            if (appKey === 'codigoAnterior') {
-                // Explicitly map 'codigoAnterior' to the 'Title' field for writing.
-                // This avoids using the read-only 'LinkTitle' field that SharePoint might associate with the display name.
-                (newMapping as any)[appKey] = 'Title';
-                continue;
-            }
-
             const internalName = spDisplayNameToInternalNameMap[displayName];
             
             if (internalName) {
                 (newMapping as any)[appKey] = internalName;
-            }
-            else {
+            } else {
                  console.warn(`Could not find a mapping for display name: '${displayName}'. Skipping this field.`);
             }
         }
         
+        // Explicitly force the mapping for 'codigoAnterior' to the correct writable field 'Title'
+        newMapping.codigoAnterior = 'Title';
+        
         dynamicSpFieldMapping = newMapping;
-        // Build the reverse map for reading data
-        const reverseMapForReading: { [key: string]: string } = {};
-        for(const appKey in newMapping) {
-            const internalName = (newMapping as any)[appKey];
-            reverseMapForReading[internalName] = appKey;
-        }
-        reverseDynamicSpFieldMapping = reverseMapForReading;
-
-
     } catch (error) {
         console.error("FATAL: Failed to build dynamic SharePoint mapping.", error);
         throw new Error("Could not initialize connection with SharePoint list schema.");
@@ -95,41 +78,41 @@ const getWriteMapping = async () => {
     return dynamicSpFieldMapping!;
 };
 
-const getReadMapping = async () => {
-    if(!reverseDynamicSpFieldMapping) {
-        await buildAndCacheDynamicMapping();
-    }
-    return reverseDynamicSpFieldMapping!;
-}
-
-
 // Helper to map SharePoint list item to our typed SoxControl
 const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => {
-  const fields = item.fields;
-  const readMapping = await getReadMapping();
-  
-  const soxControl: Partial<SoxControl> = {
-    id: item.id,
-    status: (fields.status as SoxControlStatus) || 'Ativo',
-    lastUpdated: item.lastModifiedDateTime,
-  };
+    const spFields = item.fields;
+    const writeMapping = await getWriteMapping();
 
-  for(const spKey in fields) {
-    const appKey = readMapping[spKey];
-    if (appKey) {
-        let value = fields[spKey];
-        const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+    const soxControl: Partial<SoxControl> = {
+        id: item.id,
+        status: (spFields.status as SoxControlStatus) || 'Ativo',
+        lastUpdated: item.lastModifiedDateTime,
+    };
+
+    // Iterate over our app's defined fields, not SharePoint's response fields.
+    // This prevents reading internal, read-only fields like 'DocIcon'.
+    for (const appKey in appToSpDisplayNameMapping) {
+        const spKey = writeMapping[appKey as keyof typeof writeMapping];
         
-        if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
-            value = typeof value === 'string' ? value.split(';').map(s => s.trim()) : [];
-        } else if (booleanFields.includes(appKey as any)) {
-            value = parseSharePointBoolean(value);
+        if (spKey && Object.prototype.hasOwnProperty.call(spFields, spKey)) {
+            let value = spFields[spKey];
+            const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+            
+            if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
+                value = typeof value === 'string' ? value.split(';').map(s => s.trim()).filter(Boolean) : [];
+            } else if (booleanFields.includes(appKey as any)) {
+                value = parseSharePointBoolean(value);
+            }
+            (soxControl as any)[appKey] = value;
         }
-        (soxControl as any)[appKey] = value;
     }
-  }
+    
+    // Explicitly handle the 'Title' field for 'codigoAnterior' since it's special
+    if (spFields.Title) {
+        soxControl.codigoAnterior = spFields.Title;
+    }
 
-  return soxControl as SoxControl;
+    return soxControl as SoxControl;
 };
 
 export const getSoxControls = async (): Promise<SoxControl[]> => {
@@ -174,7 +157,6 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
         const value = controlData[appKey];
 
         if (spKey) {
-            // All columns are multiline text, so we format everything as a string.
             if (value === null || value === undefined) {
                 fieldsToCreate[spKey] = "";
             } 
@@ -203,28 +185,23 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
             .post(newItem);
         return await mapSharePointItemToSoxControl(response);
     } catch (error: any) {
-        let errorMessage;
+        let errorMessage = 'Um erro desconhecido ocorreu.';
         
-        if (error.body) {
-            try {
+        try {
+            if (error.body) {
                 const errorDetails = JSON.parse(error.body);
                 const nestedError = errorDetails.error;
                 if (nestedError?.message) {
                     errorMessage = nestedError.message;
                 }
-            } catch (e) {
-                // Ignore parsing errors, fallback to other methods
+            } else if (error.message) {
+                 errorMessage = error.message;
             }
+        } catch (e) {
+            console.error("Could not parse SharePoint error response body:", error.body);
         }
         
-        if (!errorMessage && error.message) {
-            errorMessage = error.message;
-        }
-
-        if (!errorMessage) {
-            errorMessage = 'An unknown error occurred. Check server logs for the full error object.';
-            console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
-        }
+        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
 
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
