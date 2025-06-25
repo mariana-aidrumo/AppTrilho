@@ -115,17 +115,6 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
         }
     }
     
-    // The "Title" field in SharePoint is special. If it has been renamed, our mapping will handle it.
-    // If we want to ensure "Title" is always mapped to codigoAnterior, we can be more explicit here.
-    const codigoAnteriorMapping = [...spColumnMap.values()].find(m => m.displayName === "Cód Controle ANTERIOR");
-    if (codigoAnteriorMapping && spFields[codigoAnteriorMapping.internalName]) {
-        soxControl.codigoAnterior = spFields[codigoAnteriorMapping.internalName];
-    } else if (spFields.Title) {
-        // Fallback for safety, though the mapping should handle this.
-        soxControl.codigoAnterior = spFields.Title;
-    }
-
-
     return soxControl as SoxControl;
 };
 
@@ -202,25 +191,22 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // CORRECTED LOGIC:
-    // Iterate over our defined mapping (the "source of truth"), not the Excel headers.
-    // This ensures we only process fields we know about and can write to.
-    for (const appKey in appToSpDisplayNameMapping) {
-        const mapping = [...spColumnMap!.values()].find(m => m.displayName === (appToSpDisplayNameMapping as any)[appKey]);
+    // --- WHITELIST STRATEGY IMPLEMENTATION ---
+    // Iterate over our defined "source of truth" map (the whitelist), not the incoming Excel data keys.
+    for (const [appKey, { internalName, displayName, type }] of spColumnMap.entries()) {
+        // Check if the corresponding column (by display name) exists in the Excel row data.
+        if (rowData.hasOwnProperty(displayName)) {
+            const rawValue = rowData[displayName];
+            const formattedValue = formatValueForSharePoint(rawValue, type);
 
-        // Check if the mapping exists and if the Excel data has a column with this display name
-        if (mapping && rowData.hasOwnProperty(mapping.displayName)) {
-            const rawValue = rowData[mapping.displayName];
-            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
-
-            // Only add the field if it has a non-null value after formatting
-            // And use the correct SharePoint internal name
-            if (formattedValue !== null) {
-                fieldsToCreate[mapping.internalName] = formattedValue;
+            // Only add the field if it has a non-null value after formatting.
+            if (formattedValue !== null && formattedValue !== undefined && formattedValue !== '') {
+                // Use the correct SharePoint INTERNAL name for the payload.
+                fieldsToCreate[internalName] = formattedValue;
             }
         }
     }
-    
+  
     const newItem = { fields: fieldsToCreate };
   
     try {
@@ -230,46 +216,32 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
         return response;
     } catch (error: any) {
         let detailedMessage = '';
-
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
                 const mainError = errorBody.error;
-                if (mainError && mainError.message) {
+                if (mainError) {
                     detailedMessage = mainError.message;
                     if (mainError.innerError && mainError.innerError.message) {
                         detailedMessage += ` | Details: ${mainError.innerError.message}`;
                     }
+                    if (!detailedMessage && mainError.innerError) {
+                        detailedMessage = JSON.stringify(mainError.innerError);
+                    }
                 }
-            } catch (e) {
-                // Parsing failed, fallback below
-            }
+            } catch (e) { /* ignore parsing error */ }
         }
-
         if (!detailedMessage && error.message) {
             detailedMessage = error.message;
         }
-
         if (!detailedMessage) {
-            try {
-                const simpleError = {
-                    statusCode: error.statusCode,
-                    code: error.code,
-                    requestId: error.requestId,
-                    body: error.body,
-                };
-                detailedMessage = `Non-standard SharePoint Error: ${JSON.stringify(simpleError)}`;
-            } catch {
-                detailedMessage = "An unknown SharePoint error occurred that could not be serialized.";
-            }
+            detailedMessage = `An unknown SharePoint error occurred. Status: ${error.statusCode}. Body: ${error.body}`;
         }
-
-        console.error("Full SharePoint Error Object:", error);
+        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
         console.error("Error details sending to SharePoint:", {
-          itemSent: newItem,
-          parsedErrorMessage: detailedMessage,
+            itemSent: JSON.stringify(newItem, null, 2),
+            parsedErrorMessage: detailedMessage,
         });
-
         throw new Error(detailedMessage);
     }
 };
@@ -380,5 +352,3 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
-
-    
