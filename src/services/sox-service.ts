@@ -18,8 +18,8 @@ const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 // Caches for mappings
-let readMapping: { [key: string]: string } | null = null; // App Key -> SP Internal Name
-let writeMapping: { [key: string]: string } | null = null; // SP Display Name -> SP Internal Name
+let readMapping: { [key: string]: string } | null = null;
+let writeMapping: { [key: string]: string } | null = null;
 
 /**
  * Fetches column definitions from SharePoint and builds dynamic mappings for reading and writing.
@@ -63,9 +63,13 @@ const buildAndCacheMappings = async (): Promise<void> => {
             }
         }
         
-        // Handle the special case for the 'Title' field
-        newReadMapping.codigoAnterior = 'Title';
-        newWriteMapping['Cód Controle ANTERIOR'] = 'Title';
+        // Handle the special case for the 'Title' field which is mapped to 'codigoAnterior'
+        if(spDisplayNameToInternalNameMap['Cód Controle ANTERIOR']) {
+            newReadMapping.codigoAnterior = spDisplayNameToInternalNameMap['Cód Controle ANTERIOR'];
+        } else {
+            newReadMapping.codigoAnterior = 'Title'; // Fallback
+        }
+        newWriteMapping['Cód Controle ANTERIOR'] = newReadMapping.codigoAnterior;
         
         readMapping = newReadMapping;
         writeMapping = newWriteMapping;
@@ -88,6 +92,9 @@ const mapSharePointItemToSoxControl = (item: any, mapping: { [key: string]: stri
     };
     
     for (const appKey in appToSpDisplayNameMapping) {
+        // Skip keys that are not meant to be read directly or are handled specially
+        if (appKey === 'ipeAssertions' ) continue;
+
         const spInternalName = mapping[appKey];
         
         if (spInternalName && spFields[spInternalName] !== undefined) {
@@ -150,15 +157,20 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     const fieldsToCreate: { [key: string]: any } = {};
   
     // STRATEGY: Iterate over the KNOWN display names from our write mapping.
-    // This ensures we only try to write to fields we know about.
+    // This ensures we only try to write to fields we know about and are valid for creation.
     for (const displayName in writeMapping!) {
         const internalName = writeMapping![displayName];
         const value = rowData[displayName];
+        
+        // Don't try to write read-only system fields
+        if (['id', 'lastUpdated', 'status'].includes(internalName.toLowerCase())) {
+            continue;
+        }
 
         if (value === undefined || value === null || String(value).trim() === '') {
           fieldsToCreate[internalName] = null;
         } else {
-          fieldsToCreate[internalName] = String(value);
+          fieldsToCreate[internalName] = String(value); // Convert everything to string for safety
         }
     }
 
@@ -170,6 +182,7 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
+        // Robust error handling to extract the real message
         console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
     
         let detailedMessage = 'Um erro desconhecido ocorreu.';
@@ -180,9 +193,13 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
                     detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
                 }
             } catch (e) {
+                // If parsing fails, the body might just be a plain text message
                 detailedMessage = `Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada: ${error.body}`;
             }
+        } else if (error.message) {
+             detailedMessage = error.message;
         }
+        
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
           parsedErrorMessage: detailedMessage,
@@ -197,8 +214,14 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
+    // Ensure mappings are built before starting the loop
     if (!writeMapping) {
-        await buildAndCacheMappings();
+        try {
+            await buildAndCacheMappings();
+        } catch (mappingError: any) {
+            errors.push({ controlId: 'Setup', message: `Falha ao inicializar: ${mappingError.message}`});
+            return { controlsAdded, errors };
+        }
     }
     
     for (const row of controls) {
@@ -208,12 +231,12 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
         const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'ID Desconhecido';
 
         try {
-            if (controlIdentifier !== 'ID Desconhecido') {
-                await addSoxControl(row);
-                controlsAdded++;
-            } else {
-                errors.push({ controlId: 'Linha vazia', message: 'A linha parece estar vazia ou não possui um ID ou Nome de controle.' });
+            // Skip rows that seem empty
+            if (Object.values(row).every(val => val === null || val === '')) {
+                continue;
             }
+            await addSoxControl(row);
+            controlsAdded++;
         } catch (error: any) {
             errors.push({ 
                 controlId: controlIdentifier, 
