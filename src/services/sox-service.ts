@@ -215,34 +215,36 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
-        let detailedMessage = '';
-        if (error.body) {
+        // Log the full error on the server for complete diagnosis
+        console.error("--- SHAREPOINT API ERROR ---");
+        console.error("ITEM SENT:", JSON.stringify(newItem, null, 2));
+        console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
+        console.error("--- END OF ERROR ---");
+
+        // Attempt to extract the most specific message for the client
+        let clientMessage = "Ocorreu um erro desconhecido ao gravar no SharePoint.";
+
+        if (error?.body) {
             try {
                 const errorBody = JSON.parse(error.body);
-                const mainError = errorBody.error;
-                if (mainError) {
-                    detailedMessage = mainError.message;
-                    if (mainError.innerError && mainError.innerError.message) {
-                        detailedMessage += ` | Details: ${mainError.innerError.message}`;
-                    }
-                    if (!detailedMessage && mainError.innerError) {
-                        detailedMessage = JSON.stringify(mainError.innerError);
-                    }
+                // Ideal path: get the specific message
+                if (errorBody?.error?.message) {
+                    clientMessage = errorBody.error.message;
+                // Fallback: stringify the error object if message is not present
+                } else if (errorBody?.error) {
+                    clientMessage = JSON.stringify(errorBody.error);
                 }
-            } catch (e) { /* ignore parsing error */ }
+            } catch (e) {
+                // Fallback for non-JSON error responses
+                clientMessage = `Resposta de erro não-JSON do SharePoint: ${error.body}`;
+            }
+        } else if (error?.message) {
+            // Fallback for errors that are not from the Graph API response body
+            clientMessage = error.message;
         }
-        if (!detailedMessage && error.message) {
-            detailedMessage = error.message;
-        }
-        if (!detailedMessage) {
-            detailedMessage = `An unknown SharePoint error occurred. Status: ${error.statusCode}. Body: ${error.body}`;
-        }
-        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
-        console.error("Error details sending to SharePoint:", {
-            itemSent: JSON.stringify(newItem, null, 2),
-            parsedErrorMessage: detailedMessage,
-        });
-        throw new Error(detailedMessage);
+
+        // Always throw an error with the most detailed message we could find
+        throw new Error(clientMessage);
     }
 };
 
@@ -261,12 +263,19 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     }
     
     for (const row of controls) {
-        const controlIdDisplayName = appToSpDisplayNameMapping.controlId!;
-        const controlNameDisplayName = appToSpDisplayNameMapping.controlName!;
-        const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'Unknown ID';
+        const controlIdDisplayName = appToSpDisplayNameMapping.controlId;
+        const controlNameDisplayName = appToSpDisplayNameMapping.controlName;
+        
+        if (!controlIdDisplayName || !controlNameDisplayName) {
+             errors.push({ controlId: 'Configuração', message: 'Nomes de exibição para ID ou Nome do Controle não encontrados no appToSpDisplayNameMapping.' });
+             return { controlsAdded, errors };
+        }
+
+        const controlIdentifier = row[controlIdDisplayName] || row[controlNameDisplayName] || 'ID Desconhecido';
 
         try {
-            if (Object.values(row).every(val => val === null || String(val).trim() === '')) {
+            // Skip rows that are completely empty
+            if (Object.values(row).every(val => val === null || val === undefined || String(val).trim() === '')) {
                 continue;
             }
             await addSoxControl(row);
@@ -274,7 +283,7 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
         } catch (error: any) {
             errors.push({ 
                 controlId: controlIdentifier, 
-                message: error.message || 'An unknown error occurred during bulk processing.' 
+                message: error.message || 'Ocorreu um erro desconhecido durante o processamento em massa.' 
             });
         }
     }
