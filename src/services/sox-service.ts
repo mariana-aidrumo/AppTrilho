@@ -161,12 +161,12 @@ const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any 
             if (typeof value === 'number' && value > 1) {
                 const excelEpoch = new Date(1899, 11, 30);
                 const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-                return date.toISOString();
+                return date.toISOString().split('T')[0]; // Return YYYY-MM-DD
             }
              // Handle standard string dates
             const parsedDate = new Date(value);
             if (!isNaN(parsedDate.getTime())) {
-                return parsedDate.toISOString();
+                return parsedDate.toISOString().split('T')[0]; // Return YYYY-MM-DD
             }
             return null; // Invalid date
         case 'multiChoice':
@@ -195,13 +195,10 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // STRATEGY: Iterate over the KNOWN, MAPPED fields. This is the "allow-list".
-    // This ensures we only try to write to fields we know about and are valid for creation.
     for (const [appKey, mapping] of spColumnMap!.entries()) {
         const rawValue = rowData[mapping.displayName];
         const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
 
-        // Only add field if it has a non-null value after formatting
         if (formattedValue !== null) {
             fieldsToCreate[mapping.internalName] = formattedValue;
         }
@@ -215,24 +212,51 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
-        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
-    
-        let detailedMessage = 'Um erro desconhecido ocorreu.';
-        
-        // Attempt to parse modern Graph API error response
+        let detailedMessage = '';
+
+        // 1. Try to parse the modern graph error body (most common)
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
-                if (errorBody.error && errorBody.error.message) {
-                    detailedMessage = errorBody.error.message;
+                const mainError = errorBody.error;
+                if (mainError && mainError.message) {
+                    detailedMessage = mainError.message;
+                    if (mainError.innerError && mainError.innerError.message) {
+                        detailedMessage += ` | Detalhes: ${mainError.innerError.message}`;
+                    }
                 }
             } catch (e) {
-                detailedMessage = `Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada: ${error.body}`;
+                // Ignore parsing errors, we'll try other methods
             }
-        } else if (error.message) {
-             detailedMessage = error.message;
         }
-        
+
+        // 2. If no message yet, try the top-level message property
+        if (!detailedMessage && error.message) {
+            detailedMessage = error.message;
+        }
+
+        // 3. If still no message, stringify the whole error object for raw details
+        if (!detailedMessage) {
+            try {
+                // Avoid circular references and simplify the object for readability
+                const simpleError = {
+                    statusCode: error.statusCode,
+                    code: error.code,
+                    requestId: error.requestId,
+                    body: error.body, // Include the raw body if it failed parsing
+                };
+                detailedMessage = `Erro não-padrão do SharePoint: ${JSON.stringify(simpleError)}`;
+            } catch {
+                detailedMessage = "Ocorreu um erro do SharePoint que não pôde ser serializado para detalhes.";
+            }
+        }
+
+        // 4. Fallback if everything else fails
+        if (!detailedMessage) {
+            detailedMessage = 'Um erro desconhecido ocorreu na API do SharePoint.';
+        }
+
+        console.error("Full SharePoint Error Object:", error);
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
           parsedErrorMessage: detailedMessage,
@@ -265,7 +289,7 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
 
         try {
             // Skip rows that seem empty
-            if (Object.values(row).every(val => val === null || val === '')) {
+            if (Object.values(row).every(val => val === null || String(val).trim() === '')) {
                 continue;
             }
             await addSoxControl(row);
