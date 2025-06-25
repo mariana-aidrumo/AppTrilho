@@ -71,6 +71,10 @@ const buildAndCacheMappings = async (): Promise<void> => {
         }
 
         for (const column of spColumns) {
+            // Ignore hidden and read-only fields from the start
+            if (column.hidden || column.readOnly) {
+                continue;
+            }
             const appKey = displayNameToAppKeyMap[column.displayName];
             if (appKey) {
                 newColumnMap.set(appKey, {
@@ -194,29 +198,29 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
 
-    // The 'Whitelist' approach: Iterate over OUR list of known, valid fields.
-    // This is the source of truth, not the Excel file.
-    for (const appKey of Object.keys(appToSpDisplayNameMapping)) {
+    // The definitive "Whitelist" approach.
+    // Iterate over our known, safe list of fields, and pull data from the Excel row.
+    for (const appKey in appToSpDisplayNameMapping) {
         const mapping = spColumnMap.get(appKey);
+        // Get the expected column header name from our mapping
         const displayName = (appToSpDisplayNameMapping as any)[appKey];
 
-        // Ensure we have a mapping for this field and the Excel file has this column.
+        // Check if a mapping exists for this field AND if the Excel file has this column header
         if (mapping && rowData.hasOwnProperty(displayName)) {
             const rawValue = rowData[displayName];
             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
             
-            // Only add the field if it has a meaningful value after formatting.
+            // Only add the field if it has a meaningful value after formatting
             if (formattedValue !== null && formattedValue !== undefined && String(formattedValue).trim() !== '') {
+                // Use the SharePoint internal name for the field
                 fieldsToCreate[mapping.internalName] = formattedValue;
             }
         }
     }
   
-    // Check if we have any data to send. If not, maybe the Excel was empty or headers didn't match.
+    // Check if we have any data to send.
     if (Object.keys(fieldsToCreate).length === 0) {
-        // This can be treated as a success (skipping an empty row) or a specific error.
-        // Let's treat it as skipping an empty row. The bulk function already handles this.
-        return { message: "No valid data found in row to create an item." }; 
+        throw new Error("Nenhum dado válido encontrado na linha do Excel. Verifique se os cabeçalhos das colunas correspondem ao template.");
     }
   
     const newItem = { fields: fieldsToCreate };
@@ -246,8 +250,8 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
 
         console.error("--- DETAILED SHAREPOINT API ERROR ---");
         console.error("TIMESTAMP:", new Date().toISOString());
-        console.error("ITEM SENT:", JSON.stringify(newItem, null, 2));
-        console.error("ERROR OBJECT:", JSON.stringify(error, null, 2));
+        console.error("ITEM SENT TO SHAREPOINT:", JSON.stringify(newItem, null, 2));
+        console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
         console.error("--- END OF DETAILED ERROR ---");
 
         throw new Error(detailedMessage);
