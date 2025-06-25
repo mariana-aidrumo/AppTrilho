@@ -10,54 +10,12 @@ import {
   mockNotifications,
   mockVersionHistory,
 } from '@/data/mock-data';
-import { parseSharePointBoolean } from '@/lib/sharepoint-utils';
+import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
 
 // --- SharePoint Integration ---
 
 const { SHAREPOINT_SITE_URL } = process.env;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
-
-// This is the new "source of truth" mapping our internal SoxControl property names
-// to the EXACT SharePoint DISPLAY names. This will be used to build the dynamic map.
-export const appToSpDisplayNameMapping: { [key in keyof Partial<SoxControl>]: string } = {
-    codigoAnterior: "Cód Controle ANTERIOR",
-    matriz: "Matriz",
-    processo: "Processo",
-    subProcesso: "Sub-Processo",
-    riscoId: "Risco",
-    riscoDescricao: "Descrição do Risco",
-    riscoClassificacao: "Classificação do Risco",
-    controlId: "Codigo NOVO",
-    codigoCosan: "Codigo COSAN",
-    objetivoControle: "Objetivo do Controle",
-    controlName: "Nome do Controle",
-    description: "Descrição do controle ATUAL",
-    tipo: "Tipo",
-    controlFrequency: "Frequência",
-    modalidade: "Modalidade",
-    controlType: "P/D",
-    mrc: "MRC?",
-    evidenciaControle: "Evidência do controle",
-    implementacaoData: "Implementação Data",
-    dataUltimaAlteracao: "Data última alteração",
-    sistemasRelacionados: "Sistemas Relacionados",
-    transacoesTelasMenusCriticos: "Transações/Telas/Menus críticos",
-    aplicavelIPE: "Aplicável IPE?",
-    ipe_C: "C",
-    ipe_EO: "E/O",
-    ipe_VA: "V/A",
-    ipe_OR: "O/R",
-    ipe_PD: "P/D (IPE)",
-    responsavel: "Responsável",
-    controlOwner: "Dono do Controle (Control owner)",
-    executorControle: "Executor do Controle",
-    executadoPor: "Executado por",
-    n3Responsavel: "N3 Responsável",
-    area: "Área",
-    vpResponsavel: "VP Responsável",
-    impactoMalhaSul: "Impacto Malha Sul",
-    sistemaArmazenamento: "Sistema Armazenamento",
-};
 
 // Cache for the dynamically generated mapping.
 let dynamicSpFieldMapping: { [key: string]: string } | null = null;
