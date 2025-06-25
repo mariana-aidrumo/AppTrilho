@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addSoxControlsInBulk } from '@/services/sox-service';
-import { appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
+import { addSoxControlsInBulk, getSharePointColumnHeaders } from '@/services/sox-service';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
 
@@ -45,11 +44,10 @@ export default function NewControlPage() {
 
   const handleDownloadTemplate = async () => {
     setIsDownloading(true);
-    toast({ title: "Preparando download...", description: "Gerando o template com os cabeçalhos." });
+    toast({ title: "Preparando download...", description: "Buscando os cabeçalhos mais recentes do SharePoint." });
     try {
-      // The source of truth for headers is our explicit mapping object.
-      // This ensures no system fields from SharePoint can contaminate the template.
-      const headers = Object.values(appToSpDisplayNameMapping);
+      // Dynamically fetch the current headers from SharePoint
+      const headers = await getSharePointColumnHeaders();
       
       // Create a worksheet with only the headers by passing an empty array of data.
       const ws = xlsx.utils.json_to_sheet([], { header: headers });
@@ -61,7 +59,8 @@ export default function NewControlPage() {
       toast({ title: "Template Gerado!", description: "O template para importação foi exportado com sucesso." });
     } catch (error) {
       console.error("Failed to download template file:", error);
-      toast({ title: "Erro no Download", description: "Não foi possível gerar o arquivo de template.", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "Não foi possível gerar o arquivo de template.";
+      toast({ title: "Erro no Download", description: errorMessage, variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }

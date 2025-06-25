@@ -300,6 +300,30 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     return { controlsAdded, errors };
 };
 
+export const getSharePointColumnHeaders = async (): Promise<string[]> => {
+    if (!spColumnMap) {
+        await buildAndCacheMappings();
+    }
+    if (!spColumnMap) {
+        // This should not happen if buildAndCacheMappings is successful
+        throw new Error("Não foi possível inicializar os mapeamentos de coluna do SharePoint.");
+    }
+
+    // To maintain a consistent order, we iterate through our source-of-truth mapping object keys
+    const orderedDisplayNames: string[] = [];
+    for (const appKey in appToSpDisplayNameMapping) {
+        const mapping = spColumnMap.get(appKey);
+        if (mapping) {
+            orderedDisplayNames.push(mapping.displayName);
+        }
+    }
+    
+    // This will return the current display names from SharePoint for the columns we manage,
+    // in the order we defined them. This is exactly what is needed.
+    return orderedDisplayNames;
+};
+
+
 export const getFilterOptions = async () => {
     const controls = await getSoxControls();
     
@@ -371,5 +395,3 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
-
-    
