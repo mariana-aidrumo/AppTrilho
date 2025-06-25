@@ -1,4 +1,3 @@
-
 // src/app/sox-matrix/page.tsx
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect } from "react";
@@ -39,6 +39,20 @@ interface UnifiedTableItem extends Partial<SoxControl> {
   comments?: string;
   adminFeedback?: string;
 }
+
+const tableColumnsConfig = [
+    { key: 'previousDisplayId', label: 'Cód Controle ANTERIOR' },
+    { key: 'processo', label: 'Processo' },
+    { key: 'subProcesso', label: 'Sub-Processo' },
+    { key: 'displayId', label: 'Código NOVO' },
+    { key: 'name', label: 'Nome do Controle' },
+    { key: 'description', label: 'Descrição do controle ATUAL' },
+    { key: 'controlFrequency', label: 'Frequência' },
+    { key: 'modalidade', label: 'Modalidade' },
+    { key: 'controlType', label: 'P/D' },
+    { key: 'ownerOrRequester', label: 'Dono do Controle (Control owner)' },
+];
+const LOCAL_STORAGE_KEY_VISIBLE_COLUMNS = 'visibleSoxMatrixColumns';
 
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
@@ -189,6 +203,27 @@ export default function SoxMatrixPage() {
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Load column visibility from localStorage
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
+      // By default, make all columns visible
+      const defaultVisible = new Set(tableColumnsConfig.map(c => c.label));
+      if (stored) {
+        setVisibleColumns(new Set(JSON.parse(stored)));
+      } else {
+        setVisibleColumns(defaultVisible);
+        localStorage.setItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(Array.from(defaultVisible)));
+      }
+    } catch (e) {
+      console.error("Failed to parse visible columns from localStorage", e);
+      // Fallback to all visible on error
+      setVisibleColumns(new Set(tableColumnsConfig.map(c => c.label)));
+    }
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -335,17 +370,8 @@ export default function SoxMatrixPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Cód Controle ANTERIOR</TableHead>
-            <TableHead>Processo</TableHead>
-            <TableHead>Sub-Processo</TableHead>
-            <TableHead>Código NOVO</TableHead>
-            <TableHead>Nome do Controle</TableHead>
-            <TableHead>Descrição do controle ATUAL</TableHead>
-            <TableHead>Frequência</TableHead>
-            <TableHead>Modalidade</TableHead>
-            <TableHead>P/D</TableHead>
-            <TableHead>Dono do Controle (Control owner)</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
+            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && <TableHead key={col.key}>{col.label}</TableHead>)}
+            <TableHead className="text-right min-w-[100px]">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -355,16 +381,21 @@ export default function SoxMatrixPage() {
               onClick={() => handleViewDetails(item)}
               className="cursor-pointer"
             >
-              <TableCell>{item.previousDisplayId || "N/A"}</TableCell>
-              <TableCell>{item.processo || "N/A"}</TableCell>
-              <TableCell>{item.subProcesso || "N/A"}</TableCell>
-              <TableCell className="font-medium">{item.displayId}</TableCell>
-              <TableCell className="max-w-xs truncate" title={item.name}>{item.name}</TableCell>
-              <TableCell className="max-w-sm truncate" title={item.description}>{item.description || "N/A"}</TableCell>
-              <TableCell>{item.controlFrequency || "N/A"}</TableCell>
-              <TableCell>{item.modalidade || "N/A"}</TableCell>
-              <TableCell>{item.controlType || "N/A"}</TableCell>
-              <TableCell>{item.ownerOrRequester}</TableCell>
+             {tableColumnsConfig.map(col => {
+                if (!visibleColumns.has(col.label)) return null;
+                const value = (item as any)[col.key];
+
+                let cellClassName = "";
+                if (col.key === 'name') cellClassName = "max-w-xs truncate";
+                if (col.key === 'description') cellClassName = "max-w-sm truncate";
+                if (col.key === 'displayId') cellClassName = "font-medium";
+                
+                return (
+                    <TableCell key={col.key} className={cellClassName} title={typeof value === 'string' ? value : undefined}>
+                        {value || "N/A"}
+                    </TableCell>
+                );
+            })}
               <TableCell className="text-right">
                 <Button
                   variant="ghost"
@@ -469,6 +500,46 @@ export default function SoxMatrixPage() {
     );
   }
 
+  const renderTableActions = () => (
+    <div className="flex items-center gap-2">
+      <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Exibir Colunas
+              </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[250px]">
+              <DropdownMenuLabel>Alternar visibilidade das colunas</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {tableColumnsConfig.map(column => (
+                  <DropdownMenuCheckboxItem
+                      key={column.key}
+                      checked={visibleColumns.has(column.label)}
+                      onCheckedChange={(value) => {
+                          const newVisibleColumns = new Set(visibleColumns);
+                          if (value) {
+                              newVisibleColumns.add(column.label);
+                          } else {
+                              newVisibleColumns.delete(column.label);
+                          }
+                          setVisibleColumns(newVisibleColumns);
+                          localStorage.setItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(Array.from(newVisibleColumns)));
+                      }}
+                  >
+                      {column.label}
+                  </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Button variant="default" onClick={() => handleExtractXlsx(unifiedTableData)} disabled={unifiedTableData.length === 0}>
+        <Download className="mr-2 h-4 w-4" /> Extrair matriz
+      </Button>
+    </div>
+  );
+
+
   return (
     <div className="space-y-6 w-full">
       {currentUser.activeProfile === "Administrador de Controles Internos" && (
@@ -530,9 +601,7 @@ export default function SoxMatrixPage() {
                     Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
                   </CardDescription>
                 </div>
-                <Button variant="default" onClick={() => handleExtractXlsx(unifiedTableData)} disabled={unifiedTableData.length === 0}>
-                  <Download className="mr-2 h-4 w-4" /> Extrair matriz
-                </Button>
+                {renderTableActions()}
               </CardHeader>
               <CardContent>
                 {renderUnifiedTable(unifiedTableData)}
@@ -600,9 +669,7 @@ export default function SoxMatrixPage() {
                     Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
                   </CardDescription>
                 </div>
-                <Button variant="default" onClick={() => handleExtractXlsx(unifiedTableData)} disabled={unifiedTableData.length === 0}>
-                  <Download className="mr-2 h-4 w-4" /> Extrair matriz
-                </Button>
+                {renderTableActions()}
               </CardHeader>
               <CardContent>
                 {renderUnifiedTable(unifiedTableData)}
