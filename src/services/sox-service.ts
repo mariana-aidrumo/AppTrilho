@@ -23,7 +23,6 @@ let reverseDynamicSpFieldMapping: { [key: string]: string } | null = null;
 
 /**
  * Fetches column definitions from SharePoint and builds a dynamic mapping.
- * This is the core of the new creative solution.
  */
 const buildAndCacheDynamicMapping = async (): Promise<void> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -55,18 +54,18 @@ const buildAndCacheDynamicMapping = async (): Promise<void> => {
         // Build the final mapping from our app's keys to SharePoint's internal names
         for (const appKey in appToSpDisplayNameMapping) {
             const displayName = (appToSpDisplayNameMapping as any)[appKey];
+            
+            if (appKey === 'codigoAnterior') {
+                // Explicitly map 'codigoAnterior' to the 'Title' field for writing.
+                // This avoids using the read-only 'LinkTitle' field that SharePoint might associate with the display name.
+                (newMapping as any)[appKey] = 'Title';
+                continue;
+            }
+
             const internalName = spDisplayNameToInternalNameMap[displayName];
             
             if (internalName) {
                 (newMapping as any)[appKey] = internalName;
-            } else if (displayName === "Cód Controle ANTERIOR") {
-                // Special case for the Title field, whose display name might be customized.
-                const titleColumn = spColumns.find((c: any) => c.name === 'Title');
-                if (titleColumn) {
-                    (newMapping as any)[appKey] = 'Title';
-                } else {
-                     console.warn(`Could not find a mapping for display name: '${displayName}' (Title field).`);
-                }
             }
             else {
                  console.warn(`Could not find a mapping for display name: '${displayName}'. Skipping this field.`);
