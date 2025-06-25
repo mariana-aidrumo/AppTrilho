@@ -48,6 +48,26 @@ export default function SharePointConfigPage() {
     try {
         const data = await getSharePointColumnDetails();
         setColumns(data);
+        
+        // After fetching, initialize visibility from localStorage or default to all visible
+        try {
+            const storedVisible = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (storedVisible) {
+                setVisibleFields(new Set(JSON.parse(storedVisible)));
+            } else {
+                // Default to all visible if nothing is in storage
+                const allColumnDisplayNames = new Set(data.map(c => c.displayName));
+                setVisibleFields(allColumnDisplayNames);
+                // And save this default state to localStorage
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Array.from(allColumnDisplayNames)));
+            }
+        } catch (e) {
+            console.error("Failed to parse/set visibility config from localStorage", e);
+             // On error, fallback to all visible as well
+            const allColumnDisplayNames = new Set(data.map(c => c.displayName));
+            setVisibleFields(allColumnDisplayNames);
+        }
+
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Falha ao carregar colunas do SharePoint.";
         toast({ title: "Erro de Integração", description: errorMessage, variant: "destructive" });
@@ -57,18 +77,10 @@ export default function SharePointConfigPage() {
     }
   }, [toast]);
 
-  // Load columns and visibility configuration on mount
+  // Load columns on mount
   useEffect(() => {
     if (isUserAdmin()) {
         fetchColumns();
-        try {
-            const storedVisible = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (storedVisible) {
-                setVisibleFields(new Set(JSON.parse(storedVisible)));
-            }
-        } catch (e) {
-            console.error("Failed to parse visibility config from localStorage", e);
-        }
     } else {
       setIsLoading(false);
     }
@@ -211,7 +223,6 @@ export default function SharePointConfigPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome da Coluna</TableHead>
-                  <TableHead>Nome Interno (SharePoint)</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Mostrar nos Detalhes?</TableHead>
                 </TableRow>
@@ -220,7 +231,6 @@ export default function SharePointConfigPage() {
                 {columns.map(column => (
                   <TableRow key={column.internalName}>
                     <TableCell className="font-medium">{column.displayName}</TableCell>
-                    <TableCell className="text-muted-foreground">{column.internalName}</TableCell>
                     <TableCell className="capitalize">{column.type}</TableCell>
                     <TableCell className="text-right">
                        <Switch

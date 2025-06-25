@@ -289,7 +289,8 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         }
 
         const spColumns = response.value;
-        const systemColumnInternalNames = new Set(['ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
+        // The 'Title' column is special and often not needed for management. Filter it out along with other system columns.
+        const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
 
         const allColumns: SharePointColumn[] = spColumns
             .filter((column: any) => !column.hidden && !column.readOnly && !systemColumnInternalNames.has(column.name))
