@@ -154,24 +154,24 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const writeMapping = await getWriteMapping();
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // Use the dynamic mapping to build the request body with correct internal names
-    for (const appKey in controlData) {
-        const spInternalName = (writeMapping as any)[appKey];
+    // Iterate over all known SharePoint fields to ensure a complete object is sent.
+    for (const appKey in writeMapping) {
+      const spInternalName = (writeMapping as any)[appKey];
+      if (spInternalName) {
         const value = (controlData as any)[appKey];
-
-        if (spInternalName) {
-            if (value === null || value === undefined) {
-                fieldsToCreate[spInternalName] = null; // Use null to clear values
-            } else if (Array.isArray(value)) {
-                fieldsToCreate[spInternalName] = value.join('; ');
-            } else if (typeof value === 'boolean') {
-                fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
-            } else if (value instanceof Date) {
-                 fieldsToCreate[spInternalName] = value.toISOString(); // Use standard ISO 8601 format
-            } else {
-                fieldsToCreate[spInternalName] = String(value);
-            }
+        
+        if (value === null || value === undefined) {
+          fieldsToCreate[spInternalName] = null; // Send null for missing or empty values
+        } else if (Array.isArray(value)) {
+          fieldsToCreate[spInternalName] = value.join('; ');
+        } else if (typeof value === 'boolean') {
+          fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
+        } else if (value instanceof Date) {
+          fieldsToCreate[spInternalName] = value.toISOString();
+        } else {
+          fieldsToCreate[spInternalName] = String(value);
         }
+      }
     }
     
     const newItem = {
