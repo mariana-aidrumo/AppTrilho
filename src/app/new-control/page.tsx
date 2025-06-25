@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addSoxControlsInBulk, appToSpDisplayNameMapping, getSoxControls } from '@/services/sox-service';
+import { addSoxControlsInBulk, appToSpDisplayNameMapping } from '@/services/sox-service';
 import type { SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
@@ -54,44 +54,22 @@ export default function NewControlPage() {
   
   const handleDownloadTemplate = async () => {
     setIsDownloading(true);
-    toast({ title: "Preparando download...", description: "Buscando dados da matriz para gerar o arquivo." });
+    toast({ title: "Preparando download...", description: "Gerando o template com os cabeçalhos." });
     try {
-      const controls = await getSoxControls();
-      
       const orderedHeaders = Object.values(appToSpDisplayNameMapping);
-
-      const dataToExport = controls.map(control => {
-        const row: { [key: string]: any } = {};
-        for (const header of orderedHeaders) {
-          const appKey = excelHeaderToAppKey[header] as keyof SoxControl;
-          if (Object.prototype.hasOwnProperty.call(control, appKey)) {
-              const value = control[appKey];
-              
-              if (value === null || value === undefined) {
-                 row[header] = "";
-              } else if (Array.isArray(value)) {
-                row[header] = value.join('; ');
-              } else if (typeof value === 'boolean') {
-                row[header] = value ? 'Sim' : 'Não';
-              } else {
-                row[header] = value;
-              }
-          } else {
-            row[header] = "";
-          }
-        }
-        return row;
-      });
-
-      const ws = xlsx.utils.json_to_sheet(dataToExport, { header: orderedHeaders });
+      
+      // Create a worksheet with only the headers by passing an empty array of data
+      const ws = xlsx.utils.json_to_sheet([], { header: orderedHeaders });
+      
       const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "MatrizDeControles");
-      xlsx.writeFile(wb, "matriz_controles_completa.xlsx");
-      toast({ title: "Arquivo Gerado!", description: "A matriz de controles foi exportada com sucesso." });
+      xlsx.utils.book_append_sheet(wb, ws, "ModeloMatrizControles");
+      xlsx.writeFile(wb, "template_matriz_controles.xlsx");
+      
+      toast({ title: "Template Gerado!", description: "O template para importação foi exportado com sucesso." });
 
     } catch (error) {
-      console.error("Failed to download controls file:", error);
-      toast({ title: "Erro no Download", description: "Não foi possível gerar o arquivo com os controles.", variant: "destructive" });
+      console.error("Failed to download template file:", error);
+      toast({ title: "Erro no Download", description: "Não foi possível gerar o arquivo de template.", variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }
@@ -202,14 +180,14 @@ export default function NewControlPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar ou Atualizar Controles</CardTitle>
-          <CardDescription>Para adicionar ou atualizar controles em massa, baixe a matriz atual, edite-a no Excel e faça o upload do arquivo modificado.</CardDescription>
+          <CardTitle>Adicionar ou Atualizar Controles em Massa</CardTitle>
+          <CardDescription>Para adicionar ou atualizar controles, baixe o template com os cabeçalhos corretos, preencha-o no Excel e faça o upload do arquivo.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto" disabled={isDownloading}>
               {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Baixar Matriz Atual
+              Baixar Template
             </Button>
             <div className="flex-1">
               <Label htmlFor="excel-upload" className="sr-only">Upload Excel</Label>
