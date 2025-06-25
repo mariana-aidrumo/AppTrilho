@@ -47,7 +47,8 @@ export default function NewControlPage() {
     setIsDownloading(true);
     toast({ title: "Preparando download...", description: "Gerando o template com os cabeçalhos." });
     try {
-      // The source of truth for headers is the mapping object.
+      // The source of truth for headers is our explicit mapping object.
+      // This ensures no system fields from SharePoint can contaminate the template.
       const headers = Object.values(appToSpDisplayNameMapping);
       
       // Create a worksheet with only the headers by passing an empty array of data.
@@ -89,8 +90,8 @@ export default function NewControlPage() {
         const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
         if (jsonFromSheet.length > 0) {
-            // Serialize the data to ensure only plain objects are passed to the server function.
-            // This converts Date objects to ISO strings, a supported type, preventing errors.
+            // Serialize the data to ensure only plain objects (like strings) are passed to the server function.
+            // This prevents errors from complex objects like Dates created by the xlsx library.
             const plainObjects = JSON.parse(JSON.stringify(jsonFromSheet));
             const { controlsAdded, errors } = await addSoxControlsInBulk(plainObjects);
 

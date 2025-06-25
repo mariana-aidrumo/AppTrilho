@@ -101,6 +101,7 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
         lastUpdated: item.lastModifiedDateTime,
     };
     
+    // Iterate over our app's defined fields to ensure we only read what we expect.
     for (const [appKey, mapping] of spColumnMap.entries()) {
         const value = spFields[mapping.internalName];
         if (value !== undefined && value !== null) {
@@ -114,10 +115,16 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
         }
     }
     
-    // Manual override for complex fields if necessary in the future
-    if (spFields.Title) {
-      soxControl.codigoAnterior = spFields.Title;
+    // The "Title" field in SharePoint is special. If it has been renamed, our mapping will handle it.
+    // If we want to ensure "Title" is always mapped to codigoAnterior, we can be more explicit here.
+    const codigoAnteriorMapping = [...spColumnMap.values()].find(m => m.displayName === "Cód Controle ANTERIOR");
+    if (codigoAnteriorMapping && spFields[codigoAnteriorMapping.internalName]) {
+        soxControl.codigoAnterior = spFields[codigoAnteriorMapping.internalName];
+    } else if (spFields.Title) {
+        // Fallback for safety, though the mapping should handle this.
+        soxControl.codigoAnterior = spFields.Title;
     }
+
 
     return soxControl as SoxControl;
 };
@@ -195,12 +202,22 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    for (const [appKey, mapping] of spColumnMap!.entries()) {
-        const rawValue = rowData[mapping.displayName];
-        const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+    // Safer Loop: Iterate over our defined mapping, which is the "source of truth".
+    // This ensures we ONLY try to write to fields we know about and have defined.
+    // It automatically ignores any other columns that might be in the Excel file (like LinkTitle, DocIcon, etc.).
+    for (const appKey in appToSpDisplayNameMapping) {
+        // Find the corresponding SharePoint column details from our cached map
+        const mapping = [...spColumnMap!.values()].find(m => m.displayName === (appToSpDisplayNameMapping as any)[appKey]);
 
-        if (formattedValue !== null) {
-            fieldsToCreate[mapping.internalName] = formattedValue;
+        // Check if the mapping exists and if the Excel data has this column
+        if (mapping && rowData.hasOwnProperty(mapping.displayName)) {
+            const rawValue = rowData[mapping.displayName];
+            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+
+            // Only add the field if it has a non-null value after formatting
+            if (formattedValue !== null) {
+                fieldsToCreate[mapping.internalName] = formattedValue;
+            }
         }
     }
     
