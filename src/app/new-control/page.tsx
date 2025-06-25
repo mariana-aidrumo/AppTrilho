@@ -1,3 +1,4 @@
+
 // src/app/new-control/page.tsx
 "use client";
 
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addSoxControlsInBulk, appToSpDisplayNameMapping } from '@/services/sox-service';
+import { addSoxControlsInBulk, appToSpDisplayNameMapping, getSoxControls } from '@/services/sox-service';
 import type { SoxControl } from '@/types';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
@@ -20,6 +21,7 @@ export default function NewControlPage() {
   const { isUserAdmin } = useUserProfile();
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   if (!isUserAdmin()) {
     return (
@@ -43,25 +45,56 @@ export default function NewControlPage() {
     );
   }
 
-  // This mapping connects the app's internal SoxControl type properties to the Excel header names.
-  // It now uses the centralized mapping from the service as the source of truth.
-  const appKeyToExcelHeader: { [key: string]: string } = {};
   const excelHeaderToAppKey: { [key: string]: string } = {};
   for(const key in appToSpDisplayNameMapping) {
       const appKey = key as keyof SoxControl;
       const excelHeader = (appToSpDisplayNameMapping as any)[appKey];
-      appKeyToExcelHeader[appKey] = excelHeader;
       excelHeaderToAppKey[excelHeader] = appKey;
   }
   
-  const handleDownloadTemplate = () => {
-    // These headers MUST match the display names in SharePoint.
-    const orderedHeaders = Object.values(appToSpDisplayNameMapping);
-    const ws = xlsx.utils.json_to_sheet([{}], { header: orderedHeaders });
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, "ModeloControles");
-    xlsx.writeFile(wb, "modelo_controles.xlsx");
-    toast({ title: "Template Baixado", description: "Preencha o arquivo modelo_controles.xlsx e faça o upload." });
+  const handleDownloadTemplate = async () => {
+    setIsDownloading(true);
+    toast({ title: "Preparando download...", description: "Buscando dados da matriz para gerar o arquivo." });
+    try {
+      const controls = await getSoxControls();
+      
+      const orderedHeaders = Object.values(appToSpDisplayNameMapping);
+
+      const dataToExport = controls.map(control => {
+        const row: { [key: string]: any } = {};
+        for (const header of orderedHeaders) {
+          const appKey = excelHeaderToAppKey[header] as keyof SoxControl;
+          if (Object.prototype.hasOwnProperty.call(control, appKey)) {
+              const value = control[appKey];
+              
+              if (value === null || value === undefined) {
+                 row[header] = "";
+              } else if (Array.isArray(value)) {
+                row[header] = value.join('; ');
+              } else if (typeof value === 'boolean') {
+                row[header] = value ? 'Sim' : 'Não';
+              } else {
+                row[header] = value;
+              }
+          } else {
+            row[header] = "";
+          }
+        }
+        return row;
+      });
+
+      const ws = xlsx.utils.json_to_sheet(dataToExport, { header: orderedHeaders });
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, "MatrizDeControles");
+      xlsx.writeFile(wb, "matriz_controles_completa.xlsx");
+      toast({ title: "Arquivo Gerado!", description: "A matriz de controles foi exportada com sucesso." });
+
+    } catch (error) {
+      console.error("Failed to download controls file:", error);
+      toast({ title: "Erro no Download", description: "Não foi possível gerar o arquivo com os controles.", variant: "destructive" });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,16 +127,13 @@ export default function NewControlPage() {
               const appKey = excelHeaderToAppKey[excelHeader] as keyof SoxControl;
               const rawValue = row[excelHeader];
               
-              // Parse boolean-like fields consistently
               const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
               if (booleanFields.includes(appKey)) {
                 (mappedRow as any)[appKey] = parseSharePointBoolean(rawValue);
               } 
-              // Parse array-like fields
               else if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
                  (mappedRow as any)[appKey] = typeof rawValue === 'string' ? String(rawValue).split(/[,;]/).map(s => s.trim()) : [];
               }
-              // Keep other values as they are (string, number, date)
               else {
                 (mappedRow as any)[appKey] = rawValue;
               }
@@ -172,14 +202,14 @@ export default function NewControlPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar Novos Controles</CardTitle>
-          <CardDescription>Para adicionar controles, baixe o modelo, preencha e faça o upload.</CardDescription>
+          <CardTitle>Adicionar ou Atualizar Controles</CardTitle>
+          <CardDescription>Para adicionar ou atualizar controles em massa, baixe a matriz atual, edite-a no Excel e faça o upload do arquivo modificado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto">
-              <Download className="mr-2 h-4 w-4" />
-              Baixar Modelo Excel
+            <Button onClick={handleDownloadTemplate} variant="secondary" className="w-full sm:w-auto" disabled={isDownloading}>
+              {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Baixar Matriz Atual
             </Button>
             <div className="flex-1">
               <Label htmlFor="excel-upload" className="sr-only">Upload Excel</Label>
