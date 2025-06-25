@@ -57,17 +57,17 @@ export default function NewControlPage() {
     setIsDownloading(true);
     toast({ title: "Preparando download...", description: "Gerando o template com os cabeçalhos." });
     try {
-      const orderedHeaders = Object.values(appToSpDisplayNameMapping);
+      // The source of truth for headers is the mapping object.
+      const headers = Object.values(appToSpDisplayNameMapping);
       
-      // Create a worksheet with only the headers by passing an empty array of data
-      const ws = xlsx.utils.json_to_sheet([], { header: orderedHeaders });
-      
+      // Create a worksheet with only the headers by passing an empty array of data.
+      const ws = xlsx.utils.json_to_sheet([], { header: headers });
       const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "ModeloMatrizControles");
-      xlsx.writeFile(wb, "template_matriz_controles.xlsx");
+      xlsx.utils.book_append_sheet(wb, ws, "ModeloImportacaoControles");
+      
+      xlsx.writeFile(wb, "template_importacao_controles.xlsx");
       
       toast({ title: "Template Gerado!", description: "O template para importação foi exportado com sucesso." });
-
     } catch (error) {
       console.error("Failed to download template file:", error);
       toast({ title: "Erro no Download", description: "Não foi possível gerar o arquivo de template.", variant: "destructive" });
@@ -181,8 +181,8 @@ export default function NewControlPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar ou Atualizar Controles em Massa</CardTitle>
-          <CardDescription>Para adicionar ou atualizar controles, baixe o template com os cabeçalhos corretos, preencha-o no Excel e faça o upload do arquivo.</CardDescription>
+          <CardTitle>Adicionar Controles em Massa</CardTitle>
+          <CardDescription>Para adicionar novos controles, baixe o template com os cabeçalhos corretos, preencha-o no Excel e faça o upload do arquivo.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">

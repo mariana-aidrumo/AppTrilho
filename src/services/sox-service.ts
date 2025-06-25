@@ -159,25 +159,27 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const writeMapping = await getWriteMapping();
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // DEFINITIVE FIX: Iterate over the source of truth (the writeMapping)
-    // This ensures we only try to write to fields we know about and that are writable.
-    // It completely ignores fields like DocIcon, LinkTitle, etc., even if they are in the Excel file.
+    // STRATEGY: Iterate over the KNOWN, VALID fields from our mapping.
+    // Do NOT iterate over the `controlData` object from the client.
     for (const appKey in writeMapping) {
       const spInternalName = (writeMapping as any)[appKey];
       
       if (spInternalName) {
         const value = (controlData as any)[appKey];
         
-        // Handle various data types and undefined/null values robustly
-        if (value === undefined || value === null || value === '') {
-          fieldsToCreate[spInternalName] = null; // Send null to clear the field in SharePoint
+        if (value === undefined || value === null || String(value).trim() === '') {
+          fieldsToCreate[spInternalName] = null; 
         } else if (Array.isArray(value)) {
           fieldsToCreate[spInternalName] = value.join('; ');
         } else if (typeof value === 'boolean') {
+          // Send boolean as 'Sim'/'Não' as text fields are expected
           fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
         } else if (value instanceof Date) {
-          // Format date consistently
-          fieldsToCreate[spInternalName] = value.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit'});
+          // Format as dd/MM/yyyy to be safe with locale
+          const day = String(value.getDate()).padStart(2, '0');
+          const month = String(value.getMonth() + 1).padStart(2, '0');
+          const year = value.getFullYear();
+          fieldsToCreate[spInternalName] = `${day}/${month}/${year}`;
         } else {
           fieldsToCreate[spInternalName] = String(value);
         }
