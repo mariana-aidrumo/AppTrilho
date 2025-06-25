@@ -191,17 +191,13 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // --- WHITELIST STRATEGY IMPLEMENTATION ---
-    // Iterate over our defined "source of truth" map (the whitelist), not the incoming Excel data keys.
+    // Whitelist approach: Iterate over the source of truth (the map)
     for (const [appKey, { internalName, displayName, type }] of spColumnMap.entries()) {
-        // Check if the corresponding column (by display name) exists in the Excel row data.
         if (rowData.hasOwnProperty(displayName)) {
             const rawValue = rowData[displayName];
             const formattedValue = formatValueForSharePoint(rawValue, type);
 
-            // Only add the field if it has a non-null value after formatting.
-            if (formattedValue !== null && formattedValue !== undefined && formattedValue !== '') {
-                // Use the correct SharePoint INTERNAL name for the payload.
+            if (formattedValue !== null && formattedValue !== undefined) {
                 fieldsToCreate[internalName] = formattedValue;
             }
         }
@@ -215,36 +211,40 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
-        // Log the full error on the server for complete diagnosis
-        console.error("--- SHAREPOINT API ERROR ---");
+        // Log everything possible on the server for debugging
+        console.error("--- DETAILED SHAREPOINT API ERROR ---");
+        console.error("TIMESTAMP:", new Date().toISOString());
         console.error("ITEM SENT:", JSON.stringify(newItem, null, 2));
+        console.error("ERROR MESSAGE:", error.message);
+        console.error("ERROR STACK:", error.stack);
+        console.error("ERROR BODY:", error.body);
         console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
-        console.error("--- END OF ERROR ---");
+        console.error("--- END OF DETAILED ERROR ---");
 
-        // Attempt to extract the most specific message for the client
-        let clientMessage = "Ocorreu um erro desconhecido ao gravar no SharePoint.";
+        // Construct the most descriptive message possible for the client
+        let detailedMessage = "Ocorreu um erro desconhecido ao gravar no SharePoint.";
 
-        if (error?.body) {
+        if (error && typeof error.body === 'string' && error.body.length > 0) {
             try {
                 const errorBody = JSON.parse(error.body);
-                // Ideal path: get the specific message
                 if (errorBody?.error?.message) {
-                    clientMessage = errorBody.error.message;
-                // Fallback: stringify the error object if message is not present
-                } else if (errorBody?.error) {
-                    clientMessage = JSON.stringify(errorBody.error);
+                    // This is the ideal case, we have a clear message from Graph API
+                    detailedMessage = errorBody.error.message;
+                } else {
+                    // The body is JSON but not in the expected format, show the whole thing
+                    detailedMessage = `Resposta da API: ${error.body}`;
                 }
-            } catch (e) {
-                // Fallback for non-JSON error responses
-                clientMessage = `Resposta de erro não-JSON do SharePoint: ${error.body}`;
+            } catch (jsonError) {
+                // The body is a string but not valid JSON, show the raw string
+                detailedMessage = `Resposta da API: ${error.body}`;
             }
-        } else if (error?.message) {
-            // Fallback for errors that are not from the Graph API response body
-            clientMessage = error.message;
+        } else if (error && typeof error.message === 'string' && error.message.length > 0) {
+            // Fallback to the general error message if body is not informative
+            detailedMessage = error.message;
         }
 
         // Always throw an error with the most detailed message we could find
-        throw new Error(clientMessage);
+        throw new Error(detailedMessage);
     }
 };
 
