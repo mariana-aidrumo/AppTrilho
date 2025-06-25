@@ -184,23 +184,39 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     if (!spColumnMap) {
         await buildAndCacheMappings();
     }
+    if (!spColumnMap) {
+        throw new Error("Failed to build column mappings from SharePoint.");
+    }
 
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
   
+    // Create a reverse mapping from Display Name -> { internalName, type }
+    const displayNameMap = new Map<string, { internalName: string; type: ColumnMapping['type'] }>();
+    for (const [, mapping] of spColumnMap.entries()) {
+        displayNameMap.set(mapping.displayName, { internalName: mapping.internalName, type: mapping.type });
+    }
+
     const fieldsToCreate: { [key: string]: any } = {};
-  
-    // Whitelist approach: Iterate over the source of truth (the map)
-    for (const [appKey, { internalName, displayName, type }] of spColumnMap.entries()) {
-        if (rowData.hasOwnProperty(displayName)) {
-            const rawValue = rowData[displayName];
+
+    // Iterate over the keys from the uploaded Excel file (rowData)
+    for (const displayNameFromExcel of Object.keys(rowData)) {
+        // Check if this column from Excel is one we recognize and want to import
+        const mapping = displayNameMap.get(displayNameFromExcel);
+
+        if (mapping) {
+            // It's a valid column, process it
+            const { internalName, type } = mapping;
+            const rawValue = rowData[displayNameFromExcel];
             const formattedValue = formatValueForSharePoint(rawValue, type);
 
-            if (formattedValue !== null && formattedValue !== undefined) {
+            if (formattedValue !== null && formattedValue !== undefined && formattedValue !== '') {
                 fieldsToCreate[internalName] = formattedValue;
             }
         }
+        // If 'mapping' is undefined, it means the column from Excel (e.g., 'LinkTitle')
+        // is not in our list of valid fields, so it's automatically ignored.
     }
   
     const newItem = { fields: fieldsToCreate };
@@ -211,39 +227,28 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
-        // Log everything possible on the server for debugging
-        console.error("--- DETAILED SHAREPOINT API ERROR ---");
-        console.error("TIMESTAMP:", new Date().toISOString());
-        console.error("ITEM SENT:", JSON.stringify(newItem, null, 2));
-        console.error("ERROR MESSAGE:", error.message);
-        console.error("ERROR STACK:", error.stack);
-        console.error("ERROR BODY:", error.body);
-        console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
-        console.error("--- END OF DETAILED ERROR ---");
-
-        // Construct the most descriptive message possible for the client
         let detailedMessage = "Ocorreu um erro desconhecido ao gravar no SharePoint.";
-
-        if (error && typeof error.body === 'string' && error.body.length > 0) {
+        if (error && error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
-                if (errorBody?.error?.message) {
-                    // This is the ideal case, we have a clear message from Graph API
-                    detailedMessage = errorBody.error.message;
+                if (errorBody.error && errorBody.error.message) {
+                    detailedMessage = `Resposta da API: ${errorBody.error.message}`;
                 } else {
-                    // The body is JSON but not in the expected format, show the whole thing
                     detailedMessage = `Resposta da API: ${error.body}`;
                 }
-            } catch (jsonError) {
-                // The body is a string but not valid JSON, show the raw string
+            } catch (e) {
                 detailedMessage = `Resposta da API: ${error.body}`;
             }
-        } else if (error && typeof error.message === 'string' && error.message.length > 0) {
-            // Fallback to the general error message if body is not informative
+        } else if (error && error.message) {
             detailedMessage = error.message;
         }
 
-        // Always throw an error with the most detailed message we could find
+        console.error("--- DETAILED SHAREPOINT API ERROR ---");
+        console.error("TIMESTAMP:", new Date().toISOString());
+        console.error("ITEM SENT:", JSON.stringify(newItem, null, 2));
+        console.error("ERROR OBJECT:", JSON.stringify(error, null, 2));
+        console.error("--- END OF DETAILED ERROR ---");
+
         throw new Error(detailedMessage);
     }
 };
