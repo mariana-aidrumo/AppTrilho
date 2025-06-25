@@ -69,8 +69,6 @@ const buildColumnMappings = async (): Promise<Map<string, ColumnMapping>> => {
         for (const column of spColumns) {
             if (column.hidden || column.readOnly) continue;
             
-            // The link between our app and SP is the Display Name.
-            // If it's renamed in SP, the link breaks. This is a necessary constraint for now.
             const appKey = displayNameToAppKeyMap[column.displayName];
             if (appKey) {
                 newColumnMap.set(appKey, {
@@ -155,7 +153,6 @@ const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any 
             case 'dateTime':
                 // Handle Excel's numeric date format
                 if (typeof value === 'number' && value > 1) {
-                    // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3
                     const excelEpoch = new Date(1899, 11, 30);
                     const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
                     return date.toISOString();
@@ -184,17 +181,11 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
   
     const fieldsToCreate: { [key: string]: any } = {};
-
-    // Create a reverse map from our internal appKey to the expected Display Name.
-    const appKeyToDisplayNameMap = new Map<string, string>();
-    for (const [appKey, mapping] of columnMap.entries()) {
-        appKeyToDisplayNameMap.set(appKey, mapping.displayName);
-    }
     
     // Iterate over the SAFE list of allowed fields (our mapping object)
     for (const appKey in appToSpDisplayNameMapping) {
         const mapping = columnMap.get(appKey);
-        const displayName = appKeyToDisplayNameMap.get(appKey);
+        const displayName = (appToSpDisplayNameMapping as any)[appKey];
 
         if (mapping && displayName && rowData.hasOwnProperty(displayName)) {
             const rawValue = rowData[displayName];
@@ -267,18 +258,60 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
 };
 
 export const getSharePointColumnHeaders = async (): Promise<string[]> => {
-    const columnMap = await buildColumnMappings();
-    
-    // Maintain a consistent order by iterating through our source-of-truth mapping object
-    const orderedDisplayNames: string[] = [];
-    for (const appKey in appToSpDisplayNameMapping) {
-        const mapping = columnMap.get(appKey);
-        if (mapping) {
-            orderedDisplayNames.push(mapping.displayName);
-        }
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing.");
     }
-    
-    return orderedDisplayNames;
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+
+        const response = await graphClient
+            .api(`/sites/${siteId}/lists/${listId}/columns`)
+            .select('displayName,hidden,readOnly,name')
+            .get();
+
+        if (!response || !response.value) {
+            throw new Error("Could not fetch column definitions from SharePoint.");
+        }
+
+        const spColumns = response.value;
+
+        // Blocklist of known system columns that shouldn't be in the template.
+        const systemColumnInternalNames = new Set([
+            'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 
+            'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString'
+        ]);
+
+        const allDisplayNames = spColumns
+            .filter((column: any) => 
+                !column.hidden && 
+                !column.readOnly && 
+                !systemColumnInternalNames.has(column.name)
+            )
+            .map((column: any) => column.displayName);
+        
+        const orderedDisplayNames: string[] = [];
+        const receivedDisplayNames = new Set(allDisplayNames);
+
+        // Add columns in the preferred order first, based on our static mapping.
+        for (const key in appToSpDisplayNameMapping) {
+            const preferredName = (appToSpDisplayNameMapping as any)[key];
+            if (receivedDisplayNames.has(preferredName)) {
+                orderedDisplayNames.push(preferredName);
+                receivedDisplayNames.delete(preferredName); // Remove from set to avoid duplication
+            }
+        }
+
+        // Add any remaining (new/unknown) columns at the end.
+        orderedDisplayNames.push(...Array.from(receivedDisplayNames));
+        
+        return orderedDisplayNames;
+
+    } catch (error) {
+        console.error("FATAL: Failed to get SharePoint column headers.", error);
+        throw new Error("Could not get column headers from SharePoint.");
+    }
 };
 
 
