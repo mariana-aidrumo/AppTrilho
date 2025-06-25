@@ -21,7 +21,7 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 type ColumnMapping = {
     internalName: string;
     displayName: string;
-    type: 'text' | 'note' | 'boolean' | 'dateTime' | 'choice' | 'multiChoice' | 'unsupported';
+    type: 'text' | 'note' | 'boolean' | 'dateTime' | 'choice' | 'multiChoice' | 'number' | 'unsupported';
 };
 
 let spColumnMap: Map<string, ColumnMapping> | null = null; // Keyed by appKey (e.g., 'controlName')
@@ -29,6 +29,7 @@ let spColumnMap: Map<string, ColumnMapping> | null = null; // Keyed by appKey (e
 const getColumnType = (spColumn: any): ColumnMapping['type'] => {
     if (spColumn.boolean) return 'boolean';
     if (spColumn.dateTime) return 'dateTime';
+    if (spColumn.number) return 'number';
     if (spColumn.choice) {
         return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
     }
@@ -149,34 +150,49 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
 };
 
 const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any => {
+    // Return undefined for any empty/nullish value so it's omitted from the payload
     if (value === undefined || value === null || String(value).trim() === '') {
-        return null;
+        return undefined;
     }
 
-    switch (type) {
-        case 'boolean':
-            return parseSharePointBoolean(value);
-        case 'dateTime':
-             // Handle Excel's numeric date format
-            if (typeof value === 'number' && value > 1) {
-                const excelEpoch = new Date(1899, 11, 30);
-                const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-                return date.toISOString().split('T')[0]; // Return YYYY-MM-DD
-            }
-             // Handle standard string dates
-            const parsedDate = new Date(value);
-            if (!isNaN(parsedDate.getTime())) {
-                return parsedDate.toISOString().split('T')[0]; // Return YYYY-MM-DD
-            }
-            return null; // Invalid date
-        case 'multiChoice':
-             return String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
-        case 'note':
-        case 'text':
-        case 'choice':
-             return String(value);
-        default:
-            return String(value);
+    try {
+        switch (type) {
+            case 'boolean':
+                return parseSharePointBoolean(value);
+            
+            case 'number':
+                const num = parseFloat(String(value).replace(',', '.')); // Handle decimal commas
+                return isNaN(num) ? undefined : num;
+
+            case 'dateTime':
+                // Handle Excel's numeric date format
+                if (typeof value === 'number' && value > 1) {
+                    const excelEpoch = new Date(1899, 11, 30);
+                    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+                    return date.toISOString(); // Return full ISO string
+                }
+                // Handle standard string dates (which will be in ISO format from JSON.stringify)
+                const parsedDate = new Date(value);
+                if (!isNaN(parsedDate.getTime())) {
+                    return parsedDate.toISOString(); // Return full ISO string
+                }
+                return undefined; // Invalid date
+
+            case 'multiChoice':
+                 return String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+
+            case 'note':
+            case 'text':
+            case 'choice':
+                 return String(value);
+                 
+            default:
+                return String(value);
+        }
+    } catch (e) {
+        // If any formatting fails, return undefined to prevent sending bad data
+        console.error(`Failed to format value '${value}' for type '${type}':`, e);
+        return undefined;
     }
 };
 
@@ -198,29 +214,22 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
 
-    // The definitive "Whitelist" approach.
-    // Iterate over our known, safe list of fields, and pull data from the Excel row.
     for (const appKey in appToSpDisplayNameMapping) {
         const mapping = spColumnMap.get(appKey);
-        // Get the expected column header name from our mapping
         const displayName = (appToSpDisplayNameMapping as any)[appKey];
 
-        // Check if a mapping exists for this field AND if the Excel file has this column header
         if (mapping && rowData.hasOwnProperty(displayName)) {
             const rawValue = rowData[displayName];
             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
             
-            // Only add the field if it has a meaningful value after formatting
-            if (formattedValue !== null && formattedValue !== undefined && String(formattedValue).trim() !== '') {
-                // Use the SharePoint internal name for the field
+            if (formattedValue !== undefined) {
                 fieldsToCreate[mapping.internalName] = formattedValue;
             }
         }
     }
   
-    // Check if we have any data to send.
     if (Object.keys(fieldsToCreate).length === 0) {
-        throw new Error("Nenhum dado válido encontrado na linha do Excel. Verifique se os cabeçalhos das colunas correspondem ao template.");
+        throw new Error("Nenhum dado válido encontrado na linha do Excel. Verifique se os cabeçalhos das colunas correspondem ao template e se há dados para importar.");
     }
   
     const newItem = { fields: fieldsToCreate };
@@ -241,7 +250,6 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
                     detailedMessage = `Resposta da API: ${error.body}`;
                 }
             } catch (e) {
-                // The body is not a JSON object, return it as-is.
                 detailedMessage = `Resposta da API: ${error.body}`;
             }
         } else if (error && error.message) {
