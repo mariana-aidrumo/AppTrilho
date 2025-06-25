@@ -81,29 +81,28 @@ const getWriteMapping = async () => {
 // Helper to map SharePoint list item to our typed SoxControl
 const mapSharePointItemToSoxControl = async (item: any): Promise<SoxControl> => {
     const spFields = item.fields;
-    const writeMapping = await getWriteMapping();
 
     const soxControl: Partial<SoxControl> = {
         id: item.id,
         status: (spFields.status as SoxControlStatus) || 'Ativo',
         lastUpdated: item.lastModifiedDateTime,
     };
-
-    // Iterate over our app's defined fields, not SharePoint's response fields.
-    // This prevents reading internal, read-only fields like 'DocIcon'.
+    
+    // Iterate over OUR app's defined fields to prevent reading internal SP fields like DocIcon
     for (const appKey in appToSpDisplayNameMapping) {
-        const spKey = writeMapping[appKey as keyof typeof writeMapping];
-        
-        if (spKey && Object.prototype.hasOwnProperty.call(spFields, spKey)) {
-            let value = spFields[spKey];
-            const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-            
-            if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
-                value = typeof value === 'string' ? value.split(';').map(s => s.trim()).filter(Boolean) : [];
-            } else if (booleanFields.includes(appKey as any)) {
-                value = parseSharePointBoolean(value);
-            }
-            (soxControl as any)[appKey] = value;
+        const displayName = (appToSpDisplayNameMapping as any)[appKey];
+        const spValue = spFields[displayName];
+
+        if (spValue !== undefined) {
+             let value = spValue;
+             const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+             
+             if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
+                 value = typeof value === 'string' ? value.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
+             } else if (booleanFields.includes(appKey as any)) {
+                 value = parseSharePointBoolean(value);
+             }
+             (soxControl as any)[appKey] = value;
         }
     }
     
@@ -130,7 +129,26 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             .get();
 
         if (response && response.value) {
-            return Promise.all(response.value.map(mapSharePointItemToSoxControl));
+            // Mapping now happens inside this function
+            const mappedControls = response.value.map((item: any) => {
+                 const spFields = item.fields;
+                 const soxControl: Partial<SoxControl> = { id: item.id };
+                 for (const appKey in appToSpDisplayNameMapping) {
+                    const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
+                    if (Object.prototype.hasOwnProperty.call(spFields, spDisplayName)) {
+                         let value = spFields[spDisplayName];
+                         const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+                         if (booleanFields.includes(appKey as any)) {
+                            value = parseSharePointBoolean(value);
+                         } else if (appKey === 'sistemasRelacionados' || appKey === 'executorControle') {
+                            value = typeof value === 'string' ? value.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
+                         }
+                         (soxControl as any)[appKey] = value;
+                    }
+                 }
+                 return soxControl as SoxControl;
+            });
+            return mappedControls;
         }
         return [];
     } catch (error) {
@@ -147,32 +165,29 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-    const spFieldMapping = await getWriteMapping();
   
     const fieldsToCreate: { [key: string]: any } = {};
   
-    // Iterate over all known fields from the mapping, not just what's in controlData.
-    // This ensures a complete object is sent to SharePoint.
-    for (const key in spFieldMapping) {
-        const appKey = key as keyof SoxControl;
-        const spKey = (spFieldMapping as any)[appKey];
-        const value = controlData[appKey];
+    // Use the definitive mapping to build the request body
+    for (const appKey in appToSpDisplayNameMapping) {
+        const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
+        const value = (controlData as any)[appKey];
 
-        if (spKey) {
-            if (value === null || value === undefined) {
-                fieldsToCreate[spKey] = ""; // Send empty string for missing values
+        if (spDisplayName) {
+             if (value === null || value === undefined) {
+                fieldsToCreate[spDisplayName] = ""; // Send empty string for missing values
             } 
             else if (Array.isArray(value)) {
-                fieldsToCreate[spKey] = value.join('; ');
+                fieldsToCreate[spDisplayName] = value.join('; ');
             } 
             else if (typeof value === 'boolean') {
-                fieldsToCreate[spKey] = value ? 'Sim' : 'Não';
+                fieldsToCreate[spDisplayName] = value ? 'Sim' : 'Não';
             }
             else if (value instanceof Date) {
-                 fieldsToCreate[spKey] = value.toLocaleDateString('pt-BR');
+                 fieldsToCreate[spDisplayName] = value.toLocaleDateString('pt-BR');
             }
             else {
-                fieldsToCreate[spKey] = String(value);
+                fieldsToCreate[spDisplayName] = String(value);
             }
         }
     }
@@ -187,32 +202,37 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
             .post(newItem);
         return await mapSharePointItemToSoxControl(response);
     } catch (error: any) {
-        let errorMessage = 'Um erro desconhecido ocorreu.';
-        
+        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
+    
+        let detailedMessage = 'Um erro desconhecido ocorreu.';
+
         try {
             if (error.body) {
                 const errorDetails = JSON.parse(error.body);
-                const nestedError = errorDetails.error;
-                if (nestedError?.innerError?.message) {
-                    errorMessage = nestedError.innerError.message;
-                } else if (nestedError?.message) {
-                    errorMessage = nestedError.message;
+                // Path: error.error.innerError.message or error.error.message
+                if (errorDetails?.error?.innerError?.message) {
+                    detailedMessage = errorDetails.error.innerError.message;
+                } else if (errorDetails?.error?.message) {
+                    detailedMessage = errorDetails.error.message;
                 }
             } else if (error.message) {
-                 errorMessage = error.message;
+                // Fallback to the top-level error message
+                detailedMessage = error.message;
             }
-        } catch (e) {
-            console.error("Could not parse SharePoint error response body:", error.body);
+        } catch (parseError) {
+            console.error("Could not parse SharePoint error response body:", error.body || "No body present");
+            // If parsing fails, use the top-level message if available
+            if (error.message) {
+                detailedMessage = error.message;
+            }
         }
-        
-        console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
 
         console.error("Error details sending to SharePoint:", {
           itemSent: newItem,
-          parsedErrorMessage: errorMessage,
+          parsedErrorMessage: detailedMessage,
         });
-        
-        throw new Error(errorMessage);
+
+        throw new Error(detailedMessage);
     }
 };
 
@@ -221,9 +241,6 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
-    // Ensure mapping is built before starting the loop
-    await getWriteMapping();
-
     for (const control of controls) {
         try {
             if (control.controlName || control.controlId) {
@@ -235,7 +252,7 @@ export const addSoxControlsInBulk = async (controls: Partial<SoxControl>[]): Pro
         } catch (error: any) {
             errors.push({ 
                 controlId: control.controlId || control.controlName || 'ID Desconhecido', 
-                message: error.message || 'Um erro desconhecido ocorreu.' 
+                message: error.message || 'Um erro desconhecido ocorreu durante o processamento em lote.' 
             });
         }
     }
