@@ -30,8 +30,10 @@ const getColumnType = (spColumn: any): ColumnMapping['type'] => {
     if (spColumn.choice) {
         return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
     }
-    if (spColumn.note) return 'note';
-    if (spColumn.text) return 'text';
+    // A 'note' field is a text field that allows multiple lines.
+    if (spColumn.text) {
+        return spColumn.text.allowMultipleLines ? 'note' : 'text';
+    }
     return 'unsupported';
 };
 
@@ -279,7 +281,7 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
 
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/columns`)
-            .select('displayName,hidden,readOnly,name,text,note,number,boolean,choice,dateTime')
+            .select('displayName,hidden,readOnly,name,text,number,boolean,choice,dateTime')
             .get();
 
         if (!response || !response.value) {
@@ -332,11 +334,24 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
         throw new Error("O nome da coluna é inválido. Use apenas letras e números.");
     }
 
-    const payload: any = {
-        displayName: columnData.displayName,
-        name: internalName,
-        [columnData.type]: {},
-    };
+    let payload: any;
+    if (columnData.type === 'note') {
+        payload = {
+            displayName: columnData.displayName,
+            name: internalName,
+            text: {
+                allowMultipleLines: true,
+                linesForEditing: 6, // A reasonable default
+            },
+        };
+    } else {
+        payload = {
+            displayName: columnData.displayName,
+            name: internalName,
+            [columnData.type]: {},
+        };
+    }
+
 
     try {
         await graphClient.api(`/sites/${siteId}/lists/${listId}/columns`).post(payload);
