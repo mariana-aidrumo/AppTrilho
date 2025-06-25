@@ -234,26 +234,17 @@ export default function SoxMatrixPage() {
         });
       });
 
-    // Add pending change requests
+    // Add pending change requests for existing controls
     changeRequests
-      .filter(req => req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono")
+      .filter(req => 
+        (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") &&
+        !req.controlId.startsWith("NEW-CTRL-")
+      )
       .forEach(req => {
-        const isNewControl = req.controlId.startsWith("NEW-CTRL-");
-        const controlDetails = !isNewControl ? soxControls.find(c => c.controlId === req.controlId) : undefined;
+        const controlDetails = soxControls.find(c => c.controlId === req.controlId);
         
-        let name: string;
-        let previousDisplayId: string | undefined;
-        let displayId: string;
-        
-        if (isNewControl) {
-          name = req.changes.controlName || "Nova Proposta Sem Nome";
-          previousDisplayId = "N/A";
-          displayId = req.changes.controlId || "(ID a ser definido)";
-        } else if (controlDetails) {
-          name = controlDetails.controlName;
-          previousDisplayId = controlDetails.controlId;
-          displayId = req.changes.controlId || controlDetails.controlId;
-        } else {
+        // Only show change requests for controls that exist in the current view
+        if (!controlDetails) {
           return;
         }
         
@@ -261,18 +252,18 @@ export default function SoxMatrixPage() {
           .map(([key, value]) => `${key}: ${value}`)
           .join('; ');
         
-        // Combine original control data with proposed changes
+        // Combine original control data with proposed changes to show a preview
         const combinedData = { ...controlDetails, ...req.changes };
 
         items.push({
           ...combinedData,
           key: `request-${req.id}`,
           originalId: req.id,
-          itemType: isNewControl ? 'Proposta de Novo Controle' : 'Solicitação de Alteração',
-          previousDisplayId: previousDisplayId,
-          displayId: displayId,
-          name: name,
-          ownerOrRequester: req.requestedBy,
+          itemType: 'Solicitação de Alteração',
+          previousDisplayId: controlDetails.controlId, // The old ID is the current control ID
+          displayId: req.changes.controlId || controlDetails.controlId, // Show proposed new ID if any
+          name: controlDetails.controlName, // Name doesn't change in the list view
+          ownerOrRequester: req.requestedBy, // The requester is the effective owner in this view
           requestDate: req.requestDate,
           summaryOfChanges: summaryOfChanges,
           comments: req.comments,
