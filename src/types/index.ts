@@ -1,7 +1,16 @@
+
 export type SoxControlStatus = "Ativo" | "Inativo" | "Rascunho" | "Pendente Aprovação";
 export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc" | "Por ocorrência";
 export type ControlType = "Preventivo" | "Detectivo" | "Corretivo";
 export type ControlModalidade = "Manual" | "Automático" | "Híbrido" | "ITDM";
+
+export interface IPEAssertions {
+  C?: boolean;
+  EO?: boolean;
+  VA?: boolean;
+  OR?: boolean;
+  PD?: boolean;
+}
 
 export interface SoxControl {
   id: string; // Internal ID (from SharePoint list item ID)
@@ -41,6 +50,7 @@ export interface SoxControl {
   transacoesTelasMenusCriticos?: string;
   aplicavelIPE?: boolean;
   
+  ipeAssertions?: IPEAssertions;
   // Individual IPE assertion fields to match SharePoint columns
   ipe_C?: boolean;
   ipe_EO?: boolean;
@@ -54,6 +64,9 @@ export interface SoxControl {
   vpResponsavel?: string;
   impactoMalhaSul?: boolean;
   sistemaArmazenamento?: string;
+
+  // Allows for dynamic properties from SharePoint
+  [key: string]: any;
 }
 
 export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono";
@@ -84,10 +97,14 @@ export interface VersionHistoryEntry {
 
 export type UserProfileType = "Dono do Controle" | "Administrador de Controles Internos";
 
-export interface UserProfile {
-  name: string;
-  profile: UserProfileType;
-  controlsOwned?: string[];
+export interface MockUser {
+    id: string;
+    name: string;
+    email: string;
+    password: string; 
+    roles: string[]; 
+    activeProfile: UserProfileType;
+    controlsOwned?: string[];
 }
 
 export type UnifiedHistoryEventType =
@@ -113,4 +130,10 @@ export interface Notification {
   message: string;
   date: string; // Data ISO
   read: boolean;
+}
+
+export interface SharePointColumn {
+  displayName: string;
+  internalName: string;
+  type: 'text' | 'note' | 'number' | 'boolean' | 'choice' | 'multiChoice' | 'dateTime' | 'unsupported';
 }

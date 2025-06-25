@@ -1,3 +1,4 @@
+
 // src/app/sox-matrix/page.tsx
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
 import { getSoxControls, getChangeRequests, getFilterOptions } from "@/services/sox-service";
+import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração' | 'Proposta de Novo Controle';
 
@@ -39,6 +41,35 @@ interface UnifiedTableItem extends Partial<SoxControl> {
 }
 
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
+  const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    if (open) { // Only load from localStorage when sheet is opened
+      try {
+        const stored = localStorage.getItem('visibleDetailFields');
+        // Default to all known fields being visible
+        const defaultVisible = new Set(Object.values(appToSpDisplayNameMapping));
+        
+        if (stored) {
+          setVisibleFields(new Set(JSON.parse(stored)));
+        } else {
+          // If nothing is in storage, use the default set of all fields
+          setVisibleFields(defaultVisible);
+        }
+      } catch (e) {
+        console.error("Failed to parse visible fields from localStorage", e);
+        // Fallback to all fields on error
+        setVisibleFields(new Set(Object.values(appToSpDisplayNameMapping)));
+      } finally {
+        setHasLoaded(true);
+      }
+    } else {
+      setHasLoaded(false); // Reset on close
+    }
+  }, [open]);
+
+
   if (!item) return null;
 
   const DetailRow = ({ label, value }: { label: string; value?: ReactNode | null }) => (
@@ -52,6 +83,10 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
       <h3 className="text-base font-semibold text-primary bg-primary/10 p-2 my-4 rounded-md">{title}</h3>
   );
 
+  const isVisible = (key: keyof typeof appToSpDisplayNameMapping) => {
+    return visibleFields.has(appToSpDisplayNameMapping[key]);
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
@@ -60,60 +95,71 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
           <SheetDescription>Detalhes completos do controle e suas responsabilidades.</SheetDescription>
         </SheetHeader>
         <div className="py-4">
-            <SectionHeader title="Histórico (De-Para)" />
-            <dl><DetailRow label="Cód Controle ANTERIOR" value={item.codigoAnterior} /></dl>
+            {!hasLoaded && <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+            {hasLoaded && (
+              <>
+                <SectionHeader title="Histórico (De-Para)" />
+                <dl>
+                    {isVisible('codigoAnterior') && <DetailRow label="Cód Controle ANTERIOR" value={item.codigoAnterior} />}
+                </dl>
 
-            <SectionHeader title="Informações Gerais" />
-            <dl>
-                <DetailRow label="Matriz" value={item.matriz} />
-                <DetailRow label="Processo" value={item.processo} />
-                <DetailRow label="Sub-Processo" value={item.subProcesso} />
-                <DetailRow label="Risco" value={item.riscoId} />
-                <DetailRow label="Descrição do Risco" value={item.riscoDescricao} />
-                <DetailRow label="Classificação do Risco" value={item.riscoClassificacao} />
-            </dl>
+                <SectionHeader title="Informações Gerais" />
+                <dl>
+                    {isVisible('matriz') && <DetailRow label="Matriz" value={item.matriz} />}
+                    {isVisible('processo') && <DetailRow label="Processo" value={item.processo} />}
+                    {isVisible('subProcesso') && <DetailRow label="Sub-Processo" value={item.subProcesso} />}
+                    {isVisible('riscoId') && <DetailRow label="Risco" value={item.riscoId} />}
+                    {isVisible('riscoDescricao') && <DetailRow label="Descrição do Risco" value={item.riscoDescricao} />}
+                    {isVisible('riscoClassificacao') && <DetailRow label="Classificação do Risco" value={item.riscoClassificacao} />}
+                </dl>
 
-            <SectionHeader title="Informações do Controle" />
-            <dl>
-                <DetailRow label="Código NOVO" value={item.displayId} />
-                <DetailRow label="Código COSAN" value={item.codigoCosan} />
-                <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />
-                <DetailRow label="Nome do Controle" value={item.name} />
-                <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />
-                <DetailRow label="Tipo" value={item.tipo} />
-                <DetailRow label="Frequência" value={item.controlFrequency} />
-                <DetailRow label="Modalidade" value={item.modalidade} />
-                <DetailRow label="P/D" value={item.controlType} />
-                <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />
-                <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />
-                <DetailRow label="Implementação" value={item.implementacaoData} />
-                <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />
-                <DetailRow label="Sistemas Relacionados" value={item.sistemasRelacionados?.join(', ')} />
-                <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />
-                <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />
-                <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />
-                <DetailRow label="E/O" value={item.ipe_EO ? 'X' : ''} />
-                <DetailRow label="V/A" value={item.ipe_VA ? 'X' : ''} />
-                <DetailRow label="O/R" value={item.ipe_OR ? 'X' : ''} />
-                <DetailRow label="P/D (IPE)" value={item.ipe_PD ? 'X' : ''} />
-            </dl>
-            
-            <SectionHeader title="Responsabilidades" />
-            <dl>
-                <DetailRow label="Responsável" value={item.responsavel} />
-                <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />
-                <DetailRow label="Executor do Controle" value={item.executorControle?.join('; ')} />
-                <DetailRow label="Executado por" value={item.executadoPor} />
-                <DetailRow label="N3 Responsável" value={item.n3Responsavel} />
-                <DetailRow label="Área" value={item.area} />
-                <DetailRow label="VP Responsável" value={item.vpResponsavel} />
-            </dl>
+                <SectionHeader title="Informações do Controle" />
+                <dl>
+                    {isVisible('controlId') && <DetailRow label="Código NOVO" value={item.displayId} />}
+                    {isVisible('codigoCosan') && <DetailRow label="Código COSAN" value={item.codigoCosan} />}
+                    {isVisible('objetivoControle') && <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />}
+                    {isVisible('controlName') && <DetailRow label="Nome do Controle" value={item.name} />}
+                    {isVisible('description') && <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />}
+                    {isVisible('tipo') && <DetailRow label="Tipo" value={item.tipo} />}
+                    {isVisible('controlFrequency') && <DetailRow label="Frequência" value={item.controlFrequency} />}
+                    {isVisible('modalidade') && <DetailRow label="Modalidade" value={item.modalidade} />}
+                    {isVisible('controlType') && <DetailRow label="P/D" value={item.controlType} />}
+                    {isVisible('mrc') && <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />}
+                    {isVisible('evidenciaControle') && <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />}
+                    {isVisible('implementacaoData') && <DetailRow label="Implementação" value={item.implementacaoData} />}
+                    {isVisible('dataUltimaAlteracao') && <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />}
+                    {isVisible('sistemasRelacionados') && <DetailRow label="Sistemas Relacionados" value={item.sistemasRelacionados?.join(', ')} />}
+                    {isVisible('transacoesTelasMenusCriticos') && <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />}
+                    {isVisible('aplicavelIPE') && <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />}
+                    {isVisible('ipe_C') && <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />}
+                    {isVisible('ipe_EO') && <DetailRow label="E/O" value={item.ipe_EO ? 'X' : ''} />}
+                    {isVisible('ipe_VA') && <DetailRow label="V/A" value={item.ipe_VA ? 'X' : ''} />}
+                    {isVisible('ipe_OR') && <DetailRow label="O/R" value={item.ipe_OR ? 'X' : ''} />}
+                    {isVisible('ipe_PD') && <DetailRow label="P/D (IPE)" value={item.ipe_PD ? 'X' : ''} />}
+                </dl>
+                
+                <SectionHeader title="Responsabilidades" />
+                <dl>
+                    {isVisible('responsavel') && <DetailRow label="Responsável" value={item.responsavel} />}
+                    {isVisible('controlOwner') && <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />}
+                    {isVisible('executorControle') && <DetailRow label="Executor do Controle" value={item.executorControle?.join('; ')} />}
+                    {isVisible('executadoPor') && <DetailRow label="Executado por" value={item.executadoPor} />}
+                    {isVisible('n3Responsavel') && <DetailRow label="N3 Responsável" value={item.n3Responsavel} />}
+                    {isVisible('area') && <DetailRow label="Área" value={item.area} />}
+                    {isVisible('vpResponsavel') && <DetailRow label="VP Responsável" value={item.vpResponsavel} />}
+                </dl>
 
-            <SectionHeader title="Malha Sul" />
-            <dl><DetailRow label="Impacto Malha Sul" value={item.impactoMalhaSul === false ? 'Não' : item.impactoMalhaSul === true ? 'Sim' : 'N/A'} /></dl>
+                <SectionHeader title="Malha Sul" />
+                <dl>
+                    {isVisible('impactoMalhaSul') && <DetailRow label="Impacto Malha Sul" value={item.impactoMalhaSul === false ? 'Não' : item.impactoMalhaSul === true ? 'Sim' : 'N/A'} />}
+                </dl>
 
-            <SectionHeader title="Sistema" />
-            <dl><DetailRow label="Sistema Armazenamento" value={item.sistemaArmazenamento} /></dl>
+                <SectionHeader title="Sistema" />
+                <dl>
+                    {isVisible('sistemaArmazenamento') && <DetailRow label="Sistema Armazenamento" value={item.sistemaArmazenamento} />}
+                </dl>
+              </>
+            )}
         </div>
       </SheetContent>
     </Sheet>

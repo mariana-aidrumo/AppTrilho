@@ -1,3 +1,4 @@
+
 // src/app/new-control/page.tsx
 "use client";
 
@@ -9,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Download, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from '@/contexts/user-profile-context';
-import { addSoxControlsInBulk, getSharePointColumnHeaders } from '@/services/sox-service';
+import { addSoxControlsInBulk, getSharePointColumnDetails } from '@/services/sox-service';
 import Link from 'next/link';
 import * as xlsx from 'xlsx';
 
@@ -47,7 +48,8 @@ export default function NewControlPage() {
     toast({ title: "Preparando download...", description: "Buscando os cabeçalhos mais recentes do SharePoint." });
     try {
       // Dynamically fetch the current headers from SharePoint
-      const headers = await getSharePointColumnHeaders();
+      const columns = await getSharePointColumnDetails();
+      const headers = columns.map(col => col.displayName);
       
       // Create a worksheet with only the headers by passing an empty array of data.
       const ws = xlsx.utils.json_to_sheet([], { header: headers });
@@ -82,56 +84,62 @@ export default function NewControlPage() {
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
-        const data = event.target?.result;
-        const workbook = xlsx.read(data, { type: 'binary', cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+        try {
+          const data = event.target?.result;
+          const workbook = xlsx.read(data, { type: 'binary', cellDates: true });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonFromSheet: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
-        if (jsonFromSheet.length > 0) {
-            // Serialize the data to ensure only plain objects (like strings) are passed to the server function.
-            // This prevents errors from complex objects like Dates created by the xlsx library.
-            const plainObjects = JSON.parse(JSON.stringify(jsonFromSheet));
-            const { controlsAdded, errors } = await addSoxControlsInBulk(plainObjects);
+          if (jsonFromSheet.length > 0) {
+              const plainObjects = JSON.parse(JSON.stringify(jsonFromSheet));
+              const { controlsAdded, errors } = await addSoxControlsInBulk(plainObjects);
 
-            if (errors.length > 0) {
-                const firstError = errors[0];
-                const detailedErrorMessage = `Controle '${firstError.controlId || "ID não encontrado"}': ${firstError.message}`;
+              if (errors.length > 0) {
+                  const firstError = errors[0];
+                  const detailedErrorMessage = `Controle '${firstError.controlId || "ID não encontrado"}': ${firstError.message}`;
 
-                toast({
-                  title: `Falha na Importação (${errors.length} erro${errors.length > 1 ? 's' : ''})`,
-                  description: detailedErrorMessage,
-                  variant: "destructive",
-                  duration: 15000 
-                });
-                console.error("Erros de importação:", errors);
-            } else {
-                toast({
-                  title: "Arquivo Processado!",
-                  description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
-                });
-            }
-        } else {
-            toast({
-              title: "Nenhum controle válido encontrado",
-              description: "Verifique se a planilha está preenchida corretamente e possui as colunas necessárias.",
-              variant: "destructive"
-            });
+                  toast({
+                    title: `Falha na Importação (${errors.length} erro${errors.length > 1 ? 's' : ''})`,
+                    description: detailedErrorMessage,
+                    variant: "destructive",
+                    duration: 15000 
+                  });
+                  console.error("Erros de importação:", errors);
+              } else {
+                  toast({
+                    title: "Arquivo Processado!",
+                    description: `${controlsAdded} de ${jsonFromSheet.length} controles foram importados com sucesso.`,
+                  });
+              }
+          } else {
+              toast({
+                title: "Nenhum controle válido encontrado",
+                description: "Verifique se a planilha está preenchida corretamente e possui as colunas necessárias.",
+                variant: "destructive"
+              });
+          }
+
+          setExcelFile(null);
+          const fileInput = document.getElementById('excel-upload') as HTMLInputElement;
+          if (fileInput) fileInput.value = '';
+        } catch (error: any) {
+            console.error("Error processing Excel file:", error);
+            const errorMessage = error.message || "Ocorreu um erro ao processar a planilha. Verifique o formato.";
+            toast({ title: "Erro no Processamento", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsProcessingFile(false);
         }
-
-        setExcelFile(null);
-        const fileInput = document.getElementById('excel-upload') as HTMLInputElement;
-        if (fileInput) fileInput.value = '';
       };
       reader.onerror = () => {
           toast({ title: "Erro ao ler arquivo", description: "Não foi possível ler o arquivo selecionado.", variant: "destructive" });
+          setIsProcessingFile(false);
       };
       reader.readAsBinaryString(excelFile);
 
     } catch (error) {
-      console.error("Error processing Excel file:", error);
-      toast({ title: "Erro no Processamento", description: "Ocorreu um erro ao processar a planilha. Verifique o formato.", variant: "destructive" });
-    } finally {
+      console.error("Error setting up file reader:", error);
+      toast({ title: "Erro de Configuração", description: "Ocorreu um erro ao preparar o arquivo para leitura.", variant: "destructive" });
       setIsProcessingFile(false);
     }
   };

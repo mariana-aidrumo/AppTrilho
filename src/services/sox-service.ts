@@ -3,7 +3,7 @@
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn } from '@/types';
 import {
   mockChangeRequests,
   mockUsers,
@@ -14,7 +14,7 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 
 // --- SharePoint Integration ---
 
-const { SHAREPOINT_SITE_URL } = process.env;
+const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
 
 type ColumnMapping = {
@@ -36,9 +36,8 @@ const getColumnType = (spColumn: any): ColumnMapping['type'] => {
 };
 
 /**
- * Fetches column definitions from SharePoint and builds a dynamic map ON-DEMAND.
- * This map includes internal name, display name, and data type for each relevant column.
- * It is intentionally NOT cached to always reflect the current state of the SharePoint list.
+ * Fetches column definitions from SharePoint and builds a dynamic map.
+ * This is intentionally NOT cached to always reflect the current state.
  */
 const buildColumnMappings = async (): Promise<Map<string, ColumnMapping>> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -60,23 +59,13 @@ const buildColumnMappings = async (): Promise<Map<string, ColumnMapping>> => {
         const spColumns = response.value;
         const newColumnMap = new Map<string, ColumnMapping>();
         
-        const displayNameToAppKeyMap: { [key: string]: string } = {};
-        for (const appKey in appToSpDisplayNameMapping) {
-            const displayName = (appToSpDisplayNameMapping as any)[appKey];
-            displayNameToAppKeyMap[displayName] = appKey;
-        }
-
         for (const column of spColumns) {
             if (column.hidden || column.readOnly) continue;
-            
-            const appKey = displayNameToAppKeyMap[column.displayName];
-            if (appKey) {
-                newColumnMap.set(appKey, {
-                    internalName: column.name,
-                    displayName: column.displayName,
-                    type: getColumnType(column),
-                });
-            }
+             newColumnMap.set(column.displayName, {
+                internalName: column.name,
+                displayName: column.displayName,
+                type: getColumnType(column),
+            });
         }
         
         return newColumnMap;
@@ -98,15 +87,29 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, ColumnM
         lastUpdated: item.lastModifiedDateTime,
     };
     
-    for (const [appKey, mapping] of columnMap.entries()) {
-        const value = spFields[mapping.internalName];
-        if (value !== undefined && value !== null) {
-            if (mapping.type === 'boolean') {
-                (soxControl as any)[appKey] = parseSharePointBoolean(value);
-            } else if (mapping.type === 'multiChoice') {
-                (soxControl as any)[appKey] = Array.isArray(value) ? value : String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
-            } else {
-                (soxControl as any)[appKey] = value;
+    // Create a reverse map from SP internal name to our app's key
+    const internalNameToAppKey: { [key: string]: string } = {};
+    for (const appKey in appToSpDisplayNameMapping) {
+        const displayName = (appToSpDisplayNameMapping as any)[appKey];
+        const mapping = columnMap.get(displayName);
+        if(mapping) {
+            internalNameToAppKey[mapping.internalName] = appKey;
+        }
+    }
+    
+    for (const [internalName, value] of Object.entries(spFields)) {
+        const appKey = internalNameToAppKey[internalName];
+        if (appKey && value !== undefined && value !== null) {
+            const displayName = (appToSpDisplayNameMapping as any)[appKey];
+            const mapping = columnMap.get(displayName);
+            if(mapping) {
+                 if (mapping.type === 'boolean') {
+                    (soxControl as any)[appKey] = parseSharePointBoolean(value);
+                } else if (mapping.type === 'multiChoice') {
+                    (soxControl as any)[appKey] = Array.isArray(value) ? value : String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                } else {
+                    (soxControl as any)[appKey] = value;
+                }
             }
         }
     }
@@ -151,14 +154,13 @@ const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any 
                 const num = parseFloat(String(value).replace(',', '.'));
                 return isNaN(num) ? undefined : num;
             case 'dateTime':
-                // Handle Excel's numeric date format
                 if (typeof value === 'number' && value > 1) {
                     const excelEpoch = new Date(1899, 11, 30);
                     const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-                    return date.toISOString();
+                    return date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
                 }
                 const parsedDate = new Date(value);
-                return !isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : undefined;
+                return !isNaN(parsedDate.getTime()) ? parsedDate.toISOString().split('T')[0] : undefined;
             case 'multiChoice':
                  return String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
             default:
@@ -182,16 +184,12 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
     
-    // Iterate over the SAFE list of allowed fields (our mapping object)
-    for (const appKey in appToSpDisplayNameMapping) {
-        const mapping = columnMap.get(appKey);
-        const displayName = (appToSpDisplayNameMapping as any)[appKey];
-
-        if (mapping && displayName && rowData.hasOwnProperty(displayName)) {
+    for (const displayName in rowData) {
+        const mapping = columnMap.get(displayName);
+        if (mapping) {
             const rawValue = rowData[displayName];
             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
             if (formattedValue !== undefined) {
-                // Use the stable SharePoint internal name for the API payload
                 fieldsToCreate[mapping.internalName] = formattedValue;
             }
         }
@@ -209,11 +207,22 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             .post(newItem);
         return response;
     } catch (error: any) {
+        console.error("--- DETAILED SHAREPOINT API ERROR ---");
+        console.error("TIMESTAMP:", new Date().toISOString());
+        console.error("ITEM SENT TO SHAREPOINT:", JSON.stringify(newItem, null, 2));
+        console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
+        
         let detailedMessage = "Ocorreu um erro desconhecido ao gravar no SharePoint.";
         if (error?.body) {
             try {
                 const errorBody = JSON.parse(error.body);
-                detailedMessage = errorBody?.error?.message || error.body;
+                if(errorBody?.error?.message) {
+                  detailedMessage = errorBody.error.message;
+                } else if (errorBody?.error) {
+                  detailedMessage = JSON.stringify(errorBody.error);
+                } else {
+                  detailedMessage = error.body;
+                }
             } catch (e) {
                 detailedMessage = error.body;
             }
@@ -221,12 +230,6 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
             detailedMessage = error.message;
         }
         
-        console.error("--- DETAILED SHAREPOINT API ERROR ---");
-        console.error("TIMESTAMP:", new Date().toISOString());
-        console.error("ITEM SENT TO SHAREPOINT:", JSON.stringify(newItem, null, 2));
-        console.error("FULL ERROR OBJECT:", JSON.stringify(error, null, 2));
-        console.error("--- END OF DETAILED ERROR ---");
-
         throw new Error(detailedMessage);
     }
 };
@@ -236,8 +239,20 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
-    // Attempt to get a sample identifier display name for error reporting
-    const controlIdDisplayName = appToSpDisplayNameMapping.controlId || "ID do Controle";
+    // Dynamically get the display name for the control ID for better error reporting
+    let controlIdDisplayName = "ID do Controle";
+    try {
+        const columnMap = await buildColumnMappings();
+        const appKeyForControlId = Object.keys(appToSpDisplayNameMapping).find(key => (appToSpDisplayNameMapping as any)[key] === "Codigo NOVO");
+        if (appKeyForControlId) {
+            for (const [key, value] of columnMap.entries()) {
+                if (key === (appToSpDisplayNameMapping as any)[appKeyForControlId]) {
+                    controlIdDisplayName = value.displayName;
+                    break;
+                }
+            }
+        }
+    } catch (e) { /* Use default name on error */ }
 
     for (const row of controls) {
         const controlIdentifier = row[controlIdDisplayName] || 'ID Desconhecido';
@@ -257,7 +272,7 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     return { controlsAdded, errors };
 };
 
-export const getSharePointColumnHeaders = async (): Promise<string[]> => {
+export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
     }
@@ -268,7 +283,7 @@ export const getSharePointColumnHeaders = async (): Promise<string[]> => {
 
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/columns`)
-            .select('displayName,hidden,readOnly,name')
+            .select('displayName,hidden,readOnly,name,text,note,number,boolean,choice,dateTime')
             .get();
 
         if (!response || !response.value) {
@@ -276,41 +291,64 @@ export const getSharePointColumnHeaders = async (): Promise<string[]> => {
         }
 
         const spColumns = response.value;
+        const systemColumnInternalNames = new Set(['ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
 
-        // Blocklist of known system columns that shouldn't be in the template.
-        const systemColumnInternalNames = new Set([
-            'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 
-            'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString'
-        ]);
-
-        const allDisplayNames = spColumns
-            .filter((column: any) => 
-                !column.hidden && 
-                !column.readOnly && 
-                !systemColumnInternalNames.has(column.name)
-            )
-            .map((column: any) => column.displayName);
+        const allColumns: SharePointColumn[] = spColumns
+            .filter((column: any) => !column.hidden && !column.readOnly && !systemColumnInternalNames.has(column.name))
+            .map((column: any) => ({
+                displayName: column.displayName,
+                internalName: column.name,
+                type: getColumnType(column),
+            }));
         
-        const orderedDisplayNames: string[] = [];
-        const receivedDisplayNames = new Set(allDisplayNames);
-
-        // Add columns in the preferred order first, based on our static mapping.
-        for (const key in appToSpDisplayNameMapping) {
-            const preferredName = (appToSpDisplayNameMapping as any)[key];
-            if (receivedDisplayNames.has(preferredName)) {
-                orderedDisplayNames.push(preferredName);
-                receivedDisplayNames.delete(preferredName); // Remove from set to avoid duplication
-            }
-        }
-
-        // Add any remaining (new/unknown) columns at the end.
-        orderedDisplayNames.push(...Array.from(receivedDisplayNames));
-        
-        return orderedDisplayNames;
-
+        return allColumns;
     } catch (error) {
-        console.error("FATAL: Failed to get SharePoint column headers.", error);
-        throw new Error("Could not get column headers from SharePoint.");
+        console.error("FATAL: Failed to get SharePoint column details.", error);
+        throw new Error("Could not get column details from SharePoint.");
+    }
+};
+
+export const addSharePointColumn = async (columnData: { displayName: string; type: 'text' | 'note' | 'number' | 'boolean' }) => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing.");
+    }
+
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+
+    // Generate a safe internal name
+    const internalName = columnData.displayName.replace(/[^a-zA-Z0-9]/g, '');
+    if (!internalName) {
+        throw new Error("O nome da coluna é inválido. Use apenas letras e números.");
+    }
+
+    const payload: any = {
+        displayName: columnData.displayName,
+        name: internalName,
+        [columnData.type]: {},
+    };
+
+    try {
+        await graphClient.api(`/sites/${siteId}/lists/${listId}/columns`).post(payload);
+        return { success: true, name: columnData.displayName };
+    } catch (error: any) {
+        console.error("--- FAILED TO ADD SHAREPOINT COLUMN ---");
+        console.error("Payload:", JSON.stringify(payload, null, 2));
+        console.error("Error:", JSON.stringify(error, null, 2));
+        
+        let detailedMessage = "Ocorreu um erro ao criar a coluna no SharePoint.";
+        if (error?.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                detailedMessage = errorBody?.error?.message || error.body;
+            } catch (e) {
+                detailedMessage = error.body;
+            }
+        } else if (error?.message) {
+            detailedMessage = error.message;
+        }
+        throw new Error(detailedMessage);
     }
 };
 
