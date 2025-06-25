@@ -184,14 +184,15 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
     
-    for (const displayName in rowData) {
+    for (const appKey in appToSpDisplayNameMapping) {
+        const displayName = (appToSpDisplayNameMapping as any)[appKey];
         const mapping = columnMap.get(displayName);
-        if (mapping) {
-            const rawValue = rowData[displayName];
-            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
-            if (formattedValue !== undefined) {
-                fieldsToCreate[mapping.internalName] = formattedValue;
-            }
+        if (mapping && rowData.hasOwnProperty(displayName)) {
+             const rawValue = rowData[displayName];
+             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+             if (formattedValue !== undefined) {
+                 fieldsToCreate[mapping.internalName] = formattedValue;
+             }
         }
     }
   
@@ -239,18 +240,13 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
-    // Dynamically get the display name for the control ID for better error reporting
     let controlIdDisplayName = "ID do Controle";
     try {
         const columnMap = await buildColumnMappings();
         const appKeyForControlId = Object.keys(appToSpDisplayNameMapping).find(key => (appToSpDisplayNameMapping as any)[key] === "Codigo NOVO");
         if (appKeyForControlId) {
-            for (const [key, value] of columnMap.entries()) {
-                if (key === (appToSpDisplayNameMapping as any)[appKeyForControlId]) {
-                    controlIdDisplayName = value.displayName;
-                    break;
-                }
-            }
+             const displayName = (appToSpDisplayNameMapping as any)[appKeyForControlId];
+             if (displayName) controlIdDisplayName = displayName;
         }
     } catch (e) { /* Use default name on error */ }
 
@@ -302,9 +298,22 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
             }));
         
         return allColumns;
-    } catch (error) {
+    } catch (error: any) {
         console.error("FATAL: Failed to get SharePoint column details.", error);
-        throw new Error("Could not get column details from SharePoint.");
+        
+        let detailedMessage = "Ocorreu um erro desconhecido ao buscar os detalhes das colunas.";
+        if (error?.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                detailedMessage = errorBody?.error?.message || error.body;
+            } catch (e) {
+                detailedMessage = error.body;
+            }
+        } else if (error?.message) {
+            detailedMessage = error.message;
+        }
+        
+        throw new Error(detailedMessage);
     }
 };
 

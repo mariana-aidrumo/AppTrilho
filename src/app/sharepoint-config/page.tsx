@@ -11,12 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Loader2, ArrowLeft } from "lucide-react";
+import { PlusCircle, Loader2, ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import { getSharePointColumnDetails, addSharePointColumn } from '@/services/sox-service';
 import type { SharePointColumn } from '@/types';
@@ -37,18 +36,22 @@ export default function SharePointConfigPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<AddColumnFormValues>({
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<AddColumnFormValues>({
     resolver: zodResolver(addColumnSchema),
   });
 
   const fetchColumns = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
         const data = await getSharePointColumnDetails();
         setColumns(data);
     } catch (error) {
-        toast({ title: "Erro", description: "Falha ao carregar colunas do SharePoint.", variant: "destructive" });
+        const errorMessage = error instanceof Error ? error.message : "Falha ao carregar colunas do SharePoint.";
+        toast({ title: "Erro de Integração", description: errorMessage, variant: "destructive" });
+        setError(errorMessage);
     } finally {
         setIsLoading(false);
     }
@@ -66,6 +69,8 @@ export default function SharePointConfigPage() {
         } catch (e) {
             console.error("Failed to parse visibility config from localStorage", e);
         }
+    } else {
+      setIsLoading(false);
     }
   }, [isUserAdmin, fetchColumns]);
 
@@ -128,6 +133,32 @@ export default function SharePointConfigPage() {
     );
   }
 
+  if (error && !isLoading) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+             <AlertTriangle className="h-6 w-6" />
+             Falha na Integração com o SharePoint
+          </CardTitle>
+          <CardDescription>
+            Não foi possível carregar as colunas da matriz. Isso pode ocorrer por um erro de permissão, configuração incorreta no .env ou um problema na rede.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm font-semibold">Mensagem de Erro Recebida:</p>
+          <pre className="mt-2 w-full whitespace-pre-wrap rounded-md bg-muted p-4 font-mono text-sm text-muted-foreground">
+            <code>{error}</code>
+          </pre>
+          <Button onClick={fetchColumns} variant="secondary" className="mt-6">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tentar Novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -145,7 +176,7 @@ export default function SharePointConfigPage() {
                 </div>
                 <div>
                   <Label htmlFor="type">Tipo de Campo</Label>
-                  <Select onValueChange={(value) => reset({ ...watch(), type: value as any })} {...register("type")}>
+                  <Select onValueChange={(value) => reset({ ...watch(), type: value as any })} value={watch('type')}>
                     <SelectTrigger id="type">
                         <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
