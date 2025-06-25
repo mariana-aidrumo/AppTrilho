@@ -422,12 +422,7 @@ export default function SoxMatrixPage() {
   const renderUnifiedTable = (items: UnifiedTableItem[]) => (
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
-        <colgroup>
-            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && (
-                <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key]}px` }} />
-            ))}
-            <col style={{ width: '100px' }} /> {/* For actions column */}
-        </colgroup>
+        <colgroup>{tableColumnsConfig.map(col => visibleColumns.has(col.label) && (<col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key]}px` }} />))}<col style={{ width: '100px' }} /></colgroup>
         <TableHeader>
           <TableRow>
             {tableColumnsConfig.map(col => visibleColumns.has(col.label) && (
