@@ -159,22 +159,24 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
     const writeMapping = await getWriteMapping();
     const fieldsToCreate: { [key: string]: any } = {};
   
-    const readOnlyFields = ['id', 'lastUpdated', 'status', 'DocIcon', 'Attachments', 'ContentType', 'Edit', 'LinkTitle', 'ComplianceAssetId'];
-  
+    // DEFINITIVE FIX: Iterate over the source of truth (the writeMapping)
+    // This ensures we only try to write to fields we know about and that are writable.
+    // It completely ignores fields like DocIcon, LinkTitle, etc., even if they are in the Excel file.
     for (const appKey in writeMapping) {
-      if (readOnlyFields.includes(appKey)) continue;
-      
       const spInternalName = (writeMapping as any)[appKey];
+      
       if (spInternalName) {
         const value = (controlData as any)[appKey];
         
-        if (value === null || value === undefined || value === '') {
-          fieldsToCreate[spInternalName] = null;
+        // Handle various data types and undefined/null values robustly
+        if (value === undefined || value === null || value === '') {
+          fieldsToCreate[spInternalName] = null; // Send null to clear the field in SharePoint
         } else if (Array.isArray(value)) {
           fieldsToCreate[spInternalName] = value.join('; ');
         } else if (typeof value === 'boolean') {
           fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
         } else if (value instanceof Date) {
+          // Format date consistently
           fieldsToCreate[spInternalName] = value.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit'});
         } else {
           fieldsToCreate[spInternalName] = String(value);
@@ -200,7 +202,7 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
              if (error.body) {
                 const errorBody = JSON.parse(error.body);
                 if (errorBody.error && errorBody.error.message) {
-                    detailedMessage = errorBody.error.message;
+                    detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
                 } else {
                     detailedMessage = `SharePoint Error: ${error.body}`;
                 }
