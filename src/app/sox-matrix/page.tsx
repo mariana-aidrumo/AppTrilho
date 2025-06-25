@@ -370,23 +370,34 @@ export default function SoxMatrixPage() {
   };
 
   const handleExtractXlsx = (data: UnifiedTableItem[]) => {
-    const dataToExport = data.map(item => ({
-      "Cód Controle ANTERIOR": item.previousDisplayId || "",
-      "Processo": item.processo || "",
-      "Sub-Processo": item.subProcesso || "",
-      "Código NOVO": item.displayId || "",
-      "Nome do Controle": item.name || "",
-      "Descrição do controle ATUAL": item.description || "",
-      "Frequência": item.controlFrequency || "",
-      "Modalidade": item.modalidade || "",
-      "P/D": item.controlType || "",
-      "Dono do Controle (Control owner)": item.ownerOrRequester || "",
-    }));
+    const dataToExport = data.map(item => {
+      const exportRow: { [key: string]: string | number | boolean } = {};
+      const appKeys = Object.keys(appToSpDisplayNameMapping) as (keyof SoxControl)[];
 
-    const ws = xlsx.utils.json_to_sheet(dataToExport);
+      appKeys.forEach(appKey => {
+          const displayName = appToSpDisplayNameMapping[appKey]!;
+          let value: any = item[appKey];
+
+          // Format values for Excel readability
+          if (Array.isArray(value)) {
+            value = value.join('; ');
+          } else if (typeof value === 'boolean') {
+            value = value ? 'Sim' : 'Não';
+          }
+          
+          exportRow[displayName] = value ?? ""; // Use empty string for null/undefined
+      });
+
+      return exportRow;
+    });
+
+    // Use the ordered list of headers from the mapping
+    const headers = Object.values(appToSpDisplayNameMapping);
+    
+    const ws = xlsx.utils.json_to_sheet(dataToExport, { header: headers });
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, "Matriz de Controles");
-    xlsx.writeFile(wb, "matriz_geral_controles.xlsx");
+    xlsx.writeFile(wb, "matriz_completa_controles.xlsx");
   };
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, columnKey: string) => {
