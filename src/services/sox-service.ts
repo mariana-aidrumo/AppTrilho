@@ -153,7 +153,9 @@ const formatValueForSharePoint = (value: any, type: ColumnMapping['type']): any 
                 const num = parseFloat(String(value).replace(',', '.'));
                 return isNaN(num) ? undefined : num;
             case 'dateTime':
+                // Handle Excel's numeric date format
                 if (typeof value === 'number' && value > 1) {
+                    // Excel's epoch starts on 1899-12-30 for compatibility with Lotus 1-2-3
                     const excelEpoch = new Date(1899, 11, 30);
                     const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
                     return date.toISOString();
@@ -183,24 +185,23 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
 
-    // Create a reverse map from SP's current display name to our appKey
-    const displayNameToAppKey = new Map<string, string>();
+    // Create a reverse map from our internal appKey to the expected Display Name.
+    const appKeyToDisplayNameMap = new Map<string, string>();
     for (const [appKey, mapping] of columnMap.entries()) {
-        displayNameToAppKey.set(mapping.displayName, appKey);
+        appKeyToDisplayNameMap.set(appKey, mapping.displayName);
     }
     
-    // Iterate over the keys in the uploaded data (which are the dynamic display names from the template)
-    for (const displayNameFromExcel in rowData) {
-        const appKey = displayNameToAppKey.get(displayNameFromExcel);
-        if (appKey) {
-            const mapping = columnMap.get(appKey);
-            if (mapping) {
-                const rawValue = rowData[displayNameFromExcel];
-                const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
-                if (formattedValue !== undefined) {
-                    // Use the stable internal name for the API payload
-                    fieldsToCreate[mapping.internalName] = formattedValue;
-                }
+    // Iterate over the SAFE list of allowed fields (our mapping object)
+    for (const appKey in appToSpDisplayNameMapping) {
+        const mapping = columnMap.get(appKey);
+        const displayName = appKeyToDisplayNameMap.get(appKey);
+
+        if (mapping && displayName && rowData.hasOwnProperty(displayName)) {
+            const rawValue = rowData[displayName];
+            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+            if (formattedValue !== undefined) {
+                // Use the stable SharePoint internal name for the API payload
+                fieldsToCreate[mapping.internalName] = formattedValue;
             }
         }
     }
