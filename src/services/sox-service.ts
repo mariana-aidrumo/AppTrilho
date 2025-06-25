@@ -129,7 +129,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields`)
             .get();
 
         if (response && response.value) {
@@ -160,14 +160,15 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
       if (spInternalName) {
         const value = (controlData as any)[appKey];
         
-        if (value === null || value === undefined) {
-          fieldsToCreate[spInternalName] = null; // Send null for missing or empty values
+        if (value === null || value === undefined || value === '') {
+          fieldsToCreate[spInternalName] = null; // Send null to clear the field
         } else if (Array.isArray(value)) {
           fieldsToCreate[spInternalName] = value.join('; ');
         } else if (typeof value === 'boolean') {
           fieldsToCreate[spInternalName] = value ? 'Sim' : 'Não';
         } else if (value instanceof Date) {
-          fieldsToCreate[spInternalName] = value.toISOString();
+          // Format date as dd/MM/yyyy for text fields
+          fieldsToCreate[spInternalName] = value.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit'});
         } else {
           fieldsToCreate[spInternalName] = String(value);
         }
@@ -187,26 +188,17 @@ export const addSoxControl = async (controlData: Partial<SoxControl>): Promise<S
         console.error("Full SharePoint Error Object:", JSON.stringify(error, null, 2));
     
         let detailedMessage = 'Um erro desconhecido ocorreu.';
-
+        
         try {
+            // New Brutal Error Parsing: Stringify the entire body. It's better than nothing.
             if (error.body) {
-                const errorDetails = JSON.parse(error.body);
-                // Path: error.error.innerError.message or error.error.message
-                if (errorDetails?.error?.innerError?.message) {
-                    detailedMessage = errorDetails.error.innerError.message;
-                } else if (errorDetails?.error?.message) {
-                    detailedMessage = errorDetails.error.message;
-                }
-            } else if (error.message) {
-                // Fallback to the top-level error message
-                detailedMessage = error.message;
+                detailedMessage = `SharePoint Error: ${error.body}`;
+            } else {
+                // Stringify the whole error if no body.
+                detailedMessage = `General Error: ${JSON.stringify(error)}`;
             }
-        } catch (parseError) {
-            console.error("Could not parse SharePoint error response body:", error.body || "No body present");
-            // If parsing fails, use the top-level message if available
-            if (error.message) {
-                detailedMessage = error.message;
-            }
+        } catch (stringifyError) {
+             detailedMessage = "Ocorreu um erro, e a resposta de erro do SharePoint não pôde ser processada.";
         }
 
         console.error("Error details sending to SharePoint:", {
