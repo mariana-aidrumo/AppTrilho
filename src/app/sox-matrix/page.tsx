@@ -20,7 +20,7 @@ import * as xlsx from 'xlsx';
 import { getSoxControls, getChangeRequests, getSharePointColumnDetails } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 
-type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração';
+type UnifiedTableItemType = 'Controle Ativo';
 
 // This interface combines fields from SoxControl and ChangeRequest for the unified table.
 interface UnifiedTableItem extends Partial<SoxControl> {
@@ -275,7 +275,11 @@ export default function SoxMatrixPage() {
           getChangeRequests(),
           getSharePointColumnDetails()
         ]);
-        setSoxControls(controlsData);
+        
+        // Defensive deduplication: ensure no duplicate controls are set in the state
+        const uniqueControls = Array.from(new Map(controlsData.map(c => [c.id, c])).values());
+        setSoxControls(uniqueControls);
+
         setChangeRequests(requestsData);
         
         const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce(
@@ -483,7 +487,7 @@ export default function SoxMatrixPage() {
                 
                 return (
                     <TableCell key={col.key} className={cellClassName} title={typeof value === 'string' ? value : undefined}>
-                        {value || "N/A"}
+                        {Array.isArray(value) ? value.join(', ') : (value || "N/A")}
                     </TableCell>
                 );
             })}

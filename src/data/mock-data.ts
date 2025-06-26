@@ -14,9 +14,9 @@ export interface MockUser {
 
 export const mockUsers: MockUser[] = [
     { id: 'user-adm-1', name: 'Carlos Ferreira', email: 'usuario@adm.com', password: 'Senha123', roles: ['admin', 'control-owner'], activeProfile: "Administrador de Controles Internos" },
-    { id: 'user-owner-1', name: 'João da Silva', email: 'usuario@owner.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1', '2', '3'] },
+    { id: 'user-owner-1', name: 'João da Silva', email: 'usuario@owner.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
     { id: 'user-other-1', name: 'Ana Clara Souza', email: 'alice@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
-    { id: 'user-other-2', name: 'Pedro Oliveira', email: 'bob@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['2'] },
+    { id: 'user-other-2', name: 'Pedro Oliveira', email: 'bob@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: [] },
 ];
 
 export const mockSoxControls: SoxControl[] = [
@@ -65,67 +65,13 @@ export const mockSoxControls: SoxControl[] = [
     vpResponsavel: "Finanças",
     impactoMalhaSul: false,
     sistemaArmazenamento: "IB",
-  },
-  {
-    id: "2",
-    controlId: "ITG-005",
-    controlName: "Aprovação de Acesso ao Sistema",
-    description: "Revisão trimestral dos direitos de acesso do usuário a sistemas críticos.",
-    controlOwner: "Pedro Oliveira",
-    controlFrequency: "Trimestral",
-    controlType: "Preventivo",
-    status: "Ativo",
-    lastUpdated: new Date().toISOString(),
-    relatedRisks: ["Acesso Não Autorizado", "Violação de Dados"],
-    testProcedures: "Amostra de logs de acesso do usuário e comparação com funções aprovadas.",
-    processo: "Gerenciamento de Acesso de Usuário",
-    subProcesso: "Provisionamento de Usuário",
-    modalidade: "Automático",
-    responsavel: "Fernanda Lima",
-    n3Responsavel: "Diretoria de TI",
-  },
-   {
-    id: "3",
-    controlId: "PRO-012",
-    controlName: "Due Diligence de Integridade",
-    description: "Contagens cíclicas regulares de estoque para garantir a precisão.",
-    controlOwner: "João da Silva",
-    controlFrequency: "Por ocorrência", // Updated from "Por Novo Fornecedor"
-    controlType: "Preventivo",
-    status: "Ativo",
-    lastUpdated: new Date().toISOString(),
-    relatedRisks: ["Perda de Estoque", "Erros de Avaliação de Estoque"],
-    testProcedures: "Realizar contagens cíclicas e investigar discrepâncias.",
-    processo: "Compras",
-    subProcesso: "Gerenciamento de Fornecedores",
-    modalidade: "Manual",
-    responsavel: "Mariana Costa",
-    n3Responsavel: "Gerência de Suprimentos",
-  },
-  {
-    id: "4",
-    controlId: "SEC-002",
-    controlName: "Revisão de Logs de Segurança",
-    description: "Revisão diária de logs de segurança para identificar atividades suspeitas.",
-    controlOwner: "Carlos Ferreira",
-    controlFrequency: "Diário",
-    controlType: "Detectivo",
-    status: "Ativo",
-    lastUpdated: new Date(Date.now() - 86400000 * 2).toISOString(),
-    relatedRisks: ["Acesso não autorizado", "Violação de dados"],
-    testProcedures: "Examinar logs de sistemas críticos em busca de anomalias.",
-    processo: "Segurança da Informação",
-    subProcesso: "Monitoramento de Segurança",
-    modalidade: "Híbrido",
-    responsavel: "Ricardo Alves",
-    n3Responsavel: "CSO Office",
-  },
+  }
 ];
 
 export const mockChangeRequests: ChangeRequest[] = [
   {
     id: "cr1",
-    controlId: "RUMO.AF.01", // Previously FIN-001
+    controlId: "RUMO.AF.01", 
     requestedBy: "João da Silva",
     requestDate: new Date(Date.now() - 86400000 * 10).toISOString(),
     changes: {
@@ -134,17 +80,6 @@ export const mockChangeRequests: ChangeRequest[] = [
     },
     status: "Pendente",
     comments: "Atualização da frequência e prazo de resolução.",
-  },
-  {
-    id: "cr2",
-    controlId: "ITG-005",
-    requestedBy: "Pedro Oliveira",
-    requestDate: new Date(Date.now() - 86400000 * 8).toISOString(),
-    changes: { controlOwner: "Lucas Mendes", responsavel: "Novo Responsável TI" },
-    status: "Em Análise",
-    comments: "Transferência de propriedade do controle e atualização de responsável.",
-    reviewedBy: "Carlos Ferreira",
-    reviewDate: new Date(Date.now() - 86400000 * 1).toISOString(),
   },
   {
     id: "cr3-new-pending",
@@ -163,7 +98,7 @@ export const mockChangeRequests: ChangeRequest[] = [
   },
   {
     id: "cr4-feedback",
-    controlId: "RUMO.AF.01", // Previously FIN-001
+    controlId: "RUMO.AF.01",
     requestedBy: "João da Silva",
     requestDate: new Date(Date.now() - 86400000 * 15).toISOString(),
     changes: {
@@ -176,38 +111,9 @@ export const mockChangeRequests: ChangeRequest[] = [
     reviewDate: new Date(Date.now() - 86400000 * 3).toISOString(),
     adminFeedback: "A proposta é boa, mas precisamos detalhar melhor como a 'dupla aprovação' será evidenciada e confirmar o N3. Por favor, revise e adicione detalhes sobre o sistema ou formulário de aprovação a ser usado.",
   },
-  {
-    id: "cr5-approved",
-    controlId: "PRO-012",
-    requestedBy: "João da Silva",
-    requestDate: new Date(Date.now() - 86400000 * 20).toISOString(),
-    changes: {
-      controlFrequency: "Semanal",
-      description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente.",
-      responsavel: "Ana Silva (Atualizado)",
-    },
-    status: "Aprovado",
-    comments: "Ajuste na frequência do controle PRO-012 e responsável.",
-    reviewedBy: "Carlos Ferreira",
-    reviewDate: new Date(Date.now() - 86400000 * 18).toISOString(),
-  },
-   {
-    id: "cr6-rejected",
-    controlId: "ITG-005",
-    requestedBy: "Pedro Oliveira",
-    requestDate: new Date(Date.now() - 86400000 * 25).toISOString(),
-    changes: {
-      relatedRisks: ["Risco de performance do sistema"],
-    },
-    status: "Rejeitado",
-    comments: "Adição de risco não justificada.",
-    reviewedBy: "Carlos Ferreira",
-    reviewDate: new Date(Date.now() - 86400000 * 22).toISOString(),
-    adminFeedback: "O risco de performance do sistema não é diretamente mitigado por este controle de acesso. Por favor, crie um controle específico se necessário.",
-  },
    {
     id: "cr-fin001-pending-details",
-    controlId: "RUMO.AF.01", // Previously FIN-001
+    controlId: "RUMO.AF.01", 
     requestedBy: "Ana Clara Souza",
     requestDate: new Date(Date.now() - 86400000 * 1).toISOString(),
     changes: {
@@ -225,18 +131,6 @@ export const mockChangeRequests: ChangeRequest[] = [
 export const mockVersionHistory: VersionHistoryEntry[] = [
   { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle RUMO.AF.01 Criado.", newValues: { controlName: "Aprovação dos projetos de investimento - Abertura, suplementação e encerramento", status: "Ativo", responsavel: "Patricia Ramos do Rosario", n3Responsavel: "Paula Formentini" } },
   { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "João da Silva", summaryOfChanges: "Solicitação de alteração cr1 enviada.", relatedChangeRequestId: "cr1" },
-  { id: "vh3", controlId: "2", changeDate: new Date(Date.now() - 86400000 * 28).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle ITG-005 Criado.", newValues: { controlName: "Aprovação de Acesso ao Sistema", status: "Ativo", responsavel: "Fernanda Lima", n3Responsavel: "Diretoria de TI" } },
-  { id: "vh4", controlId: "3", changeDate: new Date(Date.now() - 86400000 * 26).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle PRO-012 Criado.", newValues: { controlName: "Due Diligence de Integridade", status: "Ativo", responsavel: "Mariana Costa", n3Responsavel: "Gerência de Suprimentos" } },
-  {
-    id: "vh5",
-    controlId: "3", // PRO-012
-    changeDate: new Date(Date.now() - 86400000 * 18).toISOString(),
-    changedBy: "Carlos Ferreira",
-    summaryOfChanges: "Alterações da solicitação cr5-approved aplicadas.",
-    previousValues: { controlFrequency: "Por ocorrência", description: "Contagens cíclicas regulares de estoque para garantir a precisão." },
-    newValues: { controlFrequency: "Semanal", description: "Contagens cíclicas semanais de estoque para garantir a precisão e identificar discrepâncias rapidamente.", responsavel: "Ana Silva (Atualizado)" },
-    relatedChangeRequestId: "cr5-approved"
-  },
 ];
 
 export const mockProcessos = ["Todos", "Ativo Fixo", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
@@ -255,38 +149,10 @@ export const mockNotifications: Notification[] = [
     read: false,
   },
   {
-    id: "notif-cr2-pending-adm",
-    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Nova solicitação de alteração (cr2) para o controle ITG-005 por Pedro Oliveira.`,
-    date: new Date(Date.now() - 86400000 * 8 + 10000).toISOString(),
-    read: false,
-  },
-  {
-    id: "notif-cr3-new-adm",
-    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Nova proposta de controle (cr3-new-pending) por João da Silva.`,
-    date: new Date(Date.now() - 86400000 * 5 + 10000).toISOString(),
-    read: true, // Admin já viu
-  },
-  {
     id: "notif-cr4-feedback-owner",
     userId: "user-owner-1", // Para João da Silva (Dono)
     message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle RUMO.AF.01.`,
     date: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
-    read: false,
-  },
-   {
-    id: "notif-cr5-approved-owner",
-    userId: "user-owner-1", // Para João da Silva (Dono)
-    message: `Sua solicitação cr5-approved para PRO-012 foi APROVADA por Carlos Ferreira.`,
-    date: new Date(Date.now() - 86400000 * 18 + 10000).toISOString(),
-    read: true, // João já viu
-  },
-  {
-    id: "notif-cr6-rejected-owner",
-    userId: "user-other-2", // Para Pedro Oliveira (Dono)
-    message: `Sua solicitação cr6-rejected para ITG-005 foi REJEITADA por Carlos Ferreira.`,
-    date: new Date(Date.now() - 86400000 * 22 + 10000).toISOString(),
     read: false,
   },
   {
