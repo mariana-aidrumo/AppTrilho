@@ -262,7 +262,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
-  const { currentUser, isUserControlOwner } = useUserProfile();
+  const { isUserControlOwner } = useUserProfile();
   const [isRequestChangeDialogOpen, setIsRequestChangeDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -304,8 +304,6 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
   const isVisible = (key: keyof typeof appToSpDisplayNameMapping) => {
     return visibleFields.has(appToSpDisplayNameMapping[key]);
   }
-  
-  const isOwner = currentUser.controlsOwned?.includes(item.originalId ?? '');
 
   return (
     <>
@@ -384,7 +382,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {isUserControlOwner() && isOwner && (
+                {isUserControlOwner() && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
