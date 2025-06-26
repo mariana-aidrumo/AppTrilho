@@ -125,14 +125,24 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
-        const response = await graphClient
+        const allControls: SoxControl[] = [];
+        let response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items?expand=fields`)
             .get();
 
-        if (response && response.value) {
-            return response.value.map(item => mapSharePointItemToSoxControl(item, columnMap));
+        while (response) {
+            if (response.value) {
+                const controlsFromPage = response.value.map((item: any) => mapSharePointItemToSoxControl(item, columnMap));
+                allControls.push(...controlsFromPage);
+            }
+            if (response['@odata.nextLink']) {
+                response = await graphClient.api(response['@odata.nextLink']).get();
+            } else {
+                break;
+            }
         }
-        return [];
+        return allControls;
+
     } catch (error) {
         console.error("Failed to get SOX controls from SharePoint:", error);
         return [];
@@ -273,29 +283,34 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-
-        const response = await graphClient
+        const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
+        const allColumns: SharePointColumn[] = [];
+        
+        let response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/columns`)
             .select('displayName,hidden,readOnly,name,text,number,boolean,choice,dateTime')
             .get();
 
-        if (!response || !response.value) {
-            throw new Error("Could not fetch column definitions from SharePoint.");
+        while (response) {
+            if (response.value) {
+                const columnsFromPage = response.value
+                    .filter((column: any) => !column.hidden && !column.readOnly && !systemColumnInternalNames.has(column.name))
+                    .map((column: any) => ({
+                        displayName: column.displayName,
+                        internalName: column.name,
+                        type: getColumnType(column),
+                    }));
+                allColumns.push(...columnsFromPage);
+            }
+            if (response['@odata.nextLink']) {
+                response = await graphClient.api(response['@odata.nextLink']).get();
+            } else {
+                break;
+            }
         }
-
-        const spColumns = response.value;
-        // The 'Title' column is special and often not needed for management. Filter it out along with other system columns.
-        const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
-
-        const allColumns: SharePointColumn[] = spColumns
-            .filter((column: any) => !column.hidden && !column.readOnly && !systemColumnInternalNames.has(column.name))
-            .map((column: any) => ({
-                displayName: column.displayName,
-                internalName: column.name,
-                type: getColumnType(column),
-            }));
         
         return allColumns;
+
     } catch (error: any) {
         console.error("FATAL: Failed to get SharePoint column details.", error);
         
@@ -392,28 +407,41 @@ export const getFilterOptions = async () => {
 };
 
 /**
- * Fetches users from the Azure AD tenant.
+ * Fetches active users from the Azure AD tenant, handling pagination to retrieve all results.
  */
 export const getTenantUsers = async (): Promise<TenantUser[]> => {
   try {
     const graphClient = await getGraphClient();
-    // Use an advanced query with ConsistencyLevel header to filter by domain
-    const response = await graphClient
+    const allUsers: TenantUser[] = [];
+    
+    let response = await graphClient
       .api('/users')
       .header('ConsistencyLevel', 'eventual')
       .count(true) // Required for advanced filters
-      .filter("endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com')")
+      .filter("(endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com')) and accountEnabled eq true")
       .select('id,displayName,userPrincipalName')
       .get();
     
-    if (response && response.value) {
-      return response.value.map((user: any) => ({
-        id: user.id,
-        name: user.displayName,
-        email: user.userPrincipalName,
-      }));
+    while(response) {
+        if (response.value) {
+            const usersFromPage = response.value.map((user: any) => ({
+                id: user.id,
+                name: user.displayName,
+                email: user.userPrincipalName,
+            }));
+            allUsers.push(...usersFromPage);
+        }
+
+        if (response['@odata.nextLink']) {
+            // The nextLink is a full URL, so we pass it directly to the api call
+            response = await graphClient.api(response['@odata.nextLink']).get();
+        } else {
+            break;
+        }
     }
-    return [];
+
+    return allUsers;
+
   } catch (error) {
     console.error("Failed to fetch tenant users from Graph API:", error);
     throw new Error("Could not retrieve users from the directory.");
