@@ -156,7 +156,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
                     {isVisible('evidenciaControle') && <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />}
                     {isVisible('implementacaoData') && <DetailRow label="Implementação" value={item.implementacaoData} />}
                     {isVisible('dataUltimaAlteracao') && <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />}
-                    {isVisible('sistemasRelacionados') && <DetailRow label="Sistemas Relacionados" value={item.sistemasRelacionados?.join(', ')} />}
+                    {isVisible('sistemasRelacionados') && <DetailRow label="Sistemas Relacionados" value={Array.isArray(item.sistemasRelacionados) ? item.sistemasRelacionados.join(', ') : item.sistemasRelacionados} />}
                     {isVisible('transacoesTelasMenusCriticos') && <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />}
                     {isVisible('aplicavelIPE') && <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />}
                     {isVisible('ipe_C') && <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />}
@@ -170,7 +170,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
                 <dl>
                     {isVisible('responsavel') && <DetailRow label="Responsável" value={item.responsavel} />}
                     {isVisible('controlOwner') && <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />}
-                    {isVisible('executorControle') && <DetailRow label="Executor do Controle" value={item.executorControle?.join('; ')} />}
+                    {isVisible('executorControle') && <DetailRow label="Executor do Controle" value={Array.isArray(item.executorControle) ? item.executorControle.join('; ') : item.executorControle} />}
                     {isVisible('executadoPor') && <DetailRow label="Executado por" value={item.executadoPor} />}
                     {isVisible('n3Responsavel') && <DetailRow label="N3 Responsável" value={item.n3Responsavel} />}
                     {isVisible('area') && <DetailRow label="Área" value={item.area} />}
@@ -266,14 +266,18 @@ export default function SoxMatrixPage() {
         setN3Responsaveis(filtersData.n3Responsaveis);
         
         // Combine default columns with dynamic columns from SharePoint
-        const defaultColumnKeys = new Set(tableColumnsConfig.map(c => c.key));
-        const additionalColumns = allColumnsData
-          .filter(c => !defaultColumnKeys.has(c.displayName) && c.type !== 'unsupported') // Use displayName as key for dynamic columns
-          .map(c => ({
-              key: c.displayName, 
-              label: c.displayName,
-          }));
-        setAllPossibleColumns([...tableColumnsConfig, ...additionalColumns]);
+        const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce(
+            (acc, [appKey, spName]) => {
+                acc[spName] = appKey;
+                return acc;
+            }, {} as Record<string, string>
+        );
+
+        const allColumnsFromSp = allColumnsData.map(c => ({
+            key: spDisplayNameToAppKey[c.displayName] || c.displayName,
+            label: c.displayName,
+        }));
+        setAllPossibleColumns(allColumnsFromSp);
 
       } catch (error) {
         console.error("Failed to load SOX Matrix data:", error);
@@ -375,9 +379,9 @@ export default function SoxMatrixPage() {
     return items.filter(item => {
       const lowerSearchTerm = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === "" ||
-        item.displayId.toLowerCase().includes(lowerSearchTerm) ||
+        item.displayId?.toLowerCase().includes(lowerSearchTerm) ||
         (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
-        item.name.toLowerCase().includes(lowerSearchTerm) ||
+        item.name?.toLowerCase().includes(lowerSearchTerm) ||
         (item.itemType !== 'Controle Ativo' && item.summaryOfChanges?.toLowerCase().includes(lowerSearchTerm));
 
       const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
@@ -475,9 +479,9 @@ export default function SoxMatrixPage() {
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          {displayableColumns.map(col => visibleColumns.has(col.label) && (
-            <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />
-          ))}
+            {displayableColumns.map(col => visibleColumns.has(col.label) ? (
+                <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />
+            ) : null)}
           <col style={{ width: '100px' }} />
         </colgroup>
         <TableHeader>
