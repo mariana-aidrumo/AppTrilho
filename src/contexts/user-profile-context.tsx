@@ -2,24 +2,23 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useMemo } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import type { UserProfileType } from '@/types';
 import { mockUsers, type MockUser } from '@/data/mock-data';
 
 interface UserProfileContextType {
-  currentUser: MockUser; // O usuário nunca será nulo
-  login: (email: string, password: string) => MockUser | undefined; // Mantido para tipagem, mas não será usado
-  logout: () => void; // Mantido para tipagem, mas não será usado
+  currentUser: MockUser;
   isUserAdmin: () => boolean;
   isUserControlOwner: () => boolean;
   setActiveProfile: (profileType: UserProfileType) => void;
+  switchUser: (userId: string) => void;
+  allUsers: MockUser[];
 }
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
-// Define um usuário padrão para carregar a aplicação.
-// O usuário administrador agora tem ambos os papéis para permitir a troca de perfis.
-const defaultUser = mockUsers.find(u => u.id === 'user-adm-1')!;
+// Default to the first admin user found
+const defaultUser = mockUsers.find(u => u.roles.includes('admin'))!;
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<MockUser>(defaultUser);
@@ -38,30 +37,31 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       if (canSwitch) {
         setCurrentUser(prevUser => ({ ...prevUser, activeProfile: profileType }));
       } else {
-        // Se a troca não for permitida, reverte para o perfil principal do usuário
         const primaryProfile = currentUser.roles.includes('admin') ? "Administrador de Controles Internos" : "Dono do Controle";
         setCurrentUser(prevUser => ({ ...prevUser, activeProfile: primaryProfile }));
-        console.warn(`User ${currentUser.name} cannot switch to profile ${profileType}. Reverting to primary profile.`);
       }
   };
+
+  const switchUser = useCallback((userId: string) => {
+    const newUser = mockUsers.find(u => u.id === userId);
+    if (newUser) {
+        // When switching user, automatically set their active profile to their primary role.
+        const primaryProfile = newUser.roles.includes('admin') 
+            ? "Administrador de Controles Internos" 
+            : "Dono do Controle";
+        setCurrentUser({ ...newUser, activeProfile: primaryProfile });
+    }
+  }, []);
   
-  // Funções de login e logout são mantidas para evitar quebrar a tipagem, mas não fazem nada.
-  const login = (email: string, password: string): MockUser | undefined => {
-    console.warn("Login function is disabled.");
-    return undefined;
-  };
-  const logout = () => {
-    console.warn("Logout function is disabled.");
-  };
 
   const value = useMemo(() => ({
     currentUser,
-    login,
-    logout,
     isUserAdmin,
     isUserControlOwner,
     setActiveProfile,
-  }), [currentUser]);
+    switchUser,
+    allUsers: mockUsers,
+  }), [currentUser, switchUser]);
 
   return (
     <UserProfileContext.Provider value={value}>
@@ -77,5 +77,3 @@ export function useUserProfile() {
   }
   return context;
 }
-
-    

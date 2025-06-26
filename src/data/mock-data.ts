@@ -1,4 +1,3 @@
-
 // src/data/mock-data.ts
 import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions, TenantUser } from '@/types';
 
@@ -13,9 +12,9 @@ export interface MockUser {
 }
 
 export const mockUsers: MockUser[] = [
-    { id: 'user-adm-1', name: 'Carlos Ferreira', email: 'usuario@adm.com', password: 'Senha123', roles: ['admin', 'control-owner'], activeProfile: "Administrador de Controles Internos", controlsOwned: ['1'] },
+    { id: 'user-adm-1', name: 'Carlos Ferreira', email: 'usuario@adm.com', password: 'Senha123', roles: ['admin'], activeProfile: "Administrador de Controles Internos" },
     { id: 'user-owner-1', name: 'João da Silva', email: 'usuario@owner.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
-    { id: 'user-other-1', name: 'Ana Clara Souza', email: 'alice@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
+    { id: 'user-other-1', name: 'Aline Silva', email: 'aline@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: ['1'] },
     { id: 'user-other-2', name: 'Pedro Oliveira', email: 'bob@example.com', password: 'Senha123', roles: ['control-owner'], activeProfile: "Dono do Controle", controlsOwned: [] },
 ];
 
@@ -78,7 +77,7 @@ export const mockVersionHistory: VersionHistoryEntry[] = [
 
 export const mockProcessos = ["Todos", "Ativo Fixo", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
 export const mockSubProcessos = ["Todos", "1.Gestão de Projetos de Investimento", "Fechamento Mensal", "Provisionamento de Usuário", "Gerenciamento de Fornecedores", "Monitoramento de Produção", "Monitoramento de Segurança", "Processamento de Pedidos"];
-export const mockDonos = ["Todos", "Helenize Maria Dubiela", "Ana Clara Souza", "Pedro Oliveira", "João da Silva", "Carlos Ferreira", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
+export const mockDonos = ["Todos", "Helenize Maria Dubiela", "Aline Silva", "Pedro Oliveira", "João da Silva", "Carlos Ferreira", "Equipe de Operações", "Departamento Financeiro (Gerente)", "Lucas Mendes"];
 export const mockResponsaveis = ["Todos", "Patricia Ramos do Rosario", "Gustavo Alberto Peixoto", "Webert Soares Dias Raspante", "Carlos Pereira", "Fernanda Lima", "Mariana Costa", "Ricardo Alves", "Ana Silva (Atualizado)", "Equipe de Vendas", "Novo Responsável TI", "João Silva", "Maria Oliveira", "Beatriz Santos", "Rafael Almeida"];
 export const mockN3Responsaveis = ["Todos", "Paula Formentini", "Gerência Financeira", "Diretoria de TI", "Gerência de Suprimentos", "CSO Office", "Gerência Comercial", "CFO", "VP Financeiro", "Diretoria de Operações", "Head de Compras", "Superintendência de Riscos"];
 

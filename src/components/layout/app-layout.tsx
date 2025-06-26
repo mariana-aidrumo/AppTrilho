@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import NextLink from 'next/link';
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users } from "lucide-react";
+import { User, Bell, Users, UserSwitch } from "lucide-react";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,7 +19,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { currentUser, setActiveProfile } = useUserProfile();
+  const { currentUser, setActiveProfile, switchUser, allUsers } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
 
   const handleProfileChange = (value: string) => {
@@ -40,6 +40,20 @@ export function AppLayout({ children }: AppLayoutProps) {
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
+            {/* User Switcher */}
+             <Select value={currentUser.id} onValueChange={switchUser}>
+                <SelectTrigger className="w-auto sm:w-[180px] h-9 text-primary-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
+                    <User className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Trocar Usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                    {allUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
+            {/* Profile Switcher */}
             <Select value={currentUser.activeProfile} onValueChange={handleProfileChange}>
                 <SelectTrigger className="w-auto sm:w-[280px] h-9 text-primary-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
                     <Users className="h-4 w-4 mr-2 text-primary-foreground" />
@@ -54,16 +68,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                     )}
                 </SelectContent>
             </Select>
-
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-primary-foreground/80 hidden sm:block" />
-              <span className="text-sm text-primary-foreground hidden md:inline">
-                {currentUser.name}
-              </span>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className='bg-primary-foreground text-primary'>{currentUser.name?.substring(0,2).toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </div>
 
             <Popover>
               <PopoverTrigger asChild>
