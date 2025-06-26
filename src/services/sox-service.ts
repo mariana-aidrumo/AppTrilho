@@ -14,7 +14,7 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 // --- SharePoint Integration ---
 
 const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
-const SHAREPOINT_CONTROLS_LIST_NAME = 'modelo_controles1';
+const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
 
 type ColumnMapping = {
     internalName: string;
