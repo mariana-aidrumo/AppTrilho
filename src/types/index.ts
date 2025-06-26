@@ -17,6 +17,7 @@ export interface SoxControl {
   controlId: string; // Ex: "FIN-001" / "Código NOVO"
   controlName: string;
   description: string; // "Descrição do controle ATUAL"
+  descriptionAnterior?: string; // "Descrição do controle ANTERIOR"
   controlOwner: string; // "Dono do Controle (Control owner)" - Will be a string name for now
   controlFrequency: ControlFrequency;
   controlType: ControlType; // P/D

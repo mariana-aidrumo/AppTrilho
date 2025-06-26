@@ -137,6 +137,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
                     {isVisible('codigoCosan') && <DetailRow label="Código COSAN" value={item.codigoCosan} />}
                     {isVisible('objetivoControle') && <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />}
                     {isVisible('controlName') && <DetailRow label="Nome do Controle" value={item.name} />}
+                    {isVisible('descriptionAnterior') && <DetailRow label="Descrição do controle ANTERIOR" value={<div className="whitespace-pre-wrap">{item.descriptionAnterior}</div>} />}
                     {isVisible('description') && <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />}
                     {isVisible('tipo') && <DetailRow label="Tipo" value={item.tipo} />}
                     {isVisible('controlFrequency') && <DetailRow label="Frequência" value={item.controlFrequency} />}
@@ -577,7 +578,7 @@ export default function SoxMatrixPage() {
                     <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
                     <CommandGroup>
                       {processos.map(p => (
-                        <CommandItem key={p} value={p} onSelect={(currentValue) => { setSelectedProcess(currentValue); setProcessoPopoverOpen(false); }}>
+                        <CommandItem key={p} value={p} onSelect={(currentValue) => { setSelectedProcess(currentValue === selectedProcess ? 'Todos' : currentValue); setProcessoPopoverOpen(false); }}>
                           <Check className={cn("mr-2 h-4 w-4", selectedProcess === p ? "opacity-100" : "opacity-0")} />
                           {p}
                         </CommandItem>
@@ -594,7 +595,7 @@ export default function SoxMatrixPage() {
             <Popover open={subProcessoPopoverOpen} onOpenChange={setSubProcessoPopoverOpen}>
                 <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={subProcessoPopoverOpen} className="w-full justify-between font-normal">
-                        {selectedSubProcess !== "Todos" ? selectedSubProcess : "Selecionar Subprocesso"}
+                        {selectedSubProcess !== "Todos" ? subProcessos.find(s => s === selectedSubProcess) || "Selecionar Subprocesso" : "Selecionar Subprocesso"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
@@ -605,7 +606,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum subprocesso encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {subProcessos.map(s => (
-                                    <CommandItem key={s} value={s} onSelect={(currentValue) => { setSelectedSubProcess(currentValue); setSubProcessoPopoverOpen(false); }}>
+                                    <CommandItem key={s} value={s} onSelect={(currentValue) => { setSelectedSubProcess(currentValue === selectedSubProcess ? 'Todos' : currentValue); setSubProcessoPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedSubProcess === s ? "opacity-100" : "opacity-0")} />
                                         {s}
                                     </CommandItem>
@@ -622,7 +623,7 @@ export default function SoxMatrixPage() {
            <Popover open={ownerPopoverOpen} onOpenChange={setOwnerPopoverOpen}>
                 <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={ownerPopoverOpen} className="w-full justify-between font-normal">
-                        {selectedOwner !== "Todos" ? selectedOwner : "Selecionar Dono/Solicitante"}
+                        {selectedOwner !== "Todos" ? donos.find(o => o === selectedOwner) || "Selecionar Dono/Solicitante" : "Selecionar Dono/Solicitante"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
@@ -633,7 +634,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum dono encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {donos.map(o => (
-                                    <CommandItem key={o} value={o} onSelect={(currentValue) => { setSelectedOwner(currentValue); setOwnerPopoverOpen(false); }}>
+                                    <CommandItem key={o} value={o} onSelect={(currentValue) => { setSelectedOwner(currentValue === selectedOwner ? 'Todos' : currentValue); setOwnerPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedOwner === o ? "opacity-100" : "opacity-0")} />
                                         {o}
                                     </CommandItem>
@@ -650,7 +651,7 @@ export default function SoxMatrixPage() {
           <Popover open={responsavelPopoverOpen} onOpenChange={setResponsavelPopoverOpen}>
                 <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={responsavelPopoverOpen} className="w-full justify-between font-normal">
-                        {selectedResponsavel !== "Todos" ? selectedResponsavel : "Selecionar Responsável"}
+                        {selectedResponsavel !== "Todos" ? responsaveis.find(r => r === selectedResponsavel) || "Selecionar Responsável" : "Selecionar Responsável"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
@@ -661,7 +662,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum responsável encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {responsaveis.map(r => (
-                                    <CommandItem key={r} value={r} onSelect={(currentValue) => { setSelectedResponsavel(currentValue); setResponsavelPopoverOpen(false); }}>
+                                    <CommandItem key={r} value={r} onSelect={(currentValue) => { setSelectedResponsavel(currentValue === selectedResponsavel ? 'Todos' : currentValue); setResponsavelPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedResponsavel === r ? "opacity-100" : "opacity-0")} />
                                         {r}
                                     </CommandItem>
@@ -678,7 +679,7 @@ export default function SoxMatrixPage() {
            <Popover open={n3ResponsavelPopoverOpen} onOpenChange={setN3ResponsavelPopoverOpen}>
                 <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={n3ResponsavelPopoverOpen} className="w-full justify-between font-normal">
-                        {selectedN3Responsavel !== "Todos" ? selectedN3Responsavel : "Selecionar N3 Responsável"}
+                        {selectedN3Responsavel !== "Todos" ? n3Responsaveis.find(n3 => n3 === selectedN3Responsavel) || "Selecionar N3 Responsável" : "Selecionar N3 Responsável"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
@@ -689,7 +690,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum N3 encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {n3Responsaveis.map(n3 => (
-                                    <CommandItem key={n3} value={n3} onSelect={(currentValue) => { setSelectedN3Responsavel(currentValue); setN3ResponsavelPopoverOpen(false); }}>
+                                    <CommandItem key={n3} value={n3} onSelect={(currentValue) => { setSelectedN3Responsavel(currentValue === selectedN3Responsavel ? 'Todos' : currentValue); setN3ResponsavelPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedN3Responsavel === n3 ? "opacity-100" : "opacity-0")} />
                                         {n3}
                                     </CommandItem>
