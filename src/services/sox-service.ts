@@ -521,6 +521,12 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
         return allRequests;
     } catch (error: any) {
+        // If the list is not found, it's not a fatal error for loading the page.
+        // We can just return an empty array and let the developer know via console.
+        if (error.message && (error.message.includes('not found') || error.message.includes('não encontrada'))) {
+             console.warn(`SharePoint history list '${SHAREPOINT_HISTORY_LIST_NAME}' not found. Returning empty change requests. Please ensure the list is created correctly.`);
+             return [];
+        }
         console.error("Failed to get Change Requests from SharePoint:", error.body || error);
         throw new Error("Could not retrieve change requests from SharePoint.");
     }
@@ -712,4 +718,3 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
-
