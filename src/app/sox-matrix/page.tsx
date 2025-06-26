@@ -113,31 +113,54 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
     const onSubmit = async (formData: Partial<SoxControl>) => {
         const changes: Partial<SoxControl> = {};
 
-        const haveArraysChanged = (arr1: any[] | undefined, arr2: any[] | undefined): boolean => {
-            if (!arr1 && !arr2) return false;
-            if (!arr1 || !arr2 || arr1.length !== arr2.length) return true;
-            const sorted1 = [...arr1].sort();
-            const sorted2 = [...arr2].sort();
+        const haveArraysChanged = (arr1: any, arr2: any): boolean => {
+            const a1 = Array.isArray(arr1) ? arr1 : [];
+            const a2 = Array.isArray(arr2) ? arr2 : [];
+            if (a1.length !== a2.length) return true;
+            const sorted1 = [...a1].sort();
+            const sorted2 = [...a2].sort();
             return sorted1.some((value, index) => value !== sorted2[index]);
         };
         
+        // A much more robust change detection logic
         (Object.keys(formData) as Array<keyof SoxControl>).forEach(key => {
             const formValue = formData[key];
             const originalValue = control[key];
 
-            if (key === 'sistemasRelacionados' || key === 'executorControle') {
-                const newValueArray = typeof formValue === 'string' 
-                    ? formValue.split(',').map(s => s.trim()).filter(Boolean) 
-                    : [];
-                const originalValueArray = Array.isArray(originalValue) ? originalValue : [];
+            switch (key) {
+                case 'sistemasRelacionados':
+                case 'executorControle':
+                    const formArray = typeof formValue === 'string' 
+                        ? formValue.split(',').map(s => s.trim()).filter(Boolean) 
+                        : [];
+                    if (haveArraysChanged(formArray, originalValue)) {
+                        (changes as any)[key] = formArray;
+                    }
+                    break;
                 
-                if (haveArraysChanged(newValueArray, originalValueArray)) {
-                    (changes as any)[key] = newValueArray;
-                }
-            } else if (formValue !== originalValue) {
-                (changes as any)[key] = formValue;
+                case 'mrc':
+                case 'aplicavelIPE':
+                case 'impactoMalhaSul':
+                case 'ipe_C':
+                case 'ipe_EO':
+                case 'ipe_VA':
+                case 'ipe_OR':
+                case 'ipe_PD':
+                    // Compare booleans, treating undefined/null as false
+                    if ((formValue ?? false) !== (originalValue ?? false)) {
+                        (changes as any)[key] = formValue ?? false;
+                    }
+                    break;
+
+                default:
+                    // Compare strings/numbers, treating undefined/null as empty string
+                    if (String(formValue ?? '') !== String(originalValue ?? '')) {
+                        (changes as any)[key] = formValue;
+                    }
+                    break;
             }
         });
+
 
         if (Object.keys(changes).length === 0) {
             toast({
@@ -282,7 +305,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
-  const { currentUser } = useUserProfile();
+  const { currentUser, isUserControlOwner } = useUserProfile();
   const [isRequestChangeDialogOpen, setIsRequestChangeDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -402,7 +425,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {currentUser.activeProfile === "Dono do Controle" && (
+                {isUserControlOwner() && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
