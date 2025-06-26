@@ -58,23 +58,26 @@ export async function getGraphClient(): Promise<Client> {
   }
 
   try {
-    const authResponse = await cca.acquireTokenByClientCredential({ scopes });
-
-    if (!authResponse || !authResponse.accessToken) {
-      throw new Error('Failed to acquire access token');
-    }
-
-    // Initialize the Graph client
-    const client = Client.initWithMiddleware({
-      authProvider: {
-        getAccessToken: async () => authResponse.accessToken,
+    // The authProvider is called by the Graph client middleware before each API request.
+    // It's responsible for acquiring a valid token. MSAL handles caching.
+    const authProvider = {
+      getAccessToken: async (): Promise<string> => {
+        const authResponse = await cca.acquireTokenByClientCredential({ scopes });
+        if (!authResponse || !authResponse.accessToken) {
+          throw new Error('Failed to acquire access token for Graph request.');
+        }
+        return authResponse.accessToken;
       },
-    });
+    };
+
+    // Initialize the Graph client with the dynamic auth provider
+    const client = Client.initWithMiddleware({ authProvider });
 
     graphClient = client;
-    return client;
+    return graphClient;
+
   } catch (error) {
-    console.error("Error acquiring token or initializing Graph client:", error);
+    console.error("Error initializing Graph client:", error);
     throw new Error("Could not connect to Microsoft Graph.");
   }
 }
