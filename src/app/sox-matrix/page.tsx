@@ -41,7 +41,6 @@ interface UnifiedTableItem extends Partial<SoxControl> {
 }
 
 const tableColumnsConfig = [
-    { key: 'previousDisplayId', label: 'Cód Controle ANTERIOR' },
     { key: 'processo', label: 'Processo' },
     { key: 'subProcesso', label: 'Sub-Processo' },
     { key: 'displayId', label: 'Código NOVO' },
@@ -54,6 +53,7 @@ const tableColumnsConfig = [
 ];
 const LOCAL_STORAGE_KEY_VISIBLE_COLUMNS = 'visibleSoxMatrixColumns';
 const LOCAL_STORAGE_KEY_COLUMN_WIDTHS = 'soxMatrixColumnWidths';
+const LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS = 'visibleDetailFields';
 
 const DEFAULT_WIDTHS: Record<string, number> = {
     previousDisplayId: 150,
@@ -75,7 +75,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
   useEffect(() => {
     if (open) { // Only load from localStorage when sheet is opened
       try {
-        const stored = localStorage.getItem('visibleDetailFields');
+        const stored = localStorage.getItem(LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS);
         // Default to all known fields being visible
         const defaultVisible = new Set(Object.values(appToSpDisplayNameMapping));
         
@@ -197,9 +197,8 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
 
 export default function SoxMatrixPage() {
   const { currentUser } = useUserProfile();
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Data states
+  // Data states from server
   const [soxControls, setSoxControls] = useState<SoxControl[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [processos, setProcessos] = useState<string[]>([]);
@@ -207,8 +206,10 @@ export default function SoxMatrixPage() {
   const [donos, setDonos] = useState<string[]>([]);
   const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [n3Responsaveis, setN3Responsaveis] = useState<string[]>([]);
-  
-  // Filter states
+  const [allPossibleColumns, setAllPossibleColumns] = useState<{ key: string, label: string }[]>([]);
+
+  // UI state
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProcess, setSelectedProcess] = useState("Todos");
   const [selectedSubProcess, setSelectedSubProcess] = useState("Todos");
@@ -217,8 +218,7 @@ export default function SoxMatrixPage() {
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
-  // UI state
-  const [allPossibleColumns, setAllPossibleColumns] = useState<{ key: string, label: string }[]>(tableColumnsConfig);
+  // Column configuration states
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   
@@ -226,38 +226,27 @@ export default function SoxMatrixPage() {
   const isResizing = useRef<string | null>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
-
-
-  useEffect(() => {
-    // Load column visibility from localStorage
-    try {
-      const storedVisibility = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
-      const defaultVisible = new Set(tableColumnsConfig.map(c => c.label));
-      if (storedVisibility) {
-        setVisibleColumns(new Set(JSON.parse(storedVisibility)));
-      } else {
-        setVisibleColumns(defaultVisible);
-        localStorage.setItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(Array.from(defaultVisible)));
-      }
-    } catch (e) {
-      console.error("Failed to parse visible columns from localStorage", e);
-      setVisibleColumns(new Set(tableColumnsConfig.map(c => c.label)));
-    }
+  
+  // Columns allowed by admin config, derived from allPossibleColumns and localStorage
+  const displayableColumns = useMemo(() => {
+    if (typeof window === 'undefined' || !allPossibleColumns.length) return [];
     
-    // Load column widths from localStorage
     try {
-      const storedWidths = localStorage.getItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS);
-      if (storedWidths) {
-        setColumnWidths(JSON.parse(storedWidths));
-      } else {
-        setColumnWidths(DEFAULT_WIDTHS);
-      }
-    } catch (e) {
-      console.error("Failed to parse column widths from localStorage", e);
-      setColumnWidths(DEFAULT_WIDTHS);
-    }
-  }, []);
+        const storedAdminConfig = localStorage.getItem(LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS);
+        // If admin has not configured anything, all columns are displayable by default
+        if (!storedAdminConfig) return allPossibleColumns;
 
+        const adminAllowedFields = new Set(JSON.parse(storedAdminConfig));
+        return allPossibleColumns.filter(col => adminAllowedFields.has(col.label));
+
+    } catch (e) {
+        console.error("Failed to parse admin column configuration", e);
+        return allPossibleColumns; // Fallback to all columns on error
+    }
+  }, [allPossibleColumns]);
+
+
+  // Effect to load server data and ALL possible columns
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -277,11 +266,11 @@ export default function SoxMatrixPage() {
         setN3Responsaveis(filtersData.n3Responsaveis);
         
         // Combine default columns with dynamic columns from SharePoint
-        const defaultColumnLabels = new Set(tableColumnsConfig.map(c => c.label));
+        const defaultColumnKeys = new Set(tableColumnsConfig.map(c => c.key));
         const additionalColumns = allColumnsData
-          .filter(c => !defaultColumnLabels.has(c.displayName) && c.type !== 'unsupported')
+          .filter(c => !defaultColumnKeys.has(c.displayName) && c.type !== 'unsupported') // Use displayName as key for dynamic columns
           .map(c => ({
-              key: c.displayName, // For dynamic columns, key and label are the same
+              key: c.displayName, 
               label: c.displayName,
           }));
         setAllPossibleColumns([...tableColumnsConfig, ...additionalColumns]);
@@ -294,6 +283,44 @@ export default function SoxMatrixPage() {
     };
     loadData();
   }, []);
+  
+  // Effect to initialize UI settings (visible columns, widths) based on user config and what's displayable
+  useEffect(() => {
+    if (displayableColumns.length === 0) return; // Wait until admin-configured columns are ready
+
+    // Load user's preferences for which columns to show in table
+    try {
+        const storedUserVisibility = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
+        const userPreferredColumns = storedUserVisibility
+            ? new Set(JSON.parse(storedUserVisibility))
+            : new Set(tableColumnsConfig.map(c => c.label)); // Default is the summary view
+
+        // Filter user's preferences by what's allowed to be displayed
+        const displayableLabels = new Set(displayableColumns.map(c => c.label));
+        const finalVisible = new Set(
+            [...userPreferredColumns].filter(label => displayableLabels.has(label))
+        );
+        setVisibleColumns(finalVisible);
+    } catch (e) {
+        console.error("Failed to parse user column visibility", e);
+        // Fallback to default summary view if parsing fails
+        const displayableLabels = new Set(displayableColumns.map(c => c.label));
+        const defaultVisible = new Set(
+            tableColumnsConfig.map(c => c.label).filter(label => displayableLabels.has(label))
+        );
+        setVisibleColumns(defaultVisible);
+    }
+
+    // Load column widths
+    try {
+        const storedWidths = localStorage.getItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS);
+        setColumnWidths(storedWidths ? JSON.parse(storedWidths) : DEFAULT_WIDTHS);
+    } catch(e) {
+        console.error("Failed to parse column widths", e);
+        setColumnWidths(DEFAULT_WIDTHS);
+    }
+  }, [displayableColumns]);
+
 
   const unifiedTableData = useMemo(() => {
     const items: UnifiedTableItem[] = [];
@@ -301,7 +328,7 @@ export default function SoxMatrixPage() {
     soxControls
       .filter(control => control.status === "Ativo")
       .forEach(control => {
-        items.push({
+        const unifiedItem: UnifiedTableItem = {
           ...control,
           key: `control-${control.id}`,
           originalId: control.id,
@@ -310,7 +337,8 @@ export default function SoxMatrixPage() {
           displayId: control.controlId,
           name: control.controlName,
           ownerOrRequester: control.controlOwner,
-        });
+        };
+        items.push(unifiedItem);
       });
 
     changeRequests
@@ -447,14 +475,14 @@ export default function SoxMatrixPage() {
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          {allPossibleColumns.map(col => visibleColumns.has(col.label) && (
+          {displayableColumns.map(col => visibleColumns.has(col.label) && (
             <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />
           ))}
           <col style={{ width: '100px' }} />
         </colgroup>
         <TableHeader>
           <TableRow>
-            {allPossibleColumns.map(col => visibleColumns.has(col.label) && (
+            {displayableColumns.map(col => visibleColumns.has(col.label) && (
               <TableHead key={col.key} className="relative group/th select-none">
                 {col.label}
                 <div
@@ -473,7 +501,7 @@ export default function SoxMatrixPage() {
               onClick={() => handleViewDetails(item)}
               className="cursor-pointer"
             >
-             {allPossibleColumns.map(col => {
+             {displayableColumns.map(col => {
                 if (!visibleColumns.has(col.label)) return null;
                 const value = (item as any)[col.key];
 
@@ -601,7 +629,7 @@ export default function SoxMatrixPage() {
           <DropdownMenuContent align="end" className="w-[250px]">
               <DropdownMenuLabel>Alternar visibilidade das colunas</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {allPossibleColumns.map(column => (
+              {displayableColumns.map(column => (
                   <DropdownMenuCheckboxItem
                       key={column.key}
                       checked={visibleColumns.has(column.label)}
