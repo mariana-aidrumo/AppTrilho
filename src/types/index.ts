@@ -76,6 +76,7 @@ export type ChangeRequestType = "Alteração" | "Criação";
 
 export interface ChangeRequest {
   id: string;
+  spListItemId?: string; // The SharePoint list item ID for this request
   controlId: string; // ID do SoxControl sendo alterado, ou um ID temporário para novos controles
   controlName?: string; // Cache the control name for display
   requestType: ChangeRequestType;

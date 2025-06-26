@@ -5,7 +5,6 @@
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
 import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn, TenantUser } from '@/types';
 import {
-  mockChangeRequests,
   mockUsers,
   mockNotifications,
   mockVersionHistory,
@@ -43,21 +42,21 @@ const getColumnType = (spColumn: any): ColumnMapping['type'] => {
  * Fetches column definitions from SharePoint and builds a dynamic map.
  * This is intentionally NOT cached to always reflect the current state.
  */
-const buildColumnMappings = async (): Promise<Map<string, ColumnMapping>> => {
-    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
+const buildColumnMappings = async (listName: string): Promise<Map<string, ColumnMapping>> => {
+    if (!SHAREPOINT_SITE_URL) {
         throw new Error("SharePoint configuration is missing.");
     }
     try {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
-        const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+        const listId = await getListId(graphClient, siteId, listName);
 
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/columns`)
             .get();
 
         if (!response || !response.value) {
-            throw new Error("Could not fetch column definitions from SharePoint.");
+            throw new Error(`Could not fetch column definitions from SharePoint for list '${listName}'.`);
         }
 
         const spColumns = response.value;
@@ -75,8 +74,8 @@ const buildColumnMappings = async (): Promise<Map<string, ColumnMapping>> => {
         return newColumnMap;
 
     } catch (error) {
-        console.error("FATAL: Failed to build dynamic SharePoint mappings.", error);
-        throw new Error("Could not initialize connection with SharePoint list schema.");
+        console.error(`FATAL: Failed to build dynamic SharePoint mappings for list '${listName}'.`, error);
+        throw new Error(`Could not initialize connection with SharePoint list schema for '${listName}'.`);
     }
 };
 
@@ -128,7 +127,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
     
     try {
-        const columnMap = await buildColumnMappings();
+        const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
@@ -193,7 +192,7 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
       throw new Error("SharePoint site URL or list name is not configured.");
     }
 
-    const columnMap = await buildColumnMappings();
+    const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
@@ -252,14 +251,13 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
     }
 };
 
-
 export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): Promise<{ controlsAdded: number; errors: { controlId?: string; message: string }[] }> => {
     let controlsAdded = 0;
     const errors: { controlId?: string; message: string }[] = [];
     
     let controlIdDisplayName = "ID do Controle";
     try {
-        const columnMap = await buildColumnMappings();
+        const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
         const appKeyForControlId = Object.keys(appToSpDisplayNameMapping).find(key => (appToSpDisplayNameMapping as any)[key] === "Codigo NOVO");
         if (appKeyForControlId) {
              const displayName = (appToSpDisplayNameMapping as any)[appKeyForControlId];
@@ -397,7 +395,6 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
     }
 };
 
-
 export const getFilterOptions = async () => {
     const controls = await getSoxControls();
     
@@ -459,156 +456,227 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
 };
 
 
-// --- Mocked Data Services (To be migrated to SharePoint) ---
+// --- Change Request Services (SharePoint-driven) ---
 
-const logChangeToHistoryList = async (request: ChangeRequest) => {
-    if (process.env.USE_MOCK_DATA === 'true') {
-        console.log("Mock Mode: Skipping logging change to SharePoint history list.", request);
-        return;
+/**
+ * Maps a SharePoint history list item to a ChangeRequest object.
+ * @param item The SharePoint list item.
+ * @returns A ChangeRequest object.
+ */
+const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
+    const fields = item.fields;
+    let changes = {};
+    try {
+        if (fields.DadosAlteracaoJSON) {
+            changes = JSON.parse(fields.DadosAlteracaoJSON);
+        }
+    } catch (e) {
+        console.warn(`Could not parse DadosAlteracaoJSON for request ${fields.IDdaSolicitacao}:`, e);
     }
 
+    return {
+        id: fields.IDdaSolicitacao || item.id,
+        spListItemId: item.id, // Store the SharePoint list item ID
+        controlId: fields.IDControle,
+        controlName: fields.NomeControle,
+        requestType: fields.Tipo,
+        requestedBy: fields.SolicitadoPor,
+        requestDate: fields.DataSolicitacao || item.createdDateTime,
+        status: fields.StatusFinal || 'Pendente',
+        changes: changes,
+        comments: fields.DetalhesDaMudanca,
+        reviewedBy: fields.RevisadoPor,
+        reviewDate: fields.DataRevisao,
+        adminFeedback: fields.FeedbackAdmin,
+    };
+};
+
+/**
+ * Fetches all change requests from the SharePoint history list.
+ */
+export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
-      console.error("SharePoint site URL or history list name is not configured. Cannot log change.");
-      return;
+        throw new Error("SharePoint site URL or history list name is not configured.");
     }
-  
     try {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
-        // We assume the internal field names in SharePoint are the same as the keys here,
-        // without special characters. E.g., a column "Data Revisão" might have an internal name "DataRevisao".
-        // The `Title` field is always available and can be used for the request ID.
-        const fieldsToCreate = {
-            Title: request.id,
-            IDdaSolicitacao: request.id,
-            Tipo: request.requestType,
-            NomeControle: request.controlName,
-            IDControle: request.controlId,
-            SolicitadoPor: request.requestedBy,
-            DataSolicitacao: request.requestDate,
-            DetalhesDaMudanca: request.comments,
-            StatusFinal: request.status,
-            RevisadoPor: request.reviewedBy,
-            DataRevisao: request.reviewDate
-        };
-        
-        // Filter out undefined values to avoid SharePoint errors
-        Object.keys(fieldsToCreate).forEach(key => (fieldsToCreate as any)[key] === undefined && delete (fieldsToCreate as any)[key]);
-  
-        const newItem = { fields: fieldsToCreate };
+        const allRequests: ChangeRequest[] = [];
+        let response = await graphClient
+            .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields&orderby=fields/DataSolicitacao desc`)
+            .get();
+
+        while (response) {
+            if (response.value) {
+                const requestsFromPage = response.value.map(mapHistoryItemToChangeRequest);
+                allRequests.push(...requestsFromPage);
+            }
+            if (response['@odata.nextLink']) {
+                response = await graphClient.api(response['@odata.nextLink']).get();
+            } else {
+                break;
+            }
+        }
+        return allRequests;
+    } catch (error: any) {
+        console.error("Failed to get Change Requests from SharePoint:", error.body || error);
+        throw new Error("Could not retrieve change requests from SharePoint.");
+    }
+};
+
+/**
+ * Adds a new change request to the SharePoint history list.
+ */
+export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Promise<ChangeRequest> => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
+      throw new Error("SharePoint site URL or history list name is not configured.");
+    }
+
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+
+    const newRequestId = `cr-new-${Date.now()}`;
+    const requestDate = new Date().toISOString();
     
-        await graphClient
+    const fieldsToCreate = {
+        Title: newRequestId,
+        IDdaSolicitacao: newRequestId,
+        Tipo: requestData.requestType,
+        NomeControle: requestData.controlName,
+        IDControle: requestData.controlId,
+        SolicitadoPor: requestData.requestedBy,
+        DataSolicitacao: requestDate,
+        DetalhesDaMudanca: requestData.comments,
+        StatusFinal: "Pendente",
+        DadosAlteracaoJSON: JSON.stringify(requestData.changes || {}),
+    };
+
+    const newItem = { fields: fieldsToCreate };
+
+    try {
+        const response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items`)
             .post(newItem);
         
-        console.log(`Successfully logged change request ${request.id} to SharePoint history list.`);
+        return {
+            ...requestData,
+            id: newRequestId,
+            spListItemId: response.id,
+            requestDate: requestDate,
+            status: 'Pendente',
+        } as ChangeRequest;
 
     } catch (error: any) {
-        // Log the error but don't re-throw it, so the main operation doesn't fail.
-        console.error(`Failed to log change request ${request.id} to SharePoint history list. This does NOT stop the UI flow. Error:`, error.body || error);
+        console.error("Failed to add change request to SharePoint:", error.body || error);
+        throw new Error("Could not create change request in SharePoint.");
     }
 };
 
-export const getChangeRequests = async (): Promise<ChangeRequest[]> => JSON.parse(JSON.stringify(mockChangeRequests));
-export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
-export const getNotifications = async (userId: string): Promise<Notification[]> => JSON.parse(JSON.stringify(mockNotifications.filter(n => n.userId === userId)));
-export const getVersionHistory = async (): Promise<VersionHistoryEntry[]> => JSON.parse(JSON.stringify(mockVersionHistory));
-
-export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Promise<ChangeRequest> => {
-    console.warn("addChangeRequest is using mock data.");
-    const newRequest: ChangeRequest = {
-        id: `cr-new-${Date.now()}`,
-        requestDate: new Date().toISOString(),
-        status: "Pendente",
-        ...requestData, // This will include controlId, controlName, changes, requestedBy, requestType, comments
-    } as ChangeRequest;
-    mockChangeRequests.unshift(newRequest);
-
-    // Log the newly created pending request to SharePoint immediately.
-    logChangeToHistoryList(newRequest).catch(error => {
-        console.error("Caught an error while trying to log a new pending request to SharePoint, but continuing UI flow.", error);
-    });
-
-    // Also add a notification for the admin
-    const adminUser = mockUsers.find(u => u.roles.includes('admin'));
-    if (adminUser && newRequest.requestType) {
-        mockNotifications.unshift({
-            id: `notif-${newRequest.id}`,
-            userId: adminUser.id,
-            message: `Nova solicitação de ${newRequest.requestType.toLowerCase()} (${newRequest.controlName}) por ${newRequest.requestedBy}.`,
-            date: new Date().toISOString(),
-            read: false,
-        });
-    }
-    return JSON.parse(JSON.stringify(newRequest));
-};
-
+/**
+ * Updates the status of a change request in SharePoint and applies changes if approved.
+ */
 export const updateChangeRequestStatus = async (
   requestId: string,
   newStatus: 'Aprovado' | 'Rejeitado',
   reviewedBy: string
 ): Promise<ChangeRequest> => {
-  console.warn("updateChangeRequestStatus is using mock data.");
-  
-  const requestIndex = mockChangeRequests.findIndex(r => r.id === requestId);
-  if (requestIndex === -1) {
-    throw new Error("Solicitação não encontrada.");
-  }
-
-  const request = mockChangeRequests[requestIndex];
-  request.status = newStatus;
-  request.reviewedBy = reviewedBy;
-  request.reviewDate = new Date().toISOString();
-
-  if (newStatus === 'Aprovado') {
-    if (request.requestType === 'Alteração') {
-      const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
-      if (controlIndex !== -1) {
-        Object.assign(mockSoxControls[controlIndex], request.changes);
-        mockSoxControls[controlIndex].lastUpdated = new Date().toISOString();
-      } else {
-        console.error(`Controle com ID ${request.controlId} não encontrado para aplicar a alteração.`);
-        request.status = 'Pendente'; 
-        throw new Error(`Controle com ID ${request.controlId} não encontrado.`);
-      }
-    } else if (request.requestType === 'Criação') {
-      const newControl: SoxControl = {
-        id: `ctrl-mock-${Date.now()}`,
-        status: 'Ativo',
-        lastUpdated: new Date().toISOString(),
-        ...request.changes,
-        controlId: request.changes.controlId || `NEW-${Date.now()}`,
-        controlName: request.changes.controlName || "Novo Controle (sem nome)",
-        controlOwner: request.changes.controlOwner || "Não atribuído",
-        controlFrequency: request.changes.controlFrequency || "Ad-hoc",
-        controlType: request.changes.controlType || "Detectivo",
-      } as SoxControl;
-      mockSoxControls.push(newControl);
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME || !SHAREPOINT_CONTROLS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing.");
     }
-  }
-  
-  // After all local updates, log to the SharePoint history list.
-  // This is fire-and-forget; we don't want the UI to hang or fail if this part fails.
-  logChangeToHistoryList(request).catch(error => {
-      // The function itself already logs the error, so we just need to catch the promise rejection.
-      console.error("Caught an error while trying to log to SharePoint history, but continuing UI flow.", error);
-  });
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
-  const requester = mockUsers.find(u => u.name === request.requestedBy);
-  if (requester) {
-    mockNotifications.unshift({
-      id: `notif-status-${request.id}`,
-      userId: requester.id,
-      message: `Sua solicitação (${request.id}) para ${request.controlName || request.controlId} foi ${newStatus.toLowerCase()}.`,
-      date: new Date().toISOString(),
-      read: false,
-    });
-  }
+    // 1. Find the history item to update using its request ID
+    const historyItemsResponse = await graphClient
+        .api(`/sites/${siteId}/lists/${historyListId}/items`)
+        .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
+        .expand('fields')
+        .get();
 
-  return JSON.parse(JSON.stringify(request));
+    if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
+        throw new Error(`Solicitação com ID ${requestId} não encontrada no SharePoint.`);
+    }
+    const historyItem = historyItemsResponse.value[0];
+    const historyItemSpId = historyItem.id;
+    const originalRequest = mapHistoryItemToChangeRequest(historyItem);
+    
+    // 2. Update the status of the history item
+    const reviewDate = new Date().toISOString();
+    const fieldsToUpdateHistory = {
+        StatusFinal: newStatus,
+        RevisadoPor: reviewedBy,
+        DataRevisao: reviewDate,
+    };
+
+    await graphClient
+        .api(`/sites/${siteId}/lists/${historyListId}/items/${historyItemSpId}/fields`)
+        .patch(fieldsToUpdateHistory);
+
+    // 3. If approved, apply the changes to the main controls list
+    if (newStatus === 'Aprovado') {
+        if (originalRequest.requestType === 'Criação') {
+            const changesWithDisplayNames: { [key: string]: any } = {};
+            for (const [appKey, value] of Object.entries(originalRequest.changes)) {
+                const displayName = (appToSpDisplayNameMapping as any)[appKey];
+                if (displayName) {
+                    changesWithDisplayNames[displayName] = value;
+                } else {
+                     changesWithDisplayNames[appKey] = value; // Fallback
+                }
+            }
+            await addSoxControl(changesWithDisplayNames);
+        } else { // It's an 'Alteração'
+            const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+            const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
+
+            const controlItemsResponse = await graphClient
+                .api(`/sites/${siteId}/lists/${controlsListId}/items`)
+                .filter(`fields/${columnMap.get('Código NOVO')?.internalName} eq '${originalRequest.controlId}'`)
+                .get();
+            
+            if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
+                throw new Error(`Controle principal com ID ${originalRequest.controlId} não encontrado para aplicar a alteração.`);
+            }
+            const controlItemSpId = controlItemsResponse.value[0].id;
+
+            const fieldsToUpdateControl: { [key: string]: any } = {};
+            const appKeyToSpInternalName = Object.entries(appToSpDisplayNameMapping)
+                .reduce((acc, [appKey, spName]) => {
+                    const mapping = columnMap.get(spName);
+                    if (mapping) { (acc as any)[appKey] = mapping.internalName; }
+                    return acc;
+                }, {} as Record<string, string>);
+
+            for (const [key, value] of Object.entries(originalRequest.changes)) {
+                const spInternalName = appKeyToSpInternalName[key];
+                if (spInternalName) { fieldsToUpdateControl[spInternalName] = value; }
+            }
+            
+            if (Object.keys(fieldsToUpdateControl).length > 0) {
+                await graphClient
+                    .api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`)
+                    .patch(fieldsToUpdateControl);
+            }
+        }
+    }
+    
+    // Return the updated request object to the UI
+    originalRequest.status = newStatus;
+    originalRequest.reviewedBy = reviewedBy;
+    originalRequest.reviewDate = reviewDate;
+    return originalRequest;
 };
+
+
+// --- Mocked Services (for user management etc.) ---
+
+export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
+export const getNotifications = async (userId: string): Promise<Notification[]> => JSON.parse(JSON.stringify(mockNotifications.filter(n => n.userId === userId)));
+export const getVersionHistory = async (): Promise<VersionHistoryEntry[]> => JSON.parse(JSON.stringify(mockVersionHistory));
 
 export const addUser = async (userData: {name: string, email: string}): Promise<MockUser> => {
     console.warn("addUser is using mock data.");
@@ -644,3 +712,4 @@ export const deleteUser = async (userId: string): Promise<boolean> => {
     }
     return false;
 }
+
