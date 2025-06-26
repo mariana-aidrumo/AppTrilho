@@ -233,9 +233,8 @@ export default function SoxMatrixPage() {
 
   const donos = useMemo(() => {
     const controlOwners = soxControls.map(c => c.controlOwner).filter(Boolean);
-    const requesters = changeRequests.map(r => r.requestedBy).filter(Boolean);
-    return ["Todos", ...Array.from(new Set([...controlOwners, ...requesters])).sort()];
-  }, [soxControls, changeRequests]);
+    return ["Todos", ...Array.from(new Set(controlOwners)).sort()];
+  }, [soxControls]);
 
   const responsaveis = useMemo(() => {
     const allResponsaveis = soxControls.map(c => c.responsavel).filter(Boolean);
@@ -357,45 +356,13 @@ export default function SoxMatrixPage() {
         };
         items.push(unifiedItem);
       });
-
-    changeRequests
-      .filter(req => 
-        (req.status === "Pendente" || req.status === "Em Análise" || req.status === "Aguardando Feedback do Dono") &&
-        !req.controlId.startsWith("NEW-CTRL-")
-      )
-      .forEach(req => {
-        const controlDetails = soxControls.find(c => c.controlId === req.controlId);
-        if (!controlDetails) return;
-        
-        const summaryOfChanges = Object.entries(req.changes)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('; ');
-        
-        const combinedData = { ...controlDetails, ...req.changes };
-
-        items.push({
-          ...combinedData,
-          key: `request-${req.id}`,
-          originalId: req.id,
-          itemType: 'Solicitação de Alteração',
-          previousDisplayId: controlDetails.controlId,
-          displayId: req.changes.controlId || controlDetails.controlId,
-          name: controlDetails.controlName,
-          ownerOrRequester: req.requestedBy,
-          requestDate: req.requestDate,
-          summaryOfChanges: summaryOfChanges,
-          comments: req.comments,
-          adminFeedback: req.adminFeedback,
-        });
-      });
     
     return items.filter(item => {
       const lowerSearchTerm = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === "" ||
         item.displayId?.toLowerCase().includes(lowerSearchTerm) ||
         (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
-        item.name?.toLowerCase().includes(lowerSearchTerm) ||
-        (item.itemType !== 'Controle Ativo' && item.summaryOfChanges?.toLowerCase().includes(lowerSearchTerm));
+        item.name?.toLowerCase().includes(lowerSearchTerm);
 
       const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
       const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
@@ -407,7 +374,7 @@ export default function SoxMatrixPage() {
       return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
     });
 
-  }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel, soxControls, changeRequests]);
+  }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel, soxControls]);
 
 
   const adminTotalActiveControls = useMemo(() => soxControls.filter(c => c.status === "Ativo").length, [soxControls]);
@@ -815,9 +782,9 @@ export default function SoxMatrixPage() {
             <Card className="shadow-md w-full">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
+                  <CardTitle>Matriz Geral de Controles</CardTitle>
                   <CardDescription>
-                    Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
+                    Visualize todos os controles ativos na matriz. Use o ícone <Eye className="inline h-4 w-4" /> para ver os detalhes completos.
                   </CardDescription>
                 </div>
                 {renderTableActions()}
@@ -883,9 +850,9 @@ export default function SoxMatrixPage() {
             <Card className="shadow-md w-full">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Matriz Geral de Controles e Solicitações</CardTitle>
+                  <CardTitle>Matriz Geral de Controles</CardTitle>
                   <CardDescription>
-                    Visualize controles ativos e solicitações pendentes. Use o ícone <Eye className="inline h-4 w-4" /> ou clique no controle para ver mais detalhes.
+                     Visualize todos os controles ativos na matriz. Use o ícone <Eye className="inline h-4 w-4" /> para ver os detalhes completos.
                   </CardDescription>
                 </div>
                 {renderTableActions()}
