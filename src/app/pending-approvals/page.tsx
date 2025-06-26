@@ -94,7 +94,7 @@ export default function PendingApprovalsPage() {
               {isAdminContext && <TableHead>Solicitado Por</TableHead>}
               <TableHead>Data da Solicitação</TableHead>
               
-              {(context === "owner-pending" || isAdminContext) && <TableHead>Resumo da Mudança</TableHead>}
+              {(context === "owner-pending" || isAdminContext) && <TableHead>Detalhes da Mudança</TableHead>}
               
               {context === "owner-pending" && <TableHead>Status Atual</TableHead>}
               {context === "owner-feedback" && <TableHead>Feedback do Admin</TableHead>}
@@ -118,9 +118,9 @@ export default function PendingApprovalsPage() {
                 <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
                 
                 {(context === "owner-pending" || isAdminContext) && (
-                  <TableCell className="max-w-xs truncate text-sm">
-                    {request.requestType === "Criação" ? `Proposta: ${request.changes.controlName}` : 
-                     Object.keys(request.changes).join(', ')}
+                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
+                    {request.requestType === "Criação" ? `Proposta para novo controle: ${request.changes.controlName || 'Sem nome'}` : 
+                     (request.comments || 'Nenhum detalhe fornecido.')}
                   </TableCell>
                 )}
 

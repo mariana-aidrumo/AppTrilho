@@ -1,3 +1,4 @@
+
 // src/app/sox-matrix/page.tsx
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -147,6 +148,25 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             return;
         }
 
+        const appKeyToDisplayName = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => { (acc as any)[appKey] = spName; return acc; }, {} as Record<string, string>);
+
+        const summaryLines = (Object.keys(changes) as Array<keyof SoxControl>).map(key => {
+            const originalValue = control[key];
+            const newValue = changes[key];
+            
+            const displayName = appKeyToDisplayName[key] || key;
+            
+            const formatValue = (val: any) => {
+                if (val === undefined || val === null || val === '') return 'vazio';
+                if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : 'vazio';
+                if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
+                return String(val);
+            };
+
+            return `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
+        });
+        const summary = summaryLines.join('; ');
+
         try {
             await addChangeRequest({
                 controlId: control.controlId,
@@ -154,7 +174,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 changes,
                 requestedBy: currentUser.name,
                 requestType: "Alteração",
-                comments: `Solicitação de alteração para o controle ${control.controlId}.`,
+                comments: summary,
             });
             toast({
                 title: "Solicitação Enviada",
@@ -262,7 +282,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
-  const { isUserControlOwner } = useUserProfile();
+  const { currentUser } = useUserProfile();
   const [isRequestChangeDialogOpen, setIsRequestChangeDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -382,7 +402,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {isUserControlOwner() && (
+                {currentUser.activeProfile === "Dono do Controle" && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
@@ -498,7 +518,7 @@ export default function SoxMatrixPage() {
         
         const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce(
             (acc, [appKey, spName]) => {
-                acc[spName] = appKey;
+                (acc as any)[spName] = appKey;
                 return acc;
             }, {} as Record<string, string>
         );
