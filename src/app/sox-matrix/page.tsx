@@ -5,11 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal } from "lucide-react";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal, Check, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -201,6 +202,13 @@ export default function SoxMatrixPage() {
   const [selectedResponsavel, setSelectedResponsavel] = useState("Todos");
   const [selectedN3Responsavel, setSelectedN3Responsavel] = useState("Todos");
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
+
+  // Combobox popover states
+  const [processoPopoverOpen, setProcessoPopoverOpen] = useState(false);
+  const [subProcessoPopoverOpen, setSubProcessoPopoverOpen] = useState(false);
+  const [ownerPopoverOpen, setOwnerPopoverOpen] = useState(false);
+  const [responsavelPopoverOpen, setResponsavelPopoverOpen] = useState(false);
+  const [n3ResponsavelPopoverOpen, setN3ResponsavelPopoverOpen] = useState(false);
 
   // Column configuration states
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
@@ -420,26 +428,24 @@ export default function SoxMatrixPage() {
 
   const handleExtractXlsx = (data: UnifiedTableItem[]) => {
     const dataToExport = data.map(item => {
-      const exportRow: { [key: string]: string | number | boolean } = {};
-      const appKeys = Object.keys(appToSpDisplayNameMapping) as (keyof SoxControl)[];
-
-      appKeys.forEach(appKey => {
-          const displayName = appToSpDisplayNameMapping[appKey]!;
-          let value: any = item[appKey];
-
-          if (Array.isArray(value)) {
-            value = value.join('; ');
-          } else if (typeof value === 'boolean') {
-            value = value ? 'Sim' : 'Não';
-          }
-          
-          exportRow[displayName] = value ?? "";
+      const exportRow: { [key: string]: any } = {};
+      
+      // Use allPossibleColumns to define headers and order
+      allPossibleColumns.forEach(col => {
+        let value: any = (item as any)[col.key];
+        
+        if (Array.isArray(value)) {
+          value = value.join('; ');
+        } else if (typeof value === 'boolean') {
+          value = value ? 'Sim' : 'Não';
+        }
+        
+        exportRow[col.label] = value ?? "";
       });
-
       return exportRow;
     });
 
-    const headers = Object.values(appToSpDisplayNameMapping);
+    const headers = allPossibleColumns.map(c => c.label);
     
     const ws = xlsx.utils.json_to_sheet(dataToExport, { header: headers });
     const wb = xlsx.utils.book_new();
@@ -554,50 +560,145 @@ export default function SoxMatrixPage() {
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           </div>
         </div>
+        
         <div>
           <label htmlFor="processo" className="text-sm font-medium text-muted-foreground">Processo</label>
-          <Select value={selectedProcess} onValueChange={setSelectedProcess}>
-            <SelectTrigger id="processo"><SelectValue placeholder="Selecionar Processo" /></SelectTrigger>
-            <SelectContent>
-              {processos.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Popover open={processoPopoverOpen} onOpenChange={setProcessoPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={processoPopoverOpen} className="w-full justify-between font-normal">
+                  {selectedProcess !== "Todos" ? selectedProcess : "Selecionar Processo"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0 sm:w-[250px] lg:w-[300px]" side="bottom" align="start">
+                <Command>
+                  <CommandInput placeholder="Pesquisar processo..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      {processos.map(p => (
+                        <CommandItem key={p} value={p} onSelect={(currentValue) => { setSelectedProcess(currentValue); setProcessoPopoverOpen(false); }}>
+                          <Check className={cn("mr-2 h-4 w-4", selectedProcess === p ? "opacity-100" : "opacity-0")} />
+                          {p}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
         </div>
+
         <div>
           <label htmlFor="subprocesso" className="text-sm font-medium text-muted-foreground">Subprocesso</label>
-          <Select value={selectedSubProcess} onValueChange={setSelectedSubProcess}>
-            <SelectTrigger id="subprocesso"><SelectValue placeholder="Selecionar Subprocesso" /></SelectTrigger>
-            <SelectContent>
-              {subProcessos.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Popover open={subProcessoPopoverOpen} onOpenChange={setSubProcessoPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={subProcessoPopoverOpen} className="w-full justify-between font-normal">
+                        {selectedSubProcess !== "Todos" ? selectedSubProcess : "Selecionar Subprocesso"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0 sm:w-[250px] lg:w-[300px]" side="bottom" align="start">
+                    <Command>
+                        <CommandInput placeholder="Pesquisar subprocesso..." />
+                        <CommandList>
+                            <CommandEmpty>Nenhum subprocesso encontrado.</CommandEmpty>
+                            <CommandGroup>
+                                {subProcessos.map(s => (
+                                    <CommandItem key={s} value={s} onSelect={(currentValue) => { setSelectedSubProcess(currentValue); setSubProcessoPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", selectedSubProcess === s ? "opacity-100" : "opacity-0")} />
+                                        {s}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
         </div>
+        
         <div>
           <label htmlFor="dono" className="text-sm font-medium text-muted-foreground">Dono/Solicitante</label>
-          <Select value={selectedOwner} onValueChange={setSelectedOwner}>
-            <SelectTrigger id="dono"><SelectValue placeholder="Selecionar Dono/Solicitante" /></SelectTrigger>
-            <SelectContent>
-               {donos.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
+           <Popover open={ownerPopoverOpen} onOpenChange={setOwnerPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={ownerPopoverOpen} className="w-full justify-between font-normal">
+                        {selectedOwner !== "Todos" ? selectedOwner : "Selecionar Dono/Solicitante"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0 sm:w-[250px] lg:w-[300px]" side="bottom" align="start">
+                    <Command>
+                        <CommandInput placeholder="Pesquisar dono..." />
+                        <CommandList>
+                            <CommandEmpty>Nenhum dono encontrado.</CommandEmpty>
+                            <CommandGroup>
+                                {donos.map(o => (
+                                    <CommandItem key={o} value={o} onSelect={(currentValue) => { setSelectedOwner(currentValue); setOwnerPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", selectedOwner === o ? "opacity-100" : "opacity-0")} />
+                                        {o}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
         </div>
+
         <div>
           <label htmlFor="responsavel" className="text-sm font-medium text-muted-foreground">Responsável</label>
-          <Select value={selectedResponsavel} onValueChange={setSelectedResponsavel}>
-            <SelectTrigger id="responsavel"><SelectValue placeholder="Selecionar Responsável" /></SelectTrigger>
-            <SelectContent>
-              {responsaveis.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Popover open={responsavelPopoverOpen} onOpenChange={setResponsavelPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={responsavelPopoverOpen} className="w-full justify-between font-normal">
+                        {selectedResponsavel !== "Todos" ? selectedResponsavel : "Selecionar Responsável"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0 sm:w-[250px] lg:w-[300px]" side="bottom" align="start">
+                    <Command>
+                        <CommandInput placeholder="Pesquisar responsável..." />
+                        <CommandList>
+                            <CommandEmpty>Nenhum responsável encontrado.</CommandEmpty>
+                            <CommandGroup>
+                                {responsaveis.map(r => (
+                                    <CommandItem key={r} value={r} onSelect={(currentValue) => { setSelectedResponsavel(currentValue); setResponsavelPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", selectedResponsavel === r ? "opacity-100" : "opacity-0")} />
+                                        {r}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
         </div>
+        
         <div>
           <label htmlFor="n3Responsavel" className="text-sm font-medium text-muted-foreground">N3 Responsável</label>
-          <Select value={selectedN3Responsavel} onValueChange={setSelectedN3Responsavel}>
-            <SelectTrigger id="n3Responsavel"><SelectValue placeholder="Selecionar N3" /></SelectTrigger>
-            <SelectContent>
-              {n3Responsaveis.map(n3 => <SelectItem key={n3} value={n3}>{n3}</SelectItem>)}
-            </SelectContent>
-          </Select>
+           <Popover open={n3ResponsavelPopoverOpen} onOpenChange={setN3ResponsavelPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={n3ResponsavelPopoverOpen} className="w-full justify-between font-normal">
+                        {selectedN3Responsavel !== "Todos" ? selectedN3Responsavel : "Selecionar N3 Responsável"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0 sm:w-[250px] lg:w-[300px]" side="bottom" align="start">
+                    <Command>
+                        <CommandInput placeholder="Pesquisar N3..." />
+                        <CommandList>
+                            <CommandEmpty>Nenhum N3 encontrado.</CommandEmpty>
+                            <CommandGroup>
+                                {n3Responsaveis.map(n3 => (
+                                    <CommandItem key={n3} value={n3} onSelect={(currentValue) => { setSelectedN3Responsavel(currentValue); setN3ResponsavelPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", selectedN3Responsavel === n3 ? "opacity-100" : "opacity-0")} />
+                                        {n3}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
         </div>
       </div>
       <div className="flex justify-end pt-2">
