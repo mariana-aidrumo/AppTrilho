@@ -108,7 +108,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             executorControle: Array.isArray(control.executorControle) ? control.executorControle.join(', ') : '',
         },
     });
-    const { handleSubmit, formState: { isSubmitting } } = form;
+    const { handleSubmit, formState: { isSubmitting }, reset } = form;
 
     const onSubmit = async (formData: Partial<SoxControl>) => {
         const changes: Partial<SoxControl> = {};
@@ -122,11 +122,11 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             return sorted1.some((value, index) => value !== sorted2[index]);
         };
         
-        // A much more robust change detection logic
         (Object.keys(formData) as Array<keyof SoxControl>).forEach(key => {
             const formValue = formData[key];
             const originalValue = control[key];
 
+            let hasChanged = false;
             switch (key) {
                 case 'sistemasRelacionados':
                 case 'executorControle':
@@ -135,6 +135,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                         : [];
                     if (haveArraysChanged(formArray, originalValue)) {
                         (changes as any)[key] = formArray;
+                        hasChanged = true;
                     }
                     break;
                 
@@ -146,21 +147,20 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 case 'ipe_VA':
                 case 'ipe_OR':
                 case 'ipe_PD':
-                    // Compare booleans, treating undefined/null as false
                     if ((formValue ?? false) !== (originalValue ?? false)) {
                         (changes as any)[key] = formValue ?? false;
+                        hasChanged = true;
                     }
                     break;
 
                 default:
-                    // Compare strings/numbers, treating undefined/null as empty string
-                    if (String(formValue ?? '') !== String(originalValue ?? '')) {
+                    if (String(formValue ?? '').trim() !== String(originalValue ?? '').trim()) {
                         (changes as any)[key] = formValue;
+                        hasChanged = true;
                     }
                     break;
             }
         });
-
 
         if (Object.keys(changes).length === 0) {
             toast({
@@ -172,40 +172,41 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
         }
 
         const appKeyToDisplayName = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => { (acc as any)[appKey] = spName; return acc; }, {} as Record<string, string>);
+        
+        const formatValue = (val: any): string => {
+            if (val === undefined || val === null || val === '') return 'vazio';
+            if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : 'vazio';
+            if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
+            return String(val);
+        };
 
-        const summaryLines = (Object.keys(changes) as Array<keyof SoxControl>).map(key => {
+        const requestsToSubmit = (Object.keys(changes) as Array<keyof SoxControl>).map(key => {
             const originalValue = control[key];
             const newValue = changes[key];
-            
             const displayName = appKeyToDisplayName[key] || key;
-            
-            const formatValue = (val: any) => {
-                if (val === undefined || val === null || val === '') return 'vazio';
-                if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : 'vazio';
-                if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
-                return String(val);
-            };
+            const singleChangeSummary = `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
 
-            return `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
-        });
-        const summary = summaryLines.join('; ');
-
-        try {
-            await addChangeRequest({
+            const requestData = {
                 controlId: control.controlId,
                 controlName: control.controlName,
-                changes,
+                changes: { [key]: newValue },
                 requestedBy: currentUser.name,
-                requestType: "Alteração",
-                comments: summary,
-            });
+                requestType: "Alteração" as "Alteração",
+                comments: singleChangeSummary,
+            };
+            return addChangeRequest(requestData);
+        });
+
+        try {
+            await Promise.all(requestsToSubmit);
             toast({
-                title: "Solicitação Enviada",
-                description: "Sua solicitação de alteração foi enviada para aprovação.",
+                title: "Solicitações Enviadas",
+                description: `${requestsToSubmit.length} solicitações de alteração foram enviadas para aprovação.`,
             });
             onOpenChange(false);
+            reset();
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Não foi possível enviar sua solicitação.";
+            const errorMessage = error instanceof Error ? error.message : "Não foi possível enviar uma ou mais solicitações.";
             toast({
                 title: "Erro ao Enviar",
                 description: errorMessage,
@@ -220,7 +221,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 <DialogHeader>
                     <DialogTitle>Solicitar Alteração para: {control.controlName}</DialogTitle>
                     <DialogDescription>
-                        Edite os campos abaixo. Suas alterações serão enviadas para aprovação pela equipe de Controles Internos.
+                        Edite os campos abaixo. Cada alteração gerará uma solicitação separada para aprovação.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
