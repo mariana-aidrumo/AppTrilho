@@ -36,10 +36,12 @@ export default function AccessManagementPage() {
   const [users, setUsers] = useState<MockUser[]>([]);
   const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingTenantUsers, setIsLoadingTenantUsers] = useState(true);
+  const [isSearchingTenants, setIsSearchingTenants] = useState(false);
   const [userToDelete, setUserToDelete] = useState<MockUser | null>(null);
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [selectedTenantUser, setSelectedTenantUser] = useState<TenantUser | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
 
   const { handleSubmit, formState: { errors }, reset, setValue } = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserSchema),
@@ -57,27 +59,38 @@ export default function AccessManagementPage() {
     }
   }, [toast]);
 
-  const fetchTenantUsers = useCallback(async () => {
-    setIsLoadingTenantUsers(true);
-    try {
-      const tenantData = await getTenantUsers();
-      setTenantUsers(tenantData);
-    } catch (error) {
-      toast({ title: "Erro de Integração", description: "Não foi possível buscar usuários do diretório.", variant: "destructive" });
-    } finally {
-      setIsLoadingTenantUsers(false);
-    }
-  }, [toast]);
 
   useEffect(() => {
     if (isUserAdmin()) {
         fetchUsers();
-        fetchTenantUsers();
     } else {
         setIsLoading(false);
-        setIsLoadingTenantUsers(false);
     }
-  }, [isUserAdmin, fetchUsers, fetchTenantUsers]);
+  }, [isUserAdmin, fetchUsers]);
+
+  // Debounced search effect for Tenant Users
+  useEffect(() => {
+    if (searchQuery.length < 3) {
+      setTenantUsers([]);
+      return;
+    }
+
+    setIsSearchingTenants(true);
+    const handler = setTimeout(async () => {
+      try {
+        const tenantData = await getTenantUsers(searchQuery);
+        setTenantUsers(tenantData);
+      } catch (error) {
+        toast({ title: "Erro de Integração", description: "Não foi possível buscar usuários do diretório.", variant: "destructive" });
+      } finally {
+        setIsSearchingTenants(false);
+      }
+    }, 500); // 500ms debounce delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery, toast]);
 
   if (!isUserAdmin()) {
     return (
@@ -180,7 +193,7 @@ export default function AccessManagementPage() {
     }
   };
 
-  if (isLoading || isLoadingTenantUsers) {
+  if (isLoading) {
     return (
         <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -207,7 +220,6 @@ export default function AccessManagementPage() {
                         variant="outline"
                         role="combobox"
                         className="w-full justify-between font-normal"
-                        disabled={isLoadingTenantUsers}
                     >
                         {selectedTenantUser ? `${selectedTenantUser.name} (${selectedTenantUser.email})` : "Selecione um usuário..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -215,9 +227,14 @@ export default function AccessManagementPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                     <Command>
-                        <CommandInput placeholder="Pesquisar por nome ou e-mail..." />
+                        <CommandInput 
+                            placeholder="Pesquisar por nome ou e-mail (mín. 3)..." 
+                            onValueChange={setSearchQuery}
+                            value={searchQuery}
+                        />
                         <CommandList>
-                            <CommandEmpty>Nenhum usuário encontrado.</CommandEmpty>
+                            {isSearchingTenants && <div className="p-4 text-sm text-center">Buscando...</div>}
+                            {!isSearchingTenants && tenantUsers.length === 0 && searchQuery.length >= 3 && <CommandEmpty>Nenhum usuário encontrado.</CommandEmpty>}
                             <CommandGroup>
                                 {tenantUsers.map(user => (
                                     <CommandItem

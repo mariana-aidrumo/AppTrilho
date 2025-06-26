@@ -407,40 +407,43 @@ export const getFilterOptions = async () => {
 };
 
 /**
- * Fetches active users from the Azure AD tenant, handling pagination to retrieve all results.
+ * Fetches active users from the Azure AD tenant based on a search query.
  */
-export const getTenantUsers = async (): Promise<TenantUser[]> => {
+export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]> => {
+  if (!searchQuery || searchQuery.trim().length < 3) {
+    // Don't search for very short queries to avoid excessive API calls and improve performance
+    return [];
+  }
+  
   try {
     const graphClient = await getGraphClient();
-    const allUsers: TenantUser[] = [];
     
-    let response = await graphClient
+    // Construct the filter string to search by display name or UPN, and filter by domain and enabled status
+    const filterConditions = [
+        `(startsWith(displayName, '${searchQuery}') or startsWith(userPrincipalName, '${searchQuery}'))`,
+        `(endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com'))`,
+        `accountEnabled eq true`
+    ];
+    const filterString = filterConditions.join(' and ');
+    
+    // Make the API call, limiting to the top 25 results for a responsive search-as-you-type experience
+    const response = await graphClient
       .api('/users')
-      .header('ConsistencyLevel', 'eventual')
-      .count(true) // Required for advanced filters
-      .filter("(endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com')) and accountEnabled eq true")
+      .header('ConsistencyLevel', 'eventual') // Required for advanced filters like startsWith, endsWith on some properties
+      .count(true) // Also required for some advanced filters
+      .filter(filterString)
+      .top(25) // Limit results for performance
       .select('id,displayName,userPrincipalName')
       .get();
     
-    while(response) {
-        if (response.value) {
-            const usersFromPage = response.value.map((user: any) => ({
-                id: user.id,
-                name: user.displayName,
-                email: user.userPrincipalName,
-            }));
-            allUsers.push(...usersFromPage);
-        }
-
-        if (response['@odata.nextLink']) {
-            // The nextLink is a full URL, so we pass it directly to the api call
-            response = await graphClient.api(response['@odata.nextLink']).get();
-        } else {
-            break;
-        }
+    if (response.value) {
+        return response.value.map((user: any) => ({
+            id: user.id,
+            name: user.displayName,
+            email: user.userPrincipalName,
+        }));
     }
-
-    return allUsers;
+    return [];
 
   } catch (error) {
     console.error("Failed to fetch tenant users from Graph API:", error);
