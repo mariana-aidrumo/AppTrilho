@@ -2,7 +2,7 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl, ChangeRequest, SharePointColumn } from "@/types";
+import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
-import { getSoxControls, getChangeRequests, getFilterOptions, getSharePointColumnDetails } from "@/services/sox-service";
+import { getSoxControls, getChangeRequests, getSharePointColumnDetails } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração';
@@ -40,17 +40,6 @@ interface UnifiedTableItem extends Partial<SoxControl> {
   adminFeedback?: string;
 }
 
-const tableColumnsConfig = [
-    { key: 'processo', label: 'Processo' },
-    { key: 'subProcesso', label: 'Sub-Processo' },
-    { key: 'displayId', label: 'Código NOVO' },
-    { key: 'name', label: 'Nome do Controle' },
-    { key: 'description', label: 'Descrição do controle ATUAL' },
-    { key: 'controlFrequency', label: 'Frequência' },
-    { key: 'modalidade', label: 'Modalidade' },
-    { key: 'controlType', label: 'P/D' },
-    { key: 'ownerOrRequester', label: 'Dono do Controle (Control owner)' },
-];
 const LOCAL_STORAGE_KEY_VISIBLE_COLUMNS = 'visibleSoxMatrixColumns';
 const LOCAL_STORAGE_KEY_COLUMN_WIDTHS = 'soxMatrixColumnWidths';
 const LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS = 'visibleDetailFields';
@@ -201,11 +190,6 @@ export default function SoxMatrixPage() {
   // Data states from server
   const [soxControls, setSoxControls] = useState<SoxControl[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
-  const [processos, setProcessos] = useState<string[]>([]);
-  const [subProcessos, setSubProcessos] = useState<string[]>([]);
-  const [donos, setDonos] = useState<string[]>([]);
-  const [responsaveis, setResponsaveis] = useState<string[]>([]);
-  const [n3Responsaveis, setN3Responsaveis] = useState<string[]>([]);
   const [allPossibleColumns, setAllPossibleColumns] = useState<{ key: string, label: string }[]>([]);
 
   // UI state
@@ -227,6 +211,33 @@ export default function SoxMatrixPage() {
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
   
+  // Dynamically generate filter options from loaded data
+  const processos = useMemo(() => {
+    const allProcessos = soxControls.map(c => c.processo).filter(Boolean);
+    return ["Todos", ...Array.from(new Set(allProcessos)).sort()];
+  }, [soxControls]);
+
+  const subProcessos = useMemo(() => {
+    const allSubProcessos = soxControls.map(c => c.subProcesso).filter(Boolean);
+    return ["Todos", ...Array.from(new Set(allSubProcessos)).sort()];
+  }, [soxControls]);
+
+  const donos = useMemo(() => {
+    const controlOwners = soxControls.map(c => c.controlOwner).filter(Boolean);
+    const requesters = changeRequests.map(r => r.requestedBy).filter(Boolean);
+    return ["Todos", ...Array.from(new Set([...controlOwners, ...requesters])).sort()];
+  }, [soxControls, changeRequests]);
+
+  const responsaveis = useMemo(() => {
+    const allResponsaveis = soxControls.map(c => c.responsavel).filter(Boolean);
+    return ["Todos", ...Array.from(new Set(allResponsaveis)).sort()];
+  }, [soxControls]);
+  
+  const n3Responsaveis = useMemo(() => {
+    const allN3 = soxControls.map(c => c.n3Responsavel).filter(Boolean);
+    return ["Todos", ...Array.from(new Set(allN3)).sort()];
+  }, [soxControls]);
+
   // Columns allowed by admin config, derived from allPossibleColumns and localStorage
   const displayableColumns = useMemo(() => {
     if (typeof window === 'undefined' || !allPossibleColumns.length) return [];
@@ -251,21 +262,14 @@ export default function SoxMatrixPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [controlsData, requestsData, filtersData, allColumnsData] = await Promise.all([
+        const [controlsData, requestsData, allColumnsData] = await Promise.all([
           getSoxControls(),
           getChangeRequests(),
-          getFilterOptions(),
           getSharePointColumnDetails()
         ]);
         setSoxControls(controlsData);
         setChangeRequests(requestsData);
-        setProcessos(filtersData.processos);
-        setSubProcessos(filtersData.subProcessos);
-        setDonos(filtersData.donos);
-        setResponsaveis(filtersData.responsaveis);
-        setN3Responsaveis(filtersData.n3Responsaveis);
         
-        // Combine default columns with dynamic columns from SharePoint
         const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce(
             (acc, [appKey, spName]) => {
                 acc[spName] = appKey;
@@ -274,7 +278,7 @@ export default function SoxMatrixPage() {
         );
 
         const allColumnsFromSp = allColumnsData.map(c => ({
-            key: spDisplayNameToAppKey[c.displayName] || c.displayName,
+            key: spDisplayNameToAppKey[c.displayName] || c.displayName.replace(/\s+/g, ''),
             label: c.displayName,
         }));
         setAllPossibleColumns(allColumnsFromSp);
@@ -290,16 +294,17 @@ export default function SoxMatrixPage() {
   
   // Effect to initialize UI settings (visible columns, widths) based on user config and what's displayable
   useEffect(() => {
-    if (displayableColumns.length === 0) return; // Wait until admin-configured columns are ready
+    if (displayableColumns.length === 0) return; 
 
-    // Load user's preferences for which columns to show in table
     try {
         const storedUserVisibility = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
+        // Default to a predefined summary view
+        const defaultSummaryLabels = new Set(Object.values(appToSpDisplayNameMapping));
+        
         const userPreferredColumns = storedUserVisibility
             ? new Set(JSON.parse(storedUserVisibility))
-            : new Set(tableColumnsConfig.map(c => c.label)); // Default is the summary view
+            : defaultSummaryLabels; 
 
-        // Filter user's preferences by what's allowed to be displayed
         const displayableLabels = new Set(displayableColumns.map(c => c.label));
         const finalVisible = new Set(
             [...userPreferredColumns].filter(label => displayableLabels.has(label))
@@ -307,10 +312,9 @@ export default function SoxMatrixPage() {
         setVisibleColumns(finalVisible);
     } catch (e) {
         console.error("Failed to parse user column visibility", e);
-        // Fallback to default summary view if parsing fails
         const displayableLabels = new Set(displayableColumns.map(c => c.label));
         const defaultVisible = new Set(
-            tableColumnsConfig.map(c => c.label).filter(label => displayableLabels.has(label))
+            Object.values(appToSpDisplayNameMapping).filter(label => displayableLabels.has(label))
         );
         setVisibleColumns(defaultVisible);
     }
@@ -423,20 +427,18 @@ export default function SoxMatrixPage() {
           const displayName = appToSpDisplayNameMapping[appKey]!;
           let value: any = item[appKey];
 
-          // Format values for Excel readability
           if (Array.isArray(value)) {
             value = value.join('; ');
           } else if (typeof value === 'boolean') {
             value = value ? 'Sim' : 'Não';
           }
           
-          exportRow[displayName] = value ?? ""; // Use empty string for null/undefined
+          exportRow[displayName] = value ?? "";
       });
 
       return exportRow;
     });
 
-    // Use the ordered list of headers from the mapping
     const headers = Object.values(appToSpDisplayNameMapping);
     
     const ws = xlsx.utils.json_to_sheet(dataToExport, { header: headers });
@@ -454,7 +456,7 @@ export default function SoxMatrixPage() {
     const handleMouseMove = (mouseEvent: MouseEvent) => {
         if (!isResizing.current) return;
         const width = startWidth.current + (mouseEvent.clientX - startX.current);
-        if (width > 50) { // Minimum width 50px
+        if (width > 50) { 
             setColumnWidths(prev => ({ ...prev, [isResizing.current!]: width }));
         }
     };
@@ -463,7 +465,6 @@ export default function SoxMatrixPage() {
         isResizing.current = null;
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
-        // Persist to localStorage after resizing is done
         setColumnWidths(currentWidths => {
           localStorage.setItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS, JSON.stringify(currentWidths));
           return currentWidths;
@@ -478,12 +479,7 @@ export default function SoxMatrixPage() {
   const renderUnifiedTable = (items: UnifiedTableItem[]) => (
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
-        <colgroup>
-            {displayableColumns.map(col => visibleColumns.has(col.label) ? (
-                <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />
-            ) : null)}
-          <col style={{ width: '100px' }} />
-        </colgroup>
+        <colgroup>{displayableColumns.map(col => visibleColumns.has(col.label) ? (<col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />) : null)}<col style={{ width: '100px' }} /></colgroup>
         <TableHeader>
           <TableRow>
             {displayableColumns.map(col => visibleColumns.has(col.label) && (
@@ -509,7 +505,7 @@ export default function SoxMatrixPage() {
                 if (!visibleColumns.has(col.label)) return null;
                 const value = (item as any)[col.key];
 
-                const cellClassName = "truncate"; // Always truncate
+                const cellClassName = "truncate";
                 
                 return (
                     <TableCell key={col.key} className={cellClassName} title={typeof value === 'string' ? value : undefined}>
@@ -544,8 +540,8 @@ export default function SoxMatrixPage() {
 
   const renderFilters = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
-        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+        <div className="sm:col-span-2 lg:col-span-3">
           <label htmlFor="searchControl" className="text-sm font-medium text-muted-foreground">Pesquisar</label>
           <div className="relative">
             <Input
@@ -594,7 +590,7 @@ export default function SoxMatrixPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="md:col-span-1 lg:col-start-1 xl:col-start-auto">
+        <div>
           <label htmlFor="n3Responsavel" className="text-sm font-medium text-muted-foreground">N3 Responsável</label>
           <Select value={selectedN3Responsavel} onValueChange={setSelectedN3Responsavel}>
             <SelectTrigger id="n3Responsavel"><SelectValue placeholder="Selecionar N3" /></SelectTrigger>
@@ -604,7 +600,7 @@ export default function SoxMatrixPage() {
           </Select>
         </div>
       </div>
-      <div className="flex justify-end pt-4">
+      <div className="flex justify-end pt-2">
         <Button variant="outline" onClick={handleResetFilters}>
           <RotateCcw className="mr-2 h-4 w-4" /> Limpar Filtros
         </Button>
