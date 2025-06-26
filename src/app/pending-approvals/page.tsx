@@ -6,31 +6,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2, Edit2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2, Edit2, XCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
-import { useState, useMemo, useEffect } from "react";
-import { getChangeRequests } from "@/services/sox-service";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { getChangeRequests, updateChangeRequestStatus } from "@/services/sox-service";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  
+  const [requestToAction, setRequestToAction] = useState<{request: ChangeRequest, action: 'Aprovado' | 'Rejeitado'} | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const requestsData = await getChangeRequests();
+      setChangeRequests(requestsData);
+    } catch (error) {
+      console.error("Failed to load change requests:", error);
+      toast({ title: "Erro", description: "Não foi possível carregar as solicitações.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const requestsData = await getChangeRequests();
-        setChangeRequests(requestsData);
-      } catch (error) {
-        console.error("Failed to load change requests:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadData();
-  }, [currentUser.id]);
+  }, [currentUser.id, loadData]);
 
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => changeRequests.filter(req => 
@@ -63,6 +71,25 @@ export default function PendingApprovalsPage() {
       req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
     );
   }, [changeRequests, currentUser]);
+
+  const handleConfirmAction = async () => {
+    if (!requestToAction) return;
+    setIsSubmitting(true);
+    try {
+        await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name);
+        toast({
+            title: "Sucesso",
+            description: `A solicitação ${requestToAction.request.id} foi marcada como "${requestToAction.action}".`,
+        });
+        loadData(); // Reload data to reflect changes
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Não foi possível processar a solicitação.";
+        toast({ title: "Erro", description: errorMessage, variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
+        setRequestToAction(null);
+    }
+  };
 
   const pageTitle = isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações";
   const pageDescription = isUserAdmin()
@@ -97,11 +124,12 @@ export default function PendingApprovalsPage() {
               
               {context === "owner-pending" && <TableHead>Status Atual</TableHead>}
               {context === "owner-feedback" && <TableHead>Feedback do Admin</TableHead>}
+
               {context === "owner-history" && <TableHead>Status Final</TableHead>}
-              {context === "owner-history" && <TableHead>Revisado Por</TableHead>}
-              {context === "owner-history" && <TableHead>Data Decisão</TableHead>}
+              {context === "owner-history" && <TableHead>Validado Por</TableHead>}
+              {context === "owner-history" && <TableHead>Data da Validação</TableHead>}
               
-              <TableHead className="text-right min-w-[100px]">Ações</TableHead>
+              <TableHead className="text-right min-w-[120px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -161,7 +189,18 @@ export default function PendingApprovalsPage() {
                 )}
                 
                 <TableCell className="text-right">
-                  {/* Ações como Editar/Visualizar podem ser adicionadas aqui */}
+                  {isAdminContext && request.status === "Pendente" && (
+                      <div className="flex gap-2 justify-end">
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => setRequestToAction({request, action: 'Aprovado'})} title="Aprovar">
+                              <CheckCircle className="h-5 w-5" />
+                              <span className="sr-only">Aprovar</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => setRequestToAction({request, action: 'Rejeitado'})} title="Rejeitar">
+                              <XCircle className="h-5 w-5" />
+                              <span className="sr-only">Rejeitar</span>
+                          </Button>
+                      </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -233,6 +272,27 @@ export default function PendingApprovalsPage() {
           )}
         </CardContent>
       </Card>
+
+       <AlertDialog open={!!requestToAction} onOpenChange={(open) => !open && setRequestToAction(null)}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Ação</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Você tem certeza que deseja <strong>{requestToAction?.action === 'Aprovado' ? 'aprovar' : 'rejeitar'}</strong> a solicitação para o controle <strong>{requestToAction?.request.controlName}</strong>?
+                      <br />
+                      {requestToAction?.action === 'Aprovado' && 'As alterações serão aplicadas permanentemente.'}
+                      {requestToAction?.action === 'Rejeitado' && 'A solicitação será encerrada e o solicitante notificado.'}
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setRequestToAction(null)} disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleConfirmAction} disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Confirmar
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

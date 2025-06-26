@@ -9,6 +9,7 @@ import {
   mockUsers,
   mockNotifications,
   mockVersionHistory,
+  mockSoxControls,
 } from '@/data/mock-data';
 import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
 
@@ -115,6 +116,12 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, ColumnM
 };
 
 export const getSoxControls = async (): Promise<SoxControl[]> => {
+     // START MOCK-ONLY RETURN
+    if (process.env.USE_MOCK_DATA === 'true') {
+        return JSON.parse(JSON.stringify(mockSoxControls));
+    }
+    // END MOCK-ONLY RETURN
+
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint site URL or list name is not configured.");
     }
@@ -145,7 +152,8 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
 
     } catch (error) {
         console.error("Failed to get SOX controls from SharePoint:", error);
-        return [];
+        // Fallback to mock data on SharePoint error
+        return JSON.parse(JSON.stringify(mockSoxControls));
     }
 };
 
@@ -419,7 +427,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     const graphClient = await getGraphClient();
     
     const filterConditions = [
-        `(startsWith(displayName, '${searchQuery}') or startsWith(userPrincipalName, '${searchQuery}'))`,
+        `(startsWith(displayName, '${searchQuery}') or startsWith(mail, '${searchQuery}'))`,
         `(endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com'))`,
         `accountEnabled eq true`
     ];
@@ -431,14 +439,14 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
       .count(true) 
       .filter(filterString)
       .top(25) 
-      .select('id,displayName,userPrincipalName')
+      .select('id,displayName,mail,userPrincipalName')
       .get();
     
     if (response.value) {
         return response.value.map((user: any) => ({
             id: user.id,
             name: user.displayName,
-            email: user.userPrincipalName,
+            email: user.mail || user.userPrincipalName,
         }));
     }
     return [];
@@ -473,12 +481,70 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         mockNotifications.unshift({
             id: `notif-${newRequest.id}`,
             userId: adminUser.id,
-            message: `Nova solicitação de ${newRequest.requestType.toLowerCase()} (${newRequest.id}) para o controle ${newRequest.controlId} por ${newRequest.requestedBy}.`,
+            message: `Nova solicitação de ${newRequest.requestType.toLowerCase()} (${newRequest.controlName}) por ${newRequest.requestedBy}.`,
             date: new Date().toISOString(),
             read: false,
         });
     }
     return JSON.parse(JSON.stringify(newRequest));
+};
+
+export const updateChangeRequestStatus = async (
+  requestId: string,
+  newStatus: 'Aprovado' | 'Rejeitado',
+  reviewedBy: string
+): Promise<ChangeRequest> => {
+  console.warn("updateChangeRequestStatus is using mock data.");
+  
+  const requestIndex = mockChangeRequests.findIndex(r => r.id === requestId);
+  if (requestIndex === -1) {
+    throw new Error("Solicitação não encontrada.");
+  }
+
+  const request = mockChangeRequests[requestIndex];
+  request.status = newStatus;
+  request.reviewedBy = reviewedBy;
+  request.reviewDate = new Date().toISOString();
+
+  if (newStatus === 'Aprovado') {
+    if (request.requestType === 'Alteração') {
+      const controlIndex = mockSoxControls.findIndex(c => c.controlId === request.controlId);
+      if (controlIndex !== -1) {
+        Object.assign(mockSoxControls[controlIndex], request.changes);
+        mockSoxControls[controlIndex].lastUpdated = new Date().toISOString();
+      } else {
+        console.error(`Controle com ID ${request.controlId} não encontrado para aplicar a alteração.`);
+        request.status = 'Pendente'; 
+        throw new Error(`Controle com ID ${request.controlId} não encontrado.`);
+      }
+    } else if (request.requestType === 'Criação') {
+      const newControl: SoxControl = {
+        id: `ctrl-mock-${Date.now()}`,
+        status: 'Ativo',
+        lastUpdated: new Date().toISOString(),
+        ...request.changes,
+        controlId: request.changes.controlId || `NEW-${Date.now()}`,
+        controlName: request.changes.controlName || "Novo Controle (sem nome)",
+        controlOwner: request.changes.controlOwner || "Não atribuído",
+        controlFrequency: request.changes.controlFrequency || "Ad-hoc",
+        controlType: request.changes.controlType || "Detectivo",
+      } as SoxControl;
+      mockSoxControls.push(newControl);
+    }
+  }
+
+  const requester = mockUsers.find(u => u.name === request.requestedBy);
+  if (requester) {
+    mockNotifications.unshift({
+      id: `notif-status-${request.id}`,
+      userId: requester.id,
+      message: `Sua solicitação (${request.id}) para ${request.controlName || request.controlId} foi ${newStatus.toLowerCase()}.`,
+      date: new Date().toISOString(),
+      read: false,
+    });
+  }
+
+  return JSON.parse(JSON.stringify(request));
 };
 
 export const addUser = async (userData: {name: string, email: string}): Promise<MockUser> => {
