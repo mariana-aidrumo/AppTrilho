@@ -1,4 +1,3 @@
-
 // src/app/pending-approvals/page.tsx
 "use client";
 
@@ -31,7 +30,7 @@ export default function PendingApprovalsPage() {
       }
     };
     loadData();
-  }, []);
+  }, [currentUser.id]);
 
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => changeRequests.filter(req => 

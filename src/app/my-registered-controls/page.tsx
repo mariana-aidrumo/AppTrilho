@@ -38,7 +38,7 @@ export default function MyControlsPage() {
       }
     };
     loadData();
-  }, [isUserControlOwner]);
+  }, [isUserControlOwner, currentUser.id]);
 
 
   if (!isUserControlOwner()) {
