@@ -45,7 +45,9 @@ const cca = new ConfidentialClientApplication(msalConfig);
 const scopes = ['https://graph.microsoft.com/.default'];
 
 let graphClient: Client | undefined;
-const idCache: { siteId?: string; listId?: string } = {};
+// MODIFIED: Cache now supports multiple list IDs
+const idCache: { siteId?: string; listIds: Map<string, string> } = { listIds: new Map() };
+
 
 /**
  * Initializes and returns a Microsoft Graph client instance.
@@ -108,8 +110,8 @@ export async function getSiteId(client: Client, siteUrl: string): Promise<string
  * Retrieves the SharePoint List ID from a given list name.
  */
 export async function getListId(client: Client, siteId: string, listName: string): Promise<string> {
-    if (idCache.listId) {
-        return idCache.listId;
+    if (idCache.listIds.has(listName)) {
+        return idCache.listIds.get(listName)!;
     }
     
     try {
@@ -119,16 +121,16 @@ export async function getListId(client: Client, siteId: string, listName: string
             .get();
 
         if (response.value && response.value.length === 1) {
-            idCache.listId = response.value[0].id;
-            return idCache.listId;
+            const listId = response.value[0].id;
+            idCache.listIds.set(listName, listId);
+            return listId;
         } else if (response.value && response.value.length > 1) {
             throw new Error(`Multiple lists found with the name '${listName}'. Please use a unique name.`);
         } else {
             throw new Error(`List '${listName}' not found in the specified SharePoint site.`);
         }
-    } catch(error) {
+    } catch(error: any) {
         console.error(`Error fetching list ID for '${listName}':`, error);
-        // Re-throw the original error if it's more specific, otherwise throw the generic one
         if (error.message.includes('not found')) {
             throw error;
         }

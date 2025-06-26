@@ -17,6 +17,7 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 
 const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
+const SHAREPOINT_HISTORY_LIST_NAME = 'Registro de alterações na Matriz';
 
 type ColumnMapping = {
     internalName: string;
@@ -460,6 +461,56 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
 
 // --- Mocked Data Services (To be migrated to SharePoint) ---
 
+const logChangeToHistoryList = async (request: ChangeRequest) => {
+    if (process.env.USE_MOCK_DATA === 'true') {
+        console.log("Mock Mode: Skipping logging change to SharePoint history list.", request);
+        return;
+    }
+
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
+      console.error("SharePoint site URL or history list name is not configured. Cannot log change.");
+      return;
+    }
+  
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+
+        // We assume the internal field names in SharePoint are the same as the keys here,
+        // without special characters. E.g., a column "Data Revisão" might have an internal name "DataRevisao".
+        // The `Title` field is always available and can be used for the request ID.
+        const fieldsToCreate = {
+            Title: request.id,
+            IDdaSolicitacao: request.id,
+            Tipo: request.requestType,
+            NomeControle: request.controlName,
+            IDControle: request.controlId,
+            SolicitadoPor: request.requestedBy,
+            DataSolicitacao: request.requestDate,
+            DetalhesDaMudanca: request.comments,
+            StatusFinal: request.status,
+            RevisadoPor: request.reviewedBy,
+            DataRevisao: request.reviewDate
+        };
+        
+        // Filter out undefined values to avoid SharePoint errors
+        Object.keys(fieldsToCreate).forEach(key => (fieldsToCreate as any)[key] === undefined && delete (fieldsToCreate as any)[key]);
+  
+        const newItem = { fields: fieldsToCreate };
+    
+        await graphClient
+            .api(`/sites/${siteId}/lists/${historyListId}/items`)
+            .post(newItem);
+        
+        console.log(`Successfully logged change request ${request.id} to SharePoint history list.`);
+
+    } catch (error: any) {
+        // Log the error but don't re-throw it, so the main operation doesn't fail.
+        console.error(`Failed to log change request ${request.id} to SharePoint history list. This does NOT stop the UI flow. Error:`, error.body || error);
+    }
+};
+
 export const getChangeRequests = async (): Promise<ChangeRequest[]> => JSON.parse(JSON.stringify(mockChangeRequests));
 export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
 export const getNotifications = async (userId: string): Promise<Notification[]> => JSON.parse(JSON.stringify(mockNotifications.filter(n => n.userId === userId)));
@@ -532,6 +583,13 @@ export const updateChangeRequestStatus = async (
       mockSoxControls.push(newControl);
     }
   }
+  
+  // After all local updates, log to the SharePoint history list.
+  // This is fire-and-forget; we don't want the UI to hang or fail if this part fails.
+  logChangeToHistoryList(request).catch(error => {
+      // The function itself already logs the error, so we just need to catch the promise rejection.
+      console.error("Caught an error while trying to log to SharePoint history, but continuing UI flow.", error);
+  });
 
   const requester = mockUsers.find(u => u.name === request.requestedBy);
   if (requester) {
