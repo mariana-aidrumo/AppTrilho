@@ -1,4 +1,5 @@
 
+
 export type SoxControlStatus = "Ativo" | "Inativo" | "Rascunho" | "Pendente Aprovação";
 export type ControlFrequency = "Diário" | "Semanal" | "Mensal" | "Trimestral" | "Anual" | "Ad-hoc" | "Por ocorrência";
 export type ControlType = "Preventivo" | "Detectivo" | "Corretivo";
@@ -106,6 +107,12 @@ export interface MockUser {
     roles: string[]; 
     activeProfile: UserProfileType;
     controlsOwned?: string[];
+}
+
+export interface TenantUser {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export type UnifiedHistoryEventType =

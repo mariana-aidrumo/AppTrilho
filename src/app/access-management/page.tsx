@@ -9,20 +9,23 @@ import { useUserProfile } from "@/contexts/user-profile-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, ArrowLeft, Loader2 } from "lucide-react";
+import { UserPlus, Trash2, ArrowLeft, Loader2, ChevronsUpDown, Check } from "lucide-react";
 import Link from "next/link";
-import type { MockUser } from "@/data/mock-data";
-import { getUsers, addUser, deleteUser, updateUserRolesAndProfile } from "@/services/sox-service";
+import type { MockUser, TenantUser } from "@/data/mock-data";
+import { getUsers, addUser, deleteUser, updateUserRolesAndProfile, getTenantUsers } from "@/services/sox-service";
+import { cn } from "@/lib/utils";
+
 
 // Schema for adding a new user
 const addUserSchema = z.object({
-  email: z.string().email("Por favor, insira um e-mail válido."),
-  name: z.string().min(2, "O nome é obrigatório."),
+  email: z.string().email("Por favor, selecione um usuário válido."),
+  name: z.string().min(2, "Por favor, selecione um usuário válido."),
 });
 type AddUserFormValues = z.infer<typeof addUserSchema>;
 
@@ -31,10 +34,14 @@ export default function AccessManagementPage() {
   const { toast } = useToast();
   
   const [users, setUsers] = useState<MockUser[]>([]);
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingTenantUsers, setIsLoadingTenantUsers] = useState(true);
   const [userToDelete, setUserToDelete] = useState<MockUser | null>(null);
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [selectedTenantUser, setSelectedTenantUser] = useState<TenantUser | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<AddUserFormValues>({
+  const { handleSubmit, formState: { errors }, reset, setValue } = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserSchema),
   });
 
@@ -44,19 +51,33 @@ export default function AccessManagementPage() {
         const data = await getUsers();
         setUsers(data);
     } catch (error) {
-        toast({ title: "Erro", description: "Falha ao carregar usuários.", variant: "destructive" });
+        toast({ title: "Erro", description: "Falha ao carregar usuários locais.", variant: "destructive" });
     } finally {
         setIsLoading(false);
+    }
+  }, [toast]);
+
+  const fetchTenantUsers = useCallback(async () => {
+    setIsLoadingTenantUsers(true);
+    try {
+      const tenantData = await getTenantUsers();
+      setTenantUsers(tenantData);
+    } catch (error) {
+      toast({ title: "Erro de Integração", description: "Não foi possível buscar usuários do diretório.", variant: "destructive" });
+    } finally {
+      setIsLoadingTenantUsers(false);
     }
   }, [toast]);
 
   useEffect(() => {
     if (isUserAdmin()) {
         fetchUsers();
+        fetchTenantUsers();
     } else {
         setIsLoading(false);
+        setIsLoadingTenantUsers(false);
     }
-  }, [isUserAdmin, fetchUsers]);
+  }, [isUserAdmin, fetchUsers, fetchTenantUsers]);
 
   if (!isUserAdmin()) {
     return (
@@ -82,7 +103,7 @@ export default function AccessManagementPage() {
     if (users.some(u => u.email === data.email)) {
       toast({
         title: "Erro",
-        description: "Um usuário com este e-mail já existe.",
+        description: "Um usuário com este e-mail já existe no sistema.",
         variant: "destructive",
       });
       return;
@@ -95,6 +116,7 @@ export default function AccessManagementPage() {
           description: `${data.name} foi adicionado como Dono do Controle.`,
         });
         reset();
+        setSelectedTenantUser(null);
         fetchUsers(); // Refresh the list
     } catch(error) {
         toast({ title: "Erro", description: "Não foi possível adicionar o usuário.", variant: "destructive" });
@@ -158,7 +180,7 @@ export default function AccessManagementPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingTenantUsers) {
     return (
         <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -172,21 +194,55 @@ export default function AccessManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>Adicionar Novo Usuário</CardTitle>
-          <CardDescription>Conceda acesso a novos usuários fornecendo o nome e e-mail. Por padrão, eles receberão o perfil "Dono do Controle".</CardDescription>
+          <CardDescription>Busque e selecione um usuário do diretório da empresa para conceder acesso. Por padrão, eles receberão o perfil "Dono do Controle".</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(handleAddUser)}>
           <CardContent className="space-y-4">
-             <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input id="name" {...register("name")} placeholder="João da Silva" />
-                  {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" {...register("email")} placeholder="joao.silva@empresa.com" />
-                  {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
-                </div>
+             <div>
+              <Label htmlFor="user-search">Buscar Usuário</Label>
+              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        id="user-search"
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                        disabled={isLoadingTenantUsers}
+                    >
+                        {selectedTenantUser ? `${selectedTenantUser.name} (${selectedTenantUser.email})` : "Selecione um usuário..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                        <CommandInput placeholder="Pesquisar por nome ou e-mail..." />
+                        <CommandList>
+                            <CommandEmpty>Nenhum usuário encontrado.</CommandEmpty>
+                            <CommandGroup>
+                                {tenantUsers.map(user => (
+                                    <CommandItem
+                                        key={user.id}
+                                        value={`${user.name} ${user.email}`}
+                                        onSelect={() => {
+                                            setSelectedTenantUser(user);
+                                            setValue('name', user.name, { shouldValidate: true });
+                                            setValue('email', user.email, { shouldValidate: true });
+                                            setComboboxOpen(false);
+                                        }}
+                                    >
+                                        <Check className={cn("mr-2 h-4 w-4", selectedTenantUser?.id === user.id ? "opacity-100" : "opacity-0")} />
+                                        <div className="flex flex-col">
+                                          <span className="text-sm">{user.name}</span>
+                                          <span className="text-xs text-muted-foreground">{user.email}</span>
+                                        </div>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+              </Popover>
+              {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
              </div>
           </CardContent>
           <CardFooter>

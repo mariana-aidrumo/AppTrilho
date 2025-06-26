@@ -1,8 +1,9 @@
+
 // src/services/sox-service.ts
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn, TenantUser } from '@/types';
 import {
   mockChangeRequests,
   mockUsers,
@@ -388,6 +389,35 @@ export const getFilterOptions = async () => {
         responsaveis,
         n3Responsaveis,
     };
+};
+
+/**
+ * Fetches users from the Azure AD tenant.
+ */
+export const getTenantUsers = async (): Promise<TenantUser[]> => {
+  try {
+    const graphClient = await getGraphClient();
+    // Use an advanced query with ConsistencyLevel header to filter by domain
+    const response = await graphClient
+      .api('/users')
+      .header('ConsistencyLevel', 'eventual')
+      .count(true) // Required for advanced filters
+      .filter("endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com')")
+      .select('id,displayName,userPrincipalName')
+      .get();
+    
+    if (response && response.value) {
+      return response.value.map((user: any) => ({
+        id: user.id,
+        name: user.displayName,
+        email: user.userPrincipalName,
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error("Failed to fetch tenant users from Graph API:", error);
+    throw new Error("Could not retrieve users from the directory.");
+  }
 };
 
 

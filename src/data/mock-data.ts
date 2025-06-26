@@ -1,6 +1,6 @@
 
 // src/data/mock-data.ts
-import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions } from '@/types';
+import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions, TenantUser } from '@/types';
 
 export interface MockUser {
     id: string;
@@ -311,3 +311,6 @@ export const mockNotifications: Notification[] = [
     read: false,
   },
 ];
+
+// Re-exporting TenantUser from types to be used in other files if needed
+export type { TenantUser };
