@@ -1,4 +1,3 @@
-
 // src/services/sox-service.ts
 'use server';
 
@@ -89,33 +88,28 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, ColumnM
         lastUpdated: item.lastModifiedDateTime,
     };
     
-    // Create a reverse map from SP internal name to our app's key
-    const internalNameToAppKey: { [key: string]: string } = {};
-    for (const appKey in appToSpDisplayNameMapping) {
-        const displayName = (appToSpDisplayNameMapping as any)[appKey];
-        const mapping = columnMap.get(displayName);
-        if(mapping) {
-            internalNameToAppKey[mapping.internalName] = appKey;
-        }
-    }
-    
-    for (const [internalName, value] of Object.entries(spFields)) {
-        const appKey = internalNameToAppKey[internalName];
-        if (appKey && value !== undefined && value !== null) {
-            const displayName = (appToSpDisplayNameMapping as any)[appKey];
-            const mapping = columnMap.get(displayName);
-            if(mapping) {
-                 if (mapping.type === 'boolean') {
-                    (soxControl as any)[appKey] = parseSharePointBoolean(value);
-                } else if (mapping.type === 'multiChoice') {
-                    (soxControl as any)[appKey] = Array.isArray(value) ? value : String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
-                } else {
-                    (soxControl as any)[appKey] = value;
-                }
+    const displayNameToAppKey: { [key: string]: string } = Object.entries(
+      appToSpDisplayNameMapping
+    ).reduce((acc, [key, value]) => ({ ...acc, [value]: key }), {});
+
+    columnMap.forEach((mapping, displayName) => {
+        const value = spFields[mapping.internalName];
+
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            // Use the predefined appKey if it exists, otherwise use the displayName as the key
+            const key = displayNameToAppKey[displayName] || displayName;
+            
+            let formattedValue = value;
+            if (mapping.type === 'boolean') {
+                formattedValue = parseSharePointBoolean(value);
+            } else if (mapping.type === 'multiChoice') {
+                formattedValue = Array.isArray(value) ? value : String(value).split(/[,;]/).map(s => s.trim()).filter(Boolean);
             }
+            
+            (soxControl as any)[key] = formattedValue;
         }
-    }
-    
+    });
+
     return soxControl as SoxControl;
 };
 

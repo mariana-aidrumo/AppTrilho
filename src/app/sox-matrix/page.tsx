@@ -2,7 +2,7 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SoxControl, ChangeRequest } from "@/types";
+import type { SoxControl, ChangeRequest, SharePointColumn } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
-import { getSoxControls, getChangeRequests, getFilterOptions } from "@/services/sox-service";
+import { getSoxControls, getChangeRequests, getFilterOptions, getSharePointColumnDetails } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 
 type UnifiedTableItemType = 'Controle Ativo' | 'Solicitação de Alteração';
@@ -218,6 +218,7 @@ export default function SoxMatrixPage() {
   const [selectedItem, setSelectedItem] = useState<UnifiedTableItem | null>(null);
 
   // UI state
+  const [allPossibleColumns, setAllPossibleColumns] = useState<{ key: string, label: string }[]>(tableColumnsConfig);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   
@@ -261,10 +262,11 @@ export default function SoxMatrixPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [controlsData, requestsData, filtersData] = await Promise.all([
+        const [controlsData, requestsData, filtersData, allColumnsData] = await Promise.all([
           getSoxControls(),
           getChangeRequests(),
-          getFilterOptions()
+          getFilterOptions(),
+          getSharePointColumnDetails()
         ]);
         setSoxControls(controlsData);
         setChangeRequests(requestsData);
@@ -273,6 +275,17 @@ export default function SoxMatrixPage() {
         setDonos(filtersData.donos);
         setResponsaveis(filtersData.responsaveis);
         setN3Responsaveis(filtersData.n3Responsaveis);
+        
+        // Combine default columns with dynamic columns from SharePoint
+        const defaultColumnLabels = new Set(tableColumnsConfig.map(c => c.label));
+        const additionalColumns = allColumnsData
+          .filter(c => !defaultColumnLabels.has(c.displayName) && c.type !== 'unsupported')
+          .map(c => ({
+              key: c.displayName, // For dynamic columns, key and label are the same
+              label: c.displayName,
+          }));
+        setAllPossibleColumns([...tableColumnsConfig, ...additionalColumns]);
+
       } catch (error) {
         console.error("Failed to load SOX Matrix data:", error);
       } finally {
@@ -433,10 +446,15 @@ export default function SoxMatrixPage() {
   const renderUnifiedTable = (items: UnifiedTableItem[]) => (
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
-        <colgroup>{tableColumnsConfig.map(col => visibleColumns.has(col.label) && (<col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key]}px` }} />))}<col style={{ width: '100px' }} /></colgroup>
+        <colgroup>
+          {allPossibleColumns.map(col => visibleColumns.has(col.label) && (
+            <col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />
+          ))}
+          <col style={{ width: '100px' }} />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            {tableColumnsConfig.map(col => visibleColumns.has(col.label) && (
+            {allPossibleColumns.map(col => visibleColumns.has(col.label) && (
               <TableHead key={col.key} className="relative group/th select-none">
                 {col.label}
                 <div
@@ -455,7 +473,7 @@ export default function SoxMatrixPage() {
               onClick={() => handleViewDetails(item)}
               className="cursor-pointer"
             >
-             {tableColumnsConfig.map(col => {
+             {allPossibleColumns.map(col => {
                 if (!visibleColumns.has(col.label)) return null;
                 const value = (item as any)[col.key];
 
@@ -583,7 +601,7 @@ export default function SoxMatrixPage() {
           <DropdownMenuContent align="end" className="w-[250px]">
               <DropdownMenuLabel>Alternar visibilidade das colunas</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {tableColumnsConfig.map(column => (
+              {allPossibleColumns.map(column => (
                   <DropdownMenuCheckboxItem
                       key={column.key}
                       checked={visibleColumns.has(column.label)}
