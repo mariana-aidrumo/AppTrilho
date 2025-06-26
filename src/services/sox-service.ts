@@ -15,7 +15,7 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 
 const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
-const SHAREPOINT_HISTORY_LIST_NAME = 'HISTORICO-MATRIZSOX';
+const SHAREPOINT_HISTORY_LIST_NAME = 'Histórico-Solicitações-MatrizSOX';
 
 type ColumnMapping = {
     internalName: string;
@@ -577,7 +577,18 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
 
     } catch (error: any) {
         console.error("Failed to add change request to SharePoint:", error.body || error);
-        throw new Error("Could not create change request in SharePoint.");
+        let detailedMessage = "Could not create change request in SharePoint.";
+         if (error?.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                detailedMessage = errorBody?.error?.message || error.body;
+            } catch (e) {
+                detailedMessage = error.body;
+            }
+        } else if (error?.message) {
+            detailedMessage = error.message;
+        }
+        throw new Error(detailedMessage);
     }
 };
 
