@@ -191,17 +191,13 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
     
-    // Iterate over the headers from the Excel file (keys of rowData)
     for (const header of Object.keys(rowData)) {
-        // Find the corresponding column details from SharePoint using the header. Trim to be safe.
         const mapping = columnMap.get(header.trim());
 
-        // If a matching column is found in SharePoint...
         if (mapping) {
             const rawValue = rowData[header];
             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
             
-            // Only add to payload if the formatted value is not empty/undefined.
             if (formattedValue !== undefined) {
                 fieldsToCreate[mapping.internalName] = formattedValue;
             }
@@ -416,14 +412,12 @@ export const getFilterOptions = async () => {
  */
 export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]> => {
   if (!searchQuery || searchQuery.trim().length < 3) {
-    // Don't search for very short queries to avoid excessive API calls and improve performance
     return [];
   }
   
   try {
     const graphClient = await getGraphClient();
     
-    // Construct the filter string to search by display name or UPN, and filter by domain and enabled status
     const filterConditions = [
         `(startsWith(displayName, '${searchQuery}') or startsWith(userPrincipalName, '${searchQuery}'))`,
         `(endsWith(userPrincipalName, '@rumolog.com') or endsWith(userPrincipalName, '@ext.rumolog.com'))`,
@@ -431,13 +425,12 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     ];
     const filterString = filterConditions.join(' and ');
     
-    // Make the API call, limiting to the top 25 results for a responsive search-as-you-type experience
     const response = await graphClient
       .api('/users')
-      .header('ConsistencyLevel', 'eventual') // Required for advanced filters like startsWith, endsWith on some properties
-      .count(true) // Also required for some advanced filters
+      .header('ConsistencyLevel', 'eventual') 
+      .count(true) 
       .filter(filterString)
-      .top(25) // Limit results for performance
+      .top(25) 
       .select('id,displayName,userPrincipalName')
       .get();
     
@@ -467,11 +460,24 @@ export const getVersionHistory = async (): Promise<VersionHistoryEntry[]> => JSO
 export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Promise<ChangeRequest> => {
     console.warn("addChangeRequest is using mock data.");
     const newRequest: ChangeRequest = {
-        ...requestData,
         id: `cr-new-${Date.now()}`,
         requestDate: new Date().toISOString(),
+        status: "Pendente",
+        ...requestData, // This will include controlId, controlName, changes, requestedBy, requestType, comments
     } as ChangeRequest;
     mockChangeRequests.unshift(newRequest);
+
+    // Also add a notification for the admin
+    const adminUser = mockUsers.find(u => u.roles.includes('admin'));
+    if (adminUser && newRequest.requestType) {
+        mockNotifications.unshift({
+            id: `notif-${newRequest.id}`,
+            userId: adminUser.id,
+            message: `Nova solicitação de ${newRequest.requestType.toLowerCase()} (${newRequest.id}) para o controle ${newRequest.controlId} por ${newRequest.requestedBy}.`,
+            date: new Date().toISOString(),
+            read: false,
+        });
+    }
     return JSON.parse(JSON.stringify(newRequest));
 };
 

@@ -72,10 +72,13 @@ export interface SoxControl {
 }
 
 export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono";
+export type ChangeRequestType = "Alteração" | "Criação";
 
 export interface ChangeRequest {
   id: string;
   controlId: string; // ID do SoxControl sendo alterado, ou um ID temporário para novos controles
+  controlName?: string; // Cache the control name for display
+  requestType: ChangeRequestType;
   requestedBy: string; // ID ou nome do usuário
   requestDate: string; // Data ISO
   changes: Partial<SoxControl>; // As alterações propostas, ou campos para novo controle

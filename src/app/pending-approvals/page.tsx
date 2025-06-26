@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Eye, MessageSquareWarning, Edit2, HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2 } from "lucide-react";
+import { HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect } from "react";
@@ -35,11 +35,11 @@ export default function PendingApprovalsPage() {
 
   // Filtros para Administrador
   const adminPendingAlterations = useMemo(() => changeRequests.filter(req => 
-    !req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
+    req.requestType === "Alteração" && req.status === "Pendente"
   ), [changeRequests]);
 
   const adminPendingNewControls = useMemo(() => changeRequests.filter(req => 
-    req.controlId.startsWith("NEW-CTRL-") && req.status === "Pendente"
+    req.requestType === "Criação" && req.status === "Pendente"
   ), [changeRequests]);
 
 
@@ -88,16 +88,16 @@ export default function PendingApprovalsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{isAdminContext ? "ID Controle/Proposta" : "ID Proposta / Controle"}</TableHead>
-              {!isAdminContext && <TableHead>Data da Solicitação</TableHead>}
+              <TableHead>ID Solicitação</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Controle</TableHead>
               {isAdminContext && <TableHead>Solicitado Por</TableHead>}
-              {isAdminContext && <TableHead>Data da Solicitação</TableHead>}
+              <TableHead>Data da Solicitação</TableHead>
               
-              {(context === "owner-pending" || isAdminContext) && <TableHead>Resumo da Mudança/Proposta</TableHead>}
+              {(context === "owner-pending" || isAdminContext) && <TableHead>Resumo da Mudança</TableHead>}
+              
               {context === "owner-pending" && <TableHead>Status Atual</TableHead>}
-
               {context === "owner-feedback" && <TableHead>Feedback do Admin</TableHead>}
-              
               {context === "owner-history" && <TableHead>Status Final</TableHead>}
               {context === "owner-history" && <TableHead>Revisado Por</TableHead>}
               {context === "owner-history" && <TableHead>Data Decisão</TableHead>}
@@ -108,19 +108,19 @@ export default function PendingApprovalsPage() {
           <TableBody>
             {requests.map((request) => (
               <TableRow key={request.id}>
-                <TableCell className="font-medium">
-                  {request.controlId.startsWith("NEW-CTRL") ? `Novo: ${request.changes.controlId || 'ID pendente'}` : request.controlId}
-                  <div className="text-xs text-muted-foreground">ID Sol.: {request.id}</div>
+                <TableCell className="font-medium">{request.id}</TableCell>
+                <TableCell>{request.requestType}</TableCell>
+                <TableCell>
+                  {request.controlName ? `${request.controlName} (${request.controlId})` : request.controlId}
                 </TableCell>
-
-                {!isAdminContext && <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>}
+                
                 {isAdminContext && <TableCell>{request.requestedBy}</TableCell>}
-                {isAdminContext && <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>}
+                <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
                 
                 {(context === "owner-pending" || isAdminContext) && (
-                  <TableCell className="max-w-xs truncate">
-                    {request.controlId.startsWith("NEW-CTRL") ? `Proposta: ${request.changes.controlName}` : 
-                     Object.keys(request.changes).map(key => key).join(', ')}
+                  <TableCell className="max-w-xs truncate text-sm">
+                    {request.requestType === "Criação" ? `Proposta: ${request.changes.controlName}` : 
+                     Object.keys(request.changes).join(', ')}
                   </TableCell>
                 )}
 
@@ -162,7 +162,7 @@ export default function PendingApprovalsPage() {
                 )}
                 
                 <TableCell className="text-right">
-                  {/* Ações removidas pois as páginas de detalhes foram desativadas */}
+                  {/* Ações como Editar/Visualizar podem ser adicionadas aqui */}
                 </TableCell>
               </TableRow>
             ))}

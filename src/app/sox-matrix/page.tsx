@@ -1,24 +1,29 @@
 // src/app/sox-matrix/page.tsx
 'use client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SoxControl, ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal, Check, ChevronsUpDown } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal, Check, ChevronsUpDown, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import type { ReactNode } from "react";
+import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
-import { getSoxControls, getChangeRequests, getSharePointColumnDetails } from "@/services/sox-service";
+import { getSoxControls, getChangeRequests, getSharePointColumnDetails, addChangeRequest } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
+import { useToast } from "@/hooks/use-toast";
 
 type UnifiedTableItemType = 'Controle Ativo';
 
@@ -58,32 +63,130 @@ const DEFAULT_WIDTHS: Record<string, number> = {
     ownerOrRequester: 200,
 };
 
+const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxControl, onOpenChange: (open: boolean) => void, open: boolean }) => {
+    const { currentUser } = useUserProfile();
+    const { toast } = useToast();
+    const { register, handleSubmit, formState: { isSubmitting } } = useForm<Partial<SoxControl>>({
+        defaultValues: {
+            description: control.description,
+            controlOwner: control.controlOwner,
+            controlFrequency: control.controlFrequency,
+            responsavel: control.responsavel,
+            n3Responsavel: control.n3Responsavel,
+        },
+    });
+
+    const onSubmit = async (data: Partial<SoxControl>) => {
+        const changes: Partial<SoxControl> = {};
+        
+        (Object.keys(data) as Array<keyof typeof data>).forEach(key => {
+            if (data[key] !== control[key]) {
+                changes[key] = data[key];
+            }
+        });
+
+        if (Object.keys(changes).length === 0) {
+            toast({
+                title: "Nenhuma alteração detectada",
+                description: "Você precisa alterar pelo menos um campo para enviar uma solicitação.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        try {
+            await addChangeRequest({
+                controlId: control.controlId,
+                controlName: control.controlName,
+                changes,
+                requestedBy: currentUser.name,
+                requestType: "Alteração",
+                comments: `Solicitação de alteração para o controle ${control.controlId}.`,
+            });
+            toast({
+                title: "Solicitação Enviada",
+                description: "Sua solicitação de alteração foi enviada para aprovação.",
+            });
+            onOpenChange(false);
+        } catch (error) {
+            toast({
+                title: "Erro ao Enviar",
+                description: "Não foi possível enviar sua solicitação.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle>Solicitar Alteração para: {control.controlName}</DialogTitle>
+                    <DialogDescription>
+                        Edite os campos abaixo. Suas alterações serão enviadas para aprovação pela equipe de Controles Internos.
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-1">
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="description">Descrição do Controle ATUAL</Label>
+                            <Textarea id="description" {...register("description")} className="min-h-[120px]" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="controlOwner">Dono do Controle</Label>
+                            <Input id="controlOwner" {...register("controlOwner")} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="responsavel">Responsável</Label>
+                            <Input id="responsavel" {...register("responsavel")} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="n3Responsavel">N3 Responsável</Label>
+                            <Input id="n3Responsavel" {...register("n3Responsavel")} />
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="controlFrequency">Frequência</Label>
+                            <Input id="controlFrequency" {...register("controlFrequency")} />
+                        </div>
+                    </div>
+                </form>
+                 <DialogFooter className="border-t pt-4">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    <Button type="button" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Enviar Solicitação
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableItem | null; open: boolean; onOpenChange: (open: boolean) => void; }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
+  const { currentUser, isUserControlOwner } = useUserProfile();
+  const [isRequestChangeDialogOpen, setIsRequestChangeDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (open) { // Only load from localStorage when sheet is opened
+    if (open) { 
       try {
         const stored = localStorage.getItem(LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS);
-        // Default to all known fields being visible
         const defaultVisible = new Set(Object.values(appToSpDisplayNameMapping));
         
         if (stored) {
           setVisibleFields(new Set(JSON.parse(stored)));
         } else {
-          // If nothing is in storage, use the default set of all fields
           setVisibleFields(defaultVisible);
         }
       } catch (e) {
         console.error("Failed to parse visible fields from localStorage", e);
-        // Fallback to all fields on error
         setVisibleFields(new Set(Object.values(appToSpDisplayNameMapping)));
       } finally {
         setHasLoaded(true);
       }
     } else {
-      setHasLoaded(false); // Reset on close
+      setHasLoaded(false); 
     }
   }, [open]);
 
@@ -104,84 +207,103 @@ const ControlDetailSheet = ({ item, open, onOpenChange }: { item: UnifiedTableIt
   const isVisible = (key: keyof typeof appToSpDisplayNameMapping) => {
     return visibleFields.has(appToSpDisplayNameMapping[key]);
   }
+  
+  const isOwner = currentUser.controlsOwned?.includes(item.originalId ?? '');
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{item.name}</SheetTitle>
-          <SheetDescription>Detalhes completos do controle e suas responsabilidades.</SheetDescription>
-        </SheetHeader>
-        <div className="py-4">
-            {!hasLoaded && <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-            {hasLoaded && (
-              <>
-                <SectionHeader title="Histórico (De-Para)" />
-                <dl>
-                    {isVisible('codigoAnterior') && <DetailRow label="Cód Controle ANTERIOR" value={item.codigoAnterior} />}
-                </dl>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-3xl flex flex-col">
+          <SheetHeader>
+            <SheetTitle>{item.name}</SheetTitle>
+            <SheetDescription>Detalhes completos do controle e suas responsabilidades.</SheetDescription>
+          </SheetHeader>
+          <div className="py-4 flex-1 overflow-y-auto">
+              {!hasLoaded && <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+              {hasLoaded && (
+                <>
+                  <SectionHeader title="Histórico (De-Para)" />
+                  <dl>
+                      {isVisible('codigoAnterior') && <DetailRow label="Cód Controle ANTERIOR" value={item.codigoAnterior} />}
+                  </dl>
 
-                <SectionHeader title="Informações Gerais" />
-                <dl>
-                    {isVisible('matriz') && <DetailRow label="Matriz" value={item.matriz} />}
-                    {isVisible('processo') && <DetailRow label="Processo" value={item.processo} />}
-                    {isVisible('subProcesso') && <DetailRow label="Sub-Processo" value={item.subProcesso} />}
-                    {isVisible('riscoId') && <DetailRow label="Risco" value={item.riscoId} />}
-                    {isVisible('riscoDescricao') && <DetailRow label="Descrição do Risco" value={item.riscoDescricao} />}
-                    {isVisible('riscoClassificacao') && <DetailRow label="Classificação do Risco" value={item.riscoClassificacao} />}
-                </dl>
+                  <SectionHeader title="Informações Gerais" />
+                  <dl>
+                      {isVisible('matriz') && <DetailRow label="Matriz" value={item.matriz} />}
+                      {isVisible('processo') && <DetailRow label="Processo" value={item.processo} />}
+                      {isVisible('subProcesso') && <DetailRow label="Sub-Processo" value={item.subProcesso} />}
+                      {isVisible('riscoId') && <DetailRow label="Risco" value={item.riscoId} />}
+                      {isVisible('riscoDescricao') && <DetailRow label="Descrição do Risco" value={item.riscoDescricao} />}
+                      {isVisible('riscoClassificacao') && <DetailRow label="Classificação do Risco" value={item.riscoClassificacao} />}
+                  </dl>
 
-                <SectionHeader title="Informações do Controle" />
-                <dl>
-                    {isVisible('controlId') && <DetailRow label="Código NOVO" value={item.displayId} />}
-                    {isVisible('codigoCosan') && <DetailRow label="Código COSAN" value={item.codigoCosan} />}
-                    {isVisible('objetivoControle') && <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />}
-                    {isVisible('controlName') && <DetailRow label="Nome do Controle" value={item.name} />}
-                    {isVisible('descriptionAnterior') && <DetailRow label="Descrição do controle ANTERIOR" value={<div className="whitespace-pre-wrap">{item.descriptionAnterior}</div>} />}
-                    {isVisible('description') && <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />}
-                    {isVisible('tipo') && <DetailRow label="Tipo" value={item.tipo} />}
-                    {isVisible('controlFrequency') && <DetailRow label="Frequência" value={item.controlFrequency} />}
-                    {isVisible('modalidade') && <DetailRow label="Modalidade" value={item.modalidade} />}
-                    {isVisible('controlType') && <DetailRow label="P/D" value={item.controlType} />}
-                    {isVisible('mrc') && <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />}
-                    {isVisible('evidenciaControle') && <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />}
-                    {isVisible('implementacaoData') && <DetailRow label="Implementação" value={item.implementacaoData} />}
-                    {isVisible('dataUltimaAlteracao') && <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />}
-                    {isVisible('sistemasRelacionados') && <DetailRow label="Sistemas Relacionados" value={Array.isArray(item.sistemasRelacionados) ? item.sistemasRelacionados.join(', ') : item.sistemasRelacionados} />}
-                    {isVisible('transacoesTelasMenusCriticos') && <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />}
-                    {isVisible('aplicavelIPE') && <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />}
-                    {isVisible('ipe_C') && <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />}
-                    {isVisible('ipe_EO') && <DetailRow label="E/O" value={item.ipe_EO ? 'X' : ''} />}
-                    {isVisible('ipe_VA') && <DetailRow label="V/A" value={item.ipe_VA ? 'X' : ''} />}
-                    {isVisible('ipe_OR') && <DetailRow label="O/R" value={item.ipe_OR ? 'X' : ''} />}
-                    {isVisible('ipe_PD') && <DetailRow label="P/D (IPE)" value={item.ipe_PD ? 'X' : ''} />}
-                </dl>
-                
-                <SectionHeader title="Responsabilidades" />
-                <dl>
-                    {isVisible('responsavel') && <DetailRow label="Responsável" value={item.responsavel} />}
-                    {isVisible('controlOwner') && <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />}
-                    {isVisible('executorControle') && <DetailRow label="Executor do Controle" value={Array.isArray(item.executorControle) ? item.executorControle.join('; ') : item.executorControle} />}
-                    {isVisible('executadoPor') && <DetailRow label="Executado por" value={item.executadoPor} />}
-                    {isVisible('n3Responsavel') && <DetailRow label="N3 Responsável" value={item.n3Responsavel} />}
-                    {isVisible('area') && <DetailRow label="Área" value={item.area} />}
-                    {isVisible('vpResponsavel') && <DetailRow label="VP Responsável" value={item.vpResponsavel} />}
-                </dl>
+                  <SectionHeader title="Informações do Controle" />
+                  <dl>
+                      {isVisible('controlId') && <DetailRow label="Código NOVO" value={item.displayId} />}
+                      {isVisible('codigoCosan') && <DetailRow label="Código COSAN" value={item.codigoCosan} />}
+                      {isVisible('objetivoControle') && <DetailRow label="Objetivo do Controle" value={item.objetivoControle} />}
+                      {isVisible('controlName') && <DetailRow label="Nome do Controle" value={item.name} />}
+                      {isVisible('descriptionAnterior') && <DetailRow label="Descrição do controle ANTERIOR" value={<div className="whitespace-pre-wrap">{item.descriptionAnterior}</div>} />}
+                      {isVisible('description') && <DetailRow label="Descrição do controle ATUAL" value={<div className="whitespace-pre-wrap">{item.description}</div>} />}
+                      {isVisible('tipo') && <DetailRow label="Tipo" value={item.tipo} />}
+                      {isVisible('controlFrequency') && <DetailRow label="Frequência" value={item.controlFrequency} />}
+                      {isVisible('modalidade') && <DetailRow label="Modalidade" value={item.modalidade} />}
+                      {isVisible('controlType') && <DetailRow label="P/D" value={item.controlType} />}
+                      {isVisible('mrc') && <DetailRow label="MRC?" value={item.mrc === false ? 'Não' : item.mrc === true ? 'Sim' : 'N/A'} />}
+                      {isVisible('evidenciaControle') && <DetailRow label="Evidência do controle" value={<div className="whitespace-pre-wrap">{item.evidenciaControle}</div>} />}
+                      {isVisible('implementacaoData') && <DetailRow label="Implementação" value={item.implementacaoData} />}
+                      {isVisible('dataUltimaAlteracao') && <DetailRow label="Data última alteração" value={item.dataUltimaAlteracao} />}
+                      {isVisible('sistemasRelacionados') && <DetailRow label="Sistemas Relacionados" value={Array.isArray(item.sistemasRelacionados) ? item.sistemasRelacionados.join(', ') : item.sistemasRelacionados} />}
+                      {isVisible('transacoesTelasMenusCriticos') && <DetailRow label="Transações/Telas/Menus críticos" value={item.transacoesTelasMenusCriticos} />}
+                      {isVisible('aplicavelIPE') && <DetailRow label="Aplicável IPE?" value={item.aplicavelIPE === false ? 'Não' : item.aplicavelIPE === true ? 'Sim' : 'N/A'} />}
+                      {isVisible('ipe_C') && <DetailRow label="C" value={item.ipe_C ? 'X' : ''} />}
+                      {isVisible('ipe_EO') && <DetailRow label="E/O" value={item.ipe_EO ? 'X' : ''} />}
+                      {isVisible('ipe_VA') && <DetailRow label="V/A" value={item.ipe_VA ? 'X' : ''} />}
+                      {isVisible('ipe_OR') && <DetailRow label="O/R" value={item.ipe_OR ? 'X' : ''} />}
+                      {isVisible('ipe_PD') && <DetailRow label="P/D (IPE)" value={item.ipe_PD ? 'X' : ''} />}
+                  </dl>
+                  
+                  <SectionHeader title="Responsabilidades" />
+                  <dl>
+                      {isVisible('responsavel') && <DetailRow label="Responsável" value={item.responsavel} />}
+                      {isVisible('controlOwner') && <DetailRow label="Dono do Controle (Control owner)" value={item.controlOwner} />}
+                      {isVisible('executorControle') && <DetailRow label="Executor do Controle" value={Array.isArray(item.executorControle) ? item.executorControle.join('; ') : item.executorControle} />}
+                      {isVisible('executadoPor') && <DetailRow label="Executado por" value={item.executadoPor} />}
+                      {isVisible('n3Responsavel') && <DetailRow label="N3 Responsável" value={item.n3Responsavel} />}
+                      {isVisible('area') && <DetailRow label="Área" value={item.area} />}
+                      {isVisible('vpResponsavel') && <DetailRow label="VP Responsável" value={item.vpResponsavel} />}
+                  </dl>
 
-                <SectionHeader title="Malha Sul" />
-                <dl>
-                    {isVisible('impactoMalhaSul') && <DetailRow label="Impacto Malha Sul" value={item.impactoMalhaSul === false ? 'Não' : item.impactoMalhaSul === true ? 'Sim' : 'N/A'} />}
-                </dl>
+                  <SectionHeader title="Malha Sul" />
+                  <dl>
+                      {isVisible('impactoMalhaSul') && <DetailRow label="Impacto Malha Sul" value={item.impactoMalhaSul === false ? 'Não' : item.impactoMalhaSul === true ? 'Sim' : 'N/A'} />}
+                  </dl>
 
-                <SectionHeader title="Sistema" />
-                <dl>
-                    {isVisible('sistemaArmazenamento') && <DetailRow label="Sistema Armazenamento" value={item.sistemaArmazenamento} />}
-                </dl>
-              </>
-            )}
-        </div>
-      </SheetContent>
-    </Sheet>
+                  <SectionHeader title="Sistema" />
+                  <dl>
+                      {isVisible('sistemaArmazenamento') && <DetailRow label="Sistema Armazenamento" value={item.sistemaArmazenamento} />}
+                  </dl>
+                </>
+              )}
+          </div>
+           <SheetFooter className="mt-auto border-t pt-4">
+                {isUserControlOwner() && isOwner && (
+                    <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
+                       <Edit2 className="mr-2 h-4 w-4" />
+                       Solicitar Alteração
+                    </Button>
+                )}
+            </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      {isRequestChangeDialogOpen && (
+          <RequestChangeDialog
+              control={item as SoxControl}
+              open={isRequestChangeDialogOpen}
+              onOpenChange={setIsRequestChangeDialogOpen}
+          />
+      )}
+    </>
   );
 };
 
@@ -252,7 +374,6 @@ export default function SoxMatrixPage() {
     
     try {
         const storedAdminConfig = localStorage.getItem(LOCAL_STORAGE_KEY_ADMIN_VISIBLE_FIELDS);
-        // If admin has not configured anything, all columns are displayable by default
         if (!storedAdminConfig) return allPossibleColumns;
 
         const adminAllowedFields = new Set(JSON.parse(storedAdminConfig));
@@ -260,7 +381,7 @@ export default function SoxMatrixPage() {
 
     } catch (e) {
         console.error("Failed to parse admin column configuration", e);
-        return allPossibleColumns; // Fallback to all columns on error
+        return allPossibleColumns;
     }
   }, [allPossibleColumns]);
 
@@ -276,10 +397,8 @@ export default function SoxMatrixPage() {
           getSharePointColumnDetails()
         ]);
         
-        // Defensive deduplication: ensure no duplicate controls are set in the state
         const uniqueControls = Array.from(new Map(controlsData.map(c => [c.id, c])).values());
         setSoxControls(uniqueControls);
-
         setChangeRequests(requestsData);
         
         const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce(
@@ -310,7 +429,6 @@ export default function SoxMatrixPage() {
 
     try {
         const storedUserVisibility = localStorage.getItem(LOCAL_STORAGE_KEY_VISIBLE_COLUMNS);
-        // Default to a predefined summary view
         const defaultSummaryLabels = new Set(Object.values(appToSpDisplayNameMapping));
         
         const userPreferredColumns = storedUserVisibility
@@ -331,7 +449,6 @@ export default function SoxMatrixPage() {
         setVisibleColumns(defaultVisible);
     }
 
-    // Load column widths
     try {
         const storedWidths = localStorage.getItem(LOCAL_STORAGE_KEY_COLUMN_WIDTHS);
         setColumnWidths(storedWidths ? JSON.parse(storedWidths) : DEFAULT_WIDTHS);
@@ -343,40 +460,34 @@ export default function SoxMatrixPage() {
 
 
   const unifiedTableData = useMemo(() => {
-    const items: UnifiedTableItem[] = [];
-
-    soxControls
+    return soxControls
       .filter(control => control.status === "Ativo")
-      .forEach(control => {
-        const unifiedItem: UnifiedTableItem = {
-          ...control,
-          key: `control-${control.id}`,
-          originalId: control.id,
-          itemType: 'Controle Ativo',
-          previousDisplayId: control.codigoAnterior || "N/A",
-          displayId: control.controlId,
-          name: control.controlName,
-          ownerOrRequester: control.controlOwner,
-        };
-        items.push(unifiedItem);
+      .map((control): UnifiedTableItem => ({
+        ...control,
+        key: `control-${control.id}`,
+        originalId: control.id,
+        itemType: 'Controle Ativo',
+        previousDisplayId: control.codigoAnterior || "N/A",
+        displayId: control.controlId,
+        name: control.controlName,
+        ownerOrRequester: control.controlOwner,
+      }))
+      .filter(item => {
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        const matchesSearch = searchTerm === "" ||
+          item.displayId?.toLowerCase().includes(lowerSearchTerm) ||
+          (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
+          item.name?.toLowerCase().includes(lowerSearchTerm);
+
+        const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
+        const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
+        const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.controlOwner === selectedOwner);
+        
+        const matchesResponsavelFilter = selectedResponsavel === "Todos" || item.responsavel === selectedResponsavel;
+        const matchesN3ResponsavelFilter = selectedN3Responsavel === "Todos" || item.n3Responsavel === selectedN3Responsavel;
+
+        return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
       });
-    
-    return items.filter(item => {
-      const lowerSearchTerm = searchTerm.toLowerCase();
-      const matchesSearch = searchTerm === "" ||
-        item.displayId?.toLowerCase().includes(lowerSearchTerm) ||
-        (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
-        item.name?.toLowerCase().includes(lowerSearchTerm);
-
-      const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
-      const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
-      const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.controlOwner === selectedOwner);
-      
-      const matchesResponsavelFilter = selectedResponsavel === "Todos" || item.responsavel === selectedResponsavel;
-      const matchesN3ResponsavelFilter = selectedN3Responsavel === "Todos" || item.n3Responsavel === selectedN3Responsavel;
-
-      return matchesSearch && matchesProcess && matchesSubProcess && matchesOwner && matchesResponsavelFilter && matchesN3ResponsavelFilter;
-    });
 
   }, [searchTerm, selectedProcess, selectedSubProcess, selectedOwner, selectedResponsavel, selectedN3Responsavel, soxControls]);
 
@@ -395,14 +506,14 @@ export default function SoxMatrixPage() {
   };
   
   const handleViewDetails = (item: UnifiedTableItem) => {
-    setSelectedItem(item);
+    const fullControl = soxControls.find(c => c.id === item.originalId);
+    setSelectedItem(fullControl as UnifiedTableItem);
   };
 
   const handleExtractXlsx = (data: UnifiedTableItem[]) => {
     const dataToExport = data.map(item => {
       const exportRow: { [key: string]: any } = {};
       
-      // Use allPossibleColumns to define headers and order
       allPossibleColumns.forEach(col => {
         let value: any = (item as any)[col.key];
         

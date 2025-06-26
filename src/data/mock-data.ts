@@ -68,69 +68,12 @@ export const mockSoxControls: SoxControl[] = [
   }
 ];
 
-export const mockChangeRequests: ChangeRequest[] = [
-  {
-    id: "cr1",
-    controlId: "RUMO.AF.01", 
-    requestedBy: "João da Silva",
-    requestDate: new Date(Date.now() - 86400000 * 10).toISOString(),
-    changes: {
-      description: "Revisão mensal e aprovação das conciliações bancárias pelo gerente financeiro. Quaisquer discrepâncias identificadas devem ser resolvidas em 3 dias úteis.",
-      controlFrequency: "Semanal",
-    },
-    status: "Pendente",
-    comments: "Atualização da frequência e prazo de resolução.",
-  },
-  {
-    id: "cr3-new-pending",
-    controlId: "NEW-CTRL-OPS010",
-    requestedBy: "João da Silva",
-    requestDate: new Date(Date.now() - 86400000 * 5).toISOString(),
-    changes: {
-        controlName: "Validação de Entrada de Pedidos",
-        justificativa: "Necessário para reduzir erros de processamento de pedidos e melhorar a qualidade dos dados do cliente.",
-        description: "Necessário para reduzir erros de processamento de pedidos e melhorar a qualidade dos dados do cliente.",
-        controlOwner: "João da Silva",
-        status: "Rascunho",
-    },
-    status: "Pendente",
-    comments: "Proposta de novo controle para validação de pedidos.",
-  },
-  {
-    id: "cr4-feedback",
-    controlId: "RUMO.AF.01",
-    requestedBy: "João da Silva",
-    requestDate: new Date(Date.now() - 86400000 * 15).toISOString(),
-    changes: {
-      testProcedures: "Incluir verificação de transações acima de R$10.000 com dupla aprovação.",
-      n3Responsavel: "VP Financeiro",
-    },
-    status: "Aguardando Feedback do Dono",
-    comments: "Tentativa de atualização dos procedimentos de teste e N3.",
-    reviewedBy: "Carlos Ferreira",
-    reviewDate: new Date(Date.now() - 86400000 * 3).toISOString(),
-    adminFeedback: "A proposta é boa, mas precisamos detalhar melhor como a 'dupla aprovação' será evidenciada e confirmar o N3. Por favor, revise e adicione detalhes sobre o sistema ou formulário de aprovação a ser usado.",
-  },
-   {
-    id: "cr-fin001-pending-details",
-    controlId: "RUMO.AF.01", 
-    requestedBy: "Ana Clara Souza",
-    requestDate: new Date(Date.now() - 86400000 * 1).toISOString(),
-    changes: {
-        description: "Nova descrição proposta: Revisão e aprovação DIÁRIA das conciliações bancárias pelo gerente financeiro para garantir que todas as transações sejam registradas com precisão e quaisquer discrepâncias sejam identificadas e resolvidas em tempo hábil, com foco em transações de alto valor.",
-        controlFrequency: "Diário",
-        responsavel: "Carlos Pereira",
-        n3Responsavel: "CFO",
-    },
-    status: "Pendente",
-    comments: "Atualização para refletir a nova política de revisão diária e foco em transações de alto risco."
-  }
-];
+// Cleared mock data as requested
+export const mockChangeRequests: ChangeRequest[] = [];
 
 
 export const mockVersionHistory: VersionHistoryEntry[] = [
   { id: "vh1", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 30).toISOString(), changedBy: "Carlos Ferreira", summaryOfChanges: "Controle RUMO.AF.01 Criado.", newValues: { controlName: "Aprovação dos projetos de investimento - Abertura, suplementação e encerramento", status: "Ativo", responsavel: "Patricia Ramos do Rosario", n3Responsavel: "Paula Formentini" } },
-  { id: "vh2", controlId: "1", changeDate: new Date(Date.now() - 86400000 * 10).toISOString(), changedBy: "João da Silva", summaryOfChanges: "Solicitação de alteração cr1 enviada.", relatedChangeRequestId: "cr1" },
 ];
 
 export const mockProcessos = ["Todos", "Ativo Fixo", "Relatórios Financeiros", "Gerenciamento de Acesso de Usuário", "Compras", "Operações Diárias", "Segurança da Informação", "Vendas"];
@@ -142,27 +85,6 @@ export const mockN3Responsaveis = ["Todos", "Paula Formentini", "Gerência Finan
 
 export const mockNotifications: Notification[] = [
   {
-    id: "notif-cr1-pending-adm",
-    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Nova solicitação de alteração (cr1) para o controle RUMO.AF.01 por João da Silva.`,
-    date: new Date(Date.now() - 86400000 * 10 + 10000).toISOString(), // Um pouco depois da solicitação
-    read: false,
-  },
-  {
-    id: "notif-cr4-feedback-owner",
-    userId: "user-owner-1", // Para João da Silva (Dono)
-    message: `Carlos Ferreira solicitou ajustes na sua proposta cr4-feedback para o controle RUMO.AF.01.`,
-    date: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
-    read: false,
-  },
-  {
-    id: "notif-fin001-details-adm",
-    userId: "user-adm-1", // Para Carlos Ferreira (Admin)
-    message: `Ana Clara Souza enviou uma nova solicitação (cr-fin001-pending-details) para o controle RUMO.AF.01.`,
-    date: new Date(Date.now() - 86400000 * 1 + 10000).toISOString(),
-    read: false,
-  },
-  {
     id: "notif-geral-adm-1",
     userId: "user-adm-1",
     message: `Lembrete: Revisar políticas de acesso trimestralmente.`,
@@ -173,8 +95,8 @@ export const mockNotifications: Notification[] = [
     id: "notif-geral-owner-1",
     userId: "user-owner-1",
     message: `O controle PRO-012 teve sua frequência alterada para Semanal.`,
-    date: new Date(Date.now() - 86400000 * 17).toISOString(), // Após aprovação
-    read: false,
+    date: new Date(Date.now() - 86400000 * 17).toISOString(),
+    read: true,
   },
 ];
 
