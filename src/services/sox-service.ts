@@ -191,15 +191,20 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
   
     const fieldsToCreate: { [key: string]: any } = {};
     
-    for (const appKey in appToSpDisplayNameMapping) {
-        const displayName = (appToSpDisplayNameMapping as any)[appKey];
-        const mapping = columnMap.get(displayName);
-        if (mapping && rowData.hasOwnProperty(displayName)) {
-             const rawValue = rowData[displayName];
-             const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
-             if (formattedValue !== undefined) {
-                 fieldsToCreate[mapping.internalName] = formattedValue;
-             }
+    // Iterate over the headers from the Excel file (keys of rowData)
+    for (const header of Object.keys(rowData)) {
+        // Find the corresponding column details from SharePoint using the header. Trim to be safe.
+        const mapping = columnMap.get(header.trim());
+
+        // If a matching column is found in SharePoint...
+        if (mapping) {
+            const rawValue = rowData[header];
+            const formattedValue = formatValueForSharePoint(rawValue, mapping.type);
+            
+            // Only add to payload if the formatted value is not empty/undefined.
+            if (formattedValue !== undefined) {
+                fieldsToCreate[mapping.internalName] = formattedValue;
+            }
         }
     }
   
