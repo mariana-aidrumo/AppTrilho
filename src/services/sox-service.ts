@@ -526,6 +526,11 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     } as ChangeRequest;
     mockChangeRequests.unshift(newRequest);
 
+    // Log the newly created pending request to SharePoint immediately.
+    logChangeToHistoryList(newRequest).catch(error => {
+        console.error("Caught an error while trying to log a new pending request to SharePoint, but continuing UI flow.", error);
+    });
+
     // Also add a notification for the admin
     const adminUser = mockUsers.find(u => u.roles.includes('admin'));
     if (adminUser && newRequest.requestType) {
