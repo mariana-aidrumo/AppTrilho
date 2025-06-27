@@ -520,15 +520,28 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
         return allRequests;
     } catch (error: any) {
-        const errorMessage = (error.body || error.message || '').toString().toLowerCase();
-        // If the list is not found, it's not a fatal error for loading the page.
-        // We can just return an empty array and let the developer know via console.
-        if (errorMessage.includes('not found') || errorMessage.includes('não encontrada')) {
-             console.warn(`SharePoint history list '${SHAREPOINT_HISTORY_LIST_NAME}' not found. Returning empty change requests. Please ensure the list is created correctly.`);
+        let detailedMessage = "An unknown error occurred while fetching change requests.";
+        if (error?.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                detailedMessage = errorBody?.error?.message || error.body;
+            } catch (e) {
+                detailedMessage = error.body;
+            }
+        } else if (error?.message) {
+            detailedMessage = error.message;
+        }
+
+        const errorMessage = detailedMessage.toLowerCase();
+
+        if (errorMessage.includes('list') && (errorMessage.includes('not found') || errorMessage.includes('não encontrada'))) {
+             console.warn(`SharePoint history list '${SHAREPOINT_HISTORY_LIST_NAME}' not found. This is non-fatal. Returning empty change requests. Please ensure the list is created correctly.`);
              return [];
         }
-        console.error("Failed to get Change Requests from SharePoint:", error.body || error);
-        throw new Error("Could not retrieve change requests from SharePoint.");
+
+        console.error(`Failed to get Change Requests from SharePoint. Full error:`, error);
+        // Throw a more specific error to help with debugging
+        throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${detailedMessage}`);
     }
 };
 
