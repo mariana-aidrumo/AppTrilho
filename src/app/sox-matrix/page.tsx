@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal, Check, ChevronsUpDown, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
@@ -71,6 +72,8 @@ const DEFAULT_WIDTHS: Record<string, number> = {
 const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxControl, onOpenChange: (open: boolean) => void, open: boolean }) => {
     const { currentUser } = useUserProfile();
     const { toast } = useToast();
+    const [changesToConfirm, setChangesToConfirm] = useState<{ summary: string[], requests: any[] } | null>(null);
+
     const form = useForm<Partial<SoxControl>>({
         defaultValues: {
             controlName: control.controlName ?? '',
@@ -108,57 +111,41 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             executorControle: Array.isArray(control.executorControle) ? control.executorControle.join(', ') : '',
         },
     });
-    const { handleSubmit, formState: { isSubmitting }, reset } = form;
+    const { handleSubmit, formState: { isSubmitting }, reset, watch } = form;
+    const watchedValues = watch();
 
-    const onSubmit = async (formData: Partial<SoxControl>) => {
+    const isFieldChanged = useCallback((fieldName: keyof SoxControl): boolean => {
+        const originalValue = control[fieldName];
+        const currentValue = watchedValues[fieldName];
+
+        if (fieldName === 'sistemasRelacionados' || fieldName === 'executorControle') {
+            const originalArray = Array.isArray(originalValue) ? originalValue : [];
+            const currentArray = typeof currentValue === 'string' ? currentValue.split(',').map(s => s.trim()).filter(Boolean) : [];
+            if (originalArray.length !== currentArray.length) return true;
+            const sortedOriginal = [...originalArray].sort();
+            const sortedCurrent = [...currentArray].sort();
+            return sortedOriginal.some((value, index) => value !== sortedCurrent[index]);
+        }
+
+        if (typeof originalValue === 'boolean' || typeof currentValue === 'boolean') {
+            return (currentValue ?? false) !== (originalValue ?? false);
+        }
+
+        return String(originalValue ?? '').trim() !== String(currentValue ?? '').trim();
+    }, [control, watchedValues]);
+    
+    const onSubmit = (formData: Partial<SoxControl>) => {
         const changes: Partial<SoxControl> = {};
 
-        const haveArraysChanged = (arr1: any, arr2: any): boolean => {
-            const a1 = Array.isArray(arr1) ? arr1 : [];
-            const a2 = Array.isArray(arr2) ? arr2 : [];
-            if (a1.length !== a2.length) return true;
-            const sorted1 = [...a1].sort();
-            const sorted2 = [...a2].sort();
-            return sorted1.some((value, index) => value !== sorted2[index]);
-        };
-        
         (Object.keys(formData) as Array<keyof SoxControl>).forEach(key => {
-            const formValue = formData[key];
-            const originalValue = control[key];
-
-            let hasChanged = false;
-            switch (key) {
-                case 'sistemasRelacionados':
-                case 'executorControle':
-                    const formArray = typeof formValue === 'string' 
-                        ? formValue.split(',').map(s => s.trim()).filter(Boolean) 
+            if (isFieldChanged(key)) {
+                if (key === 'sistemasRelacionados' || key === 'executorControle') {
+                     (changes as any)[key] = typeof formData[key] === 'string'
+                        ? (formData[key] as string).split(',').map(s => s.trim()).filter(Boolean)
                         : [];
-                    if (haveArraysChanged(formArray, originalValue)) {
-                        (changes as any)[key] = formArray;
-                        hasChanged = true;
-                    }
-                    break;
-                
-                case 'mrc':
-                case 'aplicavelIPE':
-                case 'impactoMalhaSul':
-                case 'ipe_C':
-                case 'ipe_EO':
-                case 'ipe_VA':
-                case 'ipe_OR':
-                case 'ipe_PD':
-                    if ((formValue ?? false) !== (originalValue ?? false)) {
-                        (changes as any)[key] = formValue ?? false;
-                        hasChanged = true;
-                    }
-                    break;
-
-                default:
-                    if (String(formValue ?? '').trim() !== String(originalValue ?? '').trim()) {
-                        (changes as any)[key] = formValue;
-                        hasChanged = true;
-                    }
-                    break;
+                } else {
+                    (changes as any)[key] = formData[key];
+                }
             }
         });
 
@@ -180,13 +167,20 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             return String(val);
         };
 
+        const summary = (Object.keys(changes) as Array<keyof SoxControl>).map(key => {
+            const originalValue = control[key];
+            const newValue = changes[key];
+            const displayName = appKeyToDisplayName[key] || key;
+            return `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
+        });
+
         const requestsToSubmit = (Object.keys(changes) as Array<keyof SoxControl>).map(key => {
             const originalValue = control[key];
             const newValue = changes[key];
             const displayName = appKeyToDisplayName[key] || key;
             const singleChangeSummary = `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
 
-            const requestData = {
+            return {
                 controlId: control.controlId,
                 controlName: control.controlName,
                 changes: { [key]: newValue },
@@ -194,15 +188,23 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 requestType: "Alteração" as "Alteração",
                 comments: singleChangeSummary,
             };
-            return addChangeRequest(requestData);
         });
+        
+        setChangesToConfirm({ summary, requests: requestsToSubmit });
+    };
+
+    const handleConfirmAndSubmit = async () => {
+        if (!changesToConfirm) return;
+
+        const submissionPromises = changesToConfirm.requests.map(requestData => addChangeRequest(requestData));
 
         try {
-            await Promise.all(requestsToSubmit);
+            await Promise.all(submissionPromises);
             toast({
                 title: "Solicitações Enviadas",
-                description: `${requestsToSubmit.length} solicitações de alteração foram enviadas para aprovação.`,
+                description: `${submissionPromises.length} solicitações de alteração foram enviadas para aprovação.`,
             });
+            setChangesToConfirm(null);
             onOpenChange(false);
             reset();
         } catch (error) {
@@ -215,91 +217,123 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
         }
     };
 
+    const dialogOpen = open && !changesToConfirm;
+    const handleOpenChange = (isOpen: boolean) => {
+        if (!isOpen) {
+            setChangesToConfirm(null);
+            onOpenChange(false);
+        } else {
+            onOpenChange(true);
+        }
+    };
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Solicitar Alteração para: {control.controlName}</DialogTitle>
-                    <DialogDescription>
-                        Edite os campos abaixo. Cada alteração gerará uma solicitação separada para aprovação.
-                    </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-1 space-y-4">
-                        <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3', 'item-4']} className="w-full">
-                            <AccordionItem value="item-1">
-                                <AccordionTrigger>Informações Gerais</AccordionTrigger>
-                                <AccordionContent className="space-y-4 p-1">
-                                    <FormField name="controlName" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Nome do Controle</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="processo" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Processo</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="subProcesso" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sub-Processo</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="objetivoControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Objetivo do Controle</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="description" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Descrição do Controle ATUAL</FormLabel><FormControl><Textarea {...field} className="min-h-[100px]" /></FormControl></FormItem> )} />
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-2">
-                                <AccordionTrigger>Detalhes do Controle</AccordionTrigger>
-                                <AccordionContent className="space-y-4 p-1">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        <FormField name="controlFrequency" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Frequência</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="controlType" control={form.control} render={({ field }) => ( <FormItem><FormLabel>P/D (Preventivo/Detectivo)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="modalidade" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Modalidade</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="tipo" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Tipo</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="codigoCosan" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Código COSAN</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="implementacaoData" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Implementação Data</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    </div>
-                                    <FormField name="evidenciaControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Evidência do controle</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="sistemasRelacionados" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sistemas Relacionados (separados por vírgula)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    <FormField name="transacoesTelasMenusCriticos" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Transações/Telas/Menus críticos</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-3">
-                                <AccordionTrigger>Responsabilidades</AccordionTrigger>
-                                <AccordionContent className="space-y-4 p-1">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField name="controlOwner" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Dono do Controle</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="responsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Responsável</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="n3Responsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>N3 Responsável</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="executadoPor" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Executado por</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="area" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Área</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                        <FormField name="vpResponsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>VP Responsável</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                    </div>
-                                    <FormField name="executorControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Executor do Controle (separados por vírgula)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-4">
-                                <AccordionTrigger>Configurações Adicionais</AccordionTrigger>
-                                <AccordionContent className="space-y-4 p-1">
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
-                                        <FormField control={form.control} name="mrc" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1"><div className="space-y-0.5"><FormLabel>MRC?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                                        <FormField control={form.control} name="aplicavelIPE" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1"><div className="space-y-0.5"><FormLabel>Aplicável IPE?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                                        <FormField control={form.control} name="impactoMalhaSul" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1"><div className="space-y-0.5"><FormLabel>Impacto Malha Sul?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                                    </div>
-                                     <div>
-                                        <Label className="text-base font-medium">Asserções IPE</Label>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-2 border p-4 rounded-md">
-                                            <FormField control={form.control} name="ipe_C" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>C</FormLabel></div></FormItem>)} />
-                                            <FormField control={form.control} name="ipe_EO" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>E/O</FormLabel></div></FormItem>)} />
-                                            <FormField control={form.control} name="ipe_VA" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>V/A</FormLabel></div></FormItem>)} />
-                                            <FormField control={form.control} name="ipe_OR" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>O/R</FormLabel></div></FormItem>)} />
-                                            <FormField control={form.control} name="ipe_PD" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>P/D (IPE)</FormLabel></div></FormItem>)} />
+        <>
+            <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+                <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Solicitar Alteração para: {control.controlName}</DialogTitle>
+                        <DialogDescription>
+                            Edite os campos abaixo. Campos modificados serão destacados. Cada alteração gerará uma solicitação separada.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-1 space-y-4">
+                            <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3', 'item-4']} className="w-full">
+                                <AccordionItem value="item-1">
+                                    <AccordionTrigger>Informações Gerais</AccordionTrigger>
+                                    <AccordionContent className="space-y-4 p-1">
+                                        <FormField name="controlName" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Nome do Controle</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('controlName') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="processo" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Processo</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('processo') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="subProcesso" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sub-Processo</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('subProcesso') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="objetivoControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Objetivo do Controle</FormLabel><FormControl><Textarea {...field} className={cn(isFieldChanged('objetivoControle') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="description" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Descrição do Controle ATUAL</FormLabel><FormControl><Textarea {...field} className={cn('min-h-[100px]', isFieldChanged('description') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="item-2">
+                                    <AccordionTrigger>Detalhes do Controle</AccordionTrigger>
+                                    <AccordionContent className="space-y-4 p-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <FormField name="controlFrequency" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Frequência</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('controlFrequency') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="controlType" control={form.control} render={({ field }) => ( <FormItem><FormLabel>P/D (Preventivo/Detectivo)</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('controlType') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="modalidade" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Modalidade</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('modalidade') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="tipo" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Tipo</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('tipo') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="codigoCosan" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Código COSAN</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('codigoCosan') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="implementacaoData" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Implementação Data</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('implementacaoData') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
                                         </div>
-                                    </div>
-                                    <FormField name="sistemaArmazenamento" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sistema de Armazenamento</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    </form>
-                </Form>
-                <DialogFooter className="border-t pt-4 mt-4">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Enviar Solicitação de Alteração
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                                        <FormField name="evidenciaControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Evidência do controle</FormLabel><FormControl><Textarea {...field} className={cn(isFieldChanged('evidenciaControle') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="sistemasRelacionados" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sistemas Relacionados (separados por vírgula)</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('sistemasRelacionados') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        <FormField name="transacoesTelasMenusCriticos" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Transações/Telas/Menus críticos</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('transacoesTelasMenusCriticos') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="item-3">
+                                    <AccordionTrigger>Responsabilidades</AccordionTrigger>
+                                    <AccordionContent className="space-y-4 p-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormField name="controlOwner" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Dono do Controle</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('controlOwner') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="responsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Responsável</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('responsavel') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="n3Responsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>N3 Responsável</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('n3Responsavel') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="executadoPor" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Executado por</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('executadoPor') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="area" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Área</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('area') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                            <FormField name="vpResponsavel" control={form.control} render={({ field }) => ( <FormItem><FormLabel>VP Responsável</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('vpResponsavel') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                        </div>
+                                        <FormField name="executorControle" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Executor do Controle (separados por vírgula)</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('executorControle') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem value="item-4">
+                                    <AccordionTrigger>Configurações Adicionais</AccordionTrigger>
+                                    <AccordionContent className="space-y-4 p-1">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                                            <FormField control={form.control} name="mrc" render={({ field }) => ( <FormItem className={cn("flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1", isFieldChanged('mrc') && 'bg-accent/20 border-accent')}><div className="space-y-0.5"><FormLabel>MRC?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                                            <FormField control={form.control} name="aplicavelIPE" render={({ field }) => ( <FormItem className={cn("flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1", isFieldChanged('aplicavelIPE') && 'bg-accent/20 border-accent')}><div className="space-y-0.5"><FormLabel>Aplicável IPE?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                                            <FormField control={form.control} name="impactoMalhaSul" render={({ field }) => ( <FormItem className={cn("flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-1", isFieldChanged('impactoMalhaSul') && 'bg-accent/20 border-accent')}><div className="space-y-0.5"><FormLabel>Impacto Malha Sul?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                                        </div>
+                                         <div className={cn("border p-4 rounded-md", (isFieldChanged('ipe_C') || isFieldChanged('ipe_EO') || isFieldChanged('ipe_VA') || isFieldChanged('ipe_OR') || isFieldChanged('ipe_PD')) && 'bg-accent/20 border-accent')}>
+                                            <Label className="text-base font-medium">Asserções IPE</Label>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-2">
+                                                <FormField control={form.control} name="ipe_C" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>C</FormLabel></div></FormItem>)} />
+                                                <FormField control={form.control} name="ipe_EO" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>E/O</FormLabel></div></FormItem>)} />
+                                                <FormField control={form.control} name="ipe_VA" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>V/A</FormLabel></div></FormItem>)} />
+                                                <FormField control={form.control} name="ipe_OR" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>O/R</FormLabel></div></FormItem>)} />
+                                                <FormField control={form.control} name="ipe_PD" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>P/D (IPE)</FormLabel></div></FormItem>)} />
+                                            </div>
+                                        </div>
+                                        <FormField name="sistemaArmazenamento" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Sistema de Armazenamento</FormLabel><FormControl><Input {...field} className={cn(isFieldChanged('sistemaArmazenamento') && 'bg-accent/20 border-accent')} /></FormControl></FormItem> )} />
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </form>
+                    </Form>
+                    <DialogFooter className="border-t pt-4 mt-4">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                        <Button type="submit" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
+                            Revisar e Enviar Alterações
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={!!changesToConfirm} onOpenChange={(isOpen) => !isOpen && setChangesToConfirm(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Resumo das Alterações</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Você está prestes a enviar as seguintes solicitações de alteração. Por favor, confirme:
+                            <ul className="mt-4 list-disc pl-5 space-y-1 text-sm text-foreground max-h-60 overflow-y-auto">
+                                {changesToConfirm?.summary.map((s, i) => <li key={i}>{s}</li>)}
+                            </ul>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setChangesToConfirm(null)} disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmAndSubmit} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Confirmar Envio
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 };
 
