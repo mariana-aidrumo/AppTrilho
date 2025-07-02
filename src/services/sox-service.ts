@@ -503,8 +503,9 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
         const allRequests: ChangeRequest[] = [];
+        // Removed `orderby` from the query to make it more robust
         let response = await graphClient
-            .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields&orderby=fields/DataSolicitacao desc`)
+            .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
             .get();
 
         while (response) {
@@ -518,6 +519,10 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
                 break;
             }
         }
+
+        // Sort requests by date in descending order (newest first) in the application
+        allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
+        
         return allRequests;
     } catch (error: any) {
         let detailedMessage = "An unknown error occurred while fetching change requests.";
