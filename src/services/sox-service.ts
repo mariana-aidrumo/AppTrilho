@@ -62,7 +62,9 @@ const buildColumnMappings = async (listName: string): Promise<Map<string, Column
         const newColumnMap = new Map<string, ColumnMapping>();
         
         for (const column of spColumns) {
-            if (column.hidden || column.readOnly) continue;
+            // Always include Title, otherwise filter out hidden/readonly for general use.
+            if (column.name !== 'Title' && (column.hidden || column.readOnly)) continue;
+            
              newColumnMap.set(column.displayName, {
                 internalName: column.name,
                 displayName: column.displayName,
@@ -503,7 +505,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
         const allRequests: ChangeRequest[] = [];
-        // Removed `orderby` from the query to make it more robust
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
             .get();
@@ -520,7 +521,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
             }
         }
 
-        // Sort requests by date in descending order (newest first) in the application
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
@@ -545,7 +545,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
 
         console.error(`Failed to get Change Requests from SharePoint. Full error:`, error);
-        // Throw a more specific error to help with debugging
         throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${detailedMessage}`);
     }
 };
@@ -561,22 +560,39 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
-    const fieldsToCreate = {
-        Title: newRequestId,
-        IDdaSolicitacao: newRequestId,
-        Tipo: requestData.requestType,
-        NomeControle: requestData.controlName,
-        IDControle: requestData.controlId,
-        SolicitadoPor: requestData.requestedBy,
-        DataSolicitacao: requestDate,
-        DetalhesDaMudanca: requestData.comments,
-        StatusFinal: "Pendente",
-        DadosAlteracaoJSON: JSON.stringify(requestData.changes || {}),
+    const dataToWrite: { [displayName: string]: any } = {
+        "Title": newRequestId,
+        "ID da Solicitação": newRequestId, // This is a display name
+        "Tipo": requestData.requestType,
+        "Nome Controle": requestData.controlName,
+        "ID Controle": requestData.controlId,
+        "Solicitado Por": requestData.requestedBy,
+        "Data Solicitação": requestDate,
+        "Detalhes da Mudança": requestData.comments,
+        "Status Final": "Pendente",
+        "Dados Alteracao JSON": JSON.stringify(requestData.changes || {}),
     };
+
+    const fieldsToCreate: { [internalName: string]: any } = {};
+
+    for (const [displayName, value] of Object.entries(dataToWrite)) {
+        const mapping = historyColumnMap.get(displayName);
+        if (mapping && value !== undefined && value !== null) {
+            fieldsToCreate[mapping.internalName] = value;
+        } else if (displayName === 'Title' && !historyColumnMap.has('Title')) {
+            // Handle case where Title is not in the map but we need to set it
+            fieldsToCreate['Title'] = value;
+        }
+    }
+
+    if (!Object.keys(fieldsToCreate).length || !fieldsToCreate.Title) {
+        throw new Error(`Nenhuma coluna correspondente foi encontrada ou o campo Title está faltando para a lista '${SHAREPOINT_HISTORY_LIST_NAME}'. Verifique a configuração da lista.`);
+    }
 
     const newItem = { fields: fieldsToCreate };
 
@@ -624,11 +640,17 @@ export const updateChangeRequestStatus = async (
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
     // 1. Find the history item to update using its request ID
+    const idDaSolicitacaoInternalName = historyColumnMap.get("ID da Solicitação")?.internalName;
+    if (!idDaSolicitacaoInternalName) {
+        throw new Error("A coluna 'ID da Solicitação' não foi encontrada na lista de histórico.");
+    }
+
     const historyItemsResponse = await graphClient
         .api(`/sites/${siteId}/lists/${historyListId}/items`)
-        .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
+        .filter(`fields/${idDaSolicitacaoInternalName} eq '${requestId}'`)
         .expand('fields')
         .get();
 
@@ -641,15 +663,25 @@ export const updateChangeRequestStatus = async (
     
     // 2. Update the status of the history item
     const reviewDate = new Date().toISOString();
-    const fieldsToUpdateHistory = {
-        StatusFinal: newStatus,
-        RevisadoPor: reviewedBy,
-        DataRevisao: reviewDate,
+    const dataToUpdate: { [displayName: string]: any } = {
+        "Status Final": newStatus,
+        "Revisado Por": reviewedBy,
+        "Data Revisão": reviewDate,
     };
+    
+    const fieldsToUpdateHistory: { [internalName: string]: any } = {};
+    for (const [displayName, value] of Object.entries(dataToUpdate)) {
+        const mapping = historyColumnMap.get(displayName);
+        if (mapping && value !== undefined && value !== null) {
+            fieldsToUpdateHistory[mapping.internalName] = value;
+        }
+    }
 
-    await graphClient
-        .api(`/sites/${siteId}/lists/${historyListId}/items/${historyItemSpId}/fields`)
-        .patch(fieldsToUpdateHistory);
+    if (Object.keys(fieldsToUpdateHistory).length > 0) {
+        await graphClient
+            .api(`/sites/${siteId}/lists/${historyListId}/items/${historyItemSpId}/fields`)
+            .patch(fieldsToUpdateHistory);
+    }
 
     // 3. If approved, apply the changes to the main controls list
     if (newStatus === 'Aprovado') {
