@@ -19,6 +19,7 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
 const SHAREPOINT_HISTORY_LIST_NAME = 'REGISTRO-MATRIZ';
 
 let controlsColumnMapCache: Map<string, string> | null = null;
+let historyColumnMapCache: Map<string, string> | null = null;
 
 // Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
@@ -48,6 +49,37 @@ async function getControlsColumnMapping(): Promise<Map<string, string>> {
     }
     
     controlsColumnMapCache = mapping;
+    return mapping;
+}
+
+// Dynamically gets and caches the column mapping for the HISTORY list
+async function getHistoryColumnMapping(): Promise<Map<string, string>> {
+    if (historyColumnMapCache) {
+        return historyColumnMapCache;
+    }
+
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for history list.");
+    }
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const listId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+
+    const response = await graphClient
+        .api(`/sites/${siteId}/lists/${listId}/columns`)
+        .select('displayName,name')
+        .get();
+    
+    if (!response || !response.value) {
+      throw new Error("Could not fetch column details from SharePoint for history mapping.");
+    }
+
+    const mapping = new Map<string, string>();
+    for (const column of response.value) {
+        mapping.set(column.displayName, column.name);
+    }
+    
+    historyColumnMapCache = mapping;
     return mapping;
 }
 
@@ -160,16 +192,23 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
 };
 
 export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
-    // This function can be improved with a dynamic mapping, but is not part of the current fix.
-    // For now, it will likely fail unless the Excel headers match SharePoint internal names.
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
       throw new Error("SharePoint site URL or list name is not configured.");
     }
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+    const columnMap = await getControlsColumnMapping();
+    const fieldsToCreate: { [key: string]: any } = {};
+
+    for(const [displayName, value] of Object.entries(rowData)) {
+        const internalName = columnMap.get(displayName);
+        if (internalName) {
+            fieldsToCreate[internalName] = value;
+        }
+    }
   
-    const newItem = { fields: rowData };
+    const newItem = { fields: fieldsToCreate };
     return graphClient.api(`/sites/${siteId}/lists/${listId}/items`).post(newItem);
 };
 
@@ -208,58 +247,62 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // Helper function to safely extract title from a SharePoint lookup/person field
 const getLookupFieldValue = (field: any): string => {
+    if (Array.isArray(field) && field.length > 0) {
+        return field[0].lookupValue;
+    }
     if (typeof field === 'object' && field !== null && field.Title) {
         return field.Title;
     }
-    // Handle cases where it might just be a string (e.g., from older entries)
     if (typeof field === 'string') {
         return field;
     }
-    return ''; // Return empty string if not a valid lookup or string
+    return ''; 
 };
 
-const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
+const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    // Robust Status Logic: Default to 'Pendente' unless explicitly closed or waiting.
-    const spStatus = fields.StatusFinal as ChangeRequestStatus;
+    const getField = (displayName: string) => {
+        const internalName = columnMap.get(displayName);
+        return internalName ? fields[internalName] : undefined;
+    };
+    
+    const spStatus = getField("StatusFinal") as ChangeRequestStatus;
     let finalStatus: ChangeRequestStatus;
 
     if (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') {
         finalStatus = spStatus;
     } else {
-        // This covers null, undefined, empty string, and the explicit "Pendente" value.
         finalStatus = 'Pendente';
     }
 
-    // Parse changes from JSON, with a fallback
     let changes = {};
-    if (fields.DadosAlteracaoJSON) {
+    const changesJson = getField("DadosAlteracaoJSON");
+    if (changesJson) {
         try {
-            changes = JSON.parse(fields.DadosAlteracaoJSON);
+            changes = JSON.parse(changesJson);
         } catch (e) {
             console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e);
         }
     }
     
     const request: ChangeRequest = {
-        id: fields.IDdaSolicitacao || fields.Title,
+        id: getField("ID da Solicitação") || getField("Title") || `temp-id-${item.id}`,
         spListItemId: item.id,
-        controlId: fields.IDControle || '',
-        controlName: fields.NomeControle || '',
-        requestType: fields.Tipo || 'Alteração',
-        requestedBy: getLookupFieldValue(fields.SolicitadoPor),
-        requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
-        status: finalStatus, // Use the robustly determined status
+        controlId: getField("ID Controle") || '',
+        controlName: getField("Nome do Controle") || '',
+        requestType: getField("Tipo") || 'Alteração',
+        requestedBy: getLookupFieldValue(getField("Solicitado Por")),
+        requestDate: getField("Data da Solicitação") || item.lastModifiedDateTime,
+        status: finalStatus,
         changes: changes,
-        comments: fields.DetalhesDaMudanca || 'Nenhum detalhe fornecido.',
-        reviewedBy: getLookupFieldValue(fields.RevisadoPor),
-        reviewDate: fields.DataRevisao,
-        adminFeedback: fields.FeedbackAdmin || '',
+        comments: getField("Detalhes da Mudança") || 'Nenhum detalhe fornecido.',
+        reviewedBy: getLookupFieldValue(getField("Revisado Por")),
+        reviewDate: getField("Data Revisão"),
+        adminFeedback: getField("Feedback do Admin") || '',
     };
     
-    // Data integrity check: if we don't have the core IDs, skip this record.
     if (!request.id || !request.controlId) {
         console.warn("Skipping history record due to missing core IDs:", item);
         return null;
@@ -276,6 +319,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+        const columnMap = await getHistoryColumnMapping();
         
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
@@ -292,14 +336,10 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
         
         const allRequests = allItems
-            .map(mapHistoryItemToChangeRequest)
+            .map(item => mapHistoryItemToChangeRequest(item, columnMap))
             .filter((req): req is ChangeRequest => req !== null);
         
-        allRequests.sort((a, b) => {
-            const dateA = a.requestDate ? new Date(a.requestDate).getTime() : 0;
-            const dateB = b.requestDate ? new Date(b.requestDate).getTime() : 0;
-            return dateB - dateA;
-        });
+        allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
     } catch (error: any) {
@@ -315,22 +355,27 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const columnMap = await getHistoryColumnMapping();
     
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
-    
-    const fieldsToCreate = {
-        Title: newRequestId, 
-        IDdaSolicitacao: newRequestId,
-        Tipo: requestData.requestType,
-        NomeControle: requestData.controlName,
-        IDControle: requestData.controlId,
-        SolicitadoPor: requestData.requestedBy,
-        DataSolicitacao: requestDate,
-        StatusFinal: "Pendente",
-        DadosAlteracaoJSON: JSON.stringify(requestData.changes || {}),
-        DetalhesDaMudanca: requestData.comments,
+
+    const fieldsToCreate: {[key: string]: any} = {};
+    const setField = (displayName: string, value: any) => {
+        const internalName = columnMap.get(displayName);
+        if (internalName) fieldsToCreate[internalName] = value;
     };
+
+    setField("ID da Solicitação", newRequestId);
+    setField("Title", newRequestId); // Title is often mandatory
+    setField("Tipo", requestData.requestType);
+    setField("Nome do Controle", requestData.controlName);
+    setField("ID Controle", requestData.controlId);
+    setField("Solicitado Por", requestData.requestedBy); // This assumes a simple text field for now
+    setField("Data da Solicitação", requestDate);
+    setField("StatusFinal", "Pendente");
+    setField("DadosAlteracaoJSON", JSON.stringify(requestData.changes || {}));
+    setField("Detalhes da Mudança", requestData.comments);
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
     return { ...requestData, id: newRequestId, spListItemId: response.id, requestDate, status: 'Pendente' } as ChangeRequest;
@@ -345,60 +390,56 @@ export const updateChangeRequestStatus = async (
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
     }
+    const allRequests = await getChangeRequests();
+    const requestToUpdate = allRequests.find(req => req.id === requestId);
+
+    if (!requestToUpdate || !requestToUpdate.spListItemId) {
+       throw new Error(`Solicitação com ID ${requestId} não encontrada ou não possui um ID de item do SharePoint.`);
+    }
+
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const columnMap = await getHistoryColumnMapping();
     
-    const historyItemResponse = await graphClient
-      .api(`/sites/${siteId}/lists/${historyListId}/items`)
-      .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-      .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
-      .expand('fields')
-      .get();
-      
-    if (!historyItemResponse.value || historyItemResponse.value.length === 0) {
-       throw new Error(`Solicitação com ID ${requestId} não encontrada no histórico.`);
-    }
-
-    const historyItem = historyItemResponse.value[0];
-    const originalRequest = mapHistoryItemToChangeRequest(historyItem);
-    
-    if (!originalRequest) {
-        throw new Error(`Solicitação com ID ${requestId} é inválida e não pode ser processada.`);
-    }
-
-    const fieldsToUpdateHistory = {
-        StatusFinal: newStatus,
-        RevisadoPor: reviewedBy,
-        DataRevisao: new Date().toISOString(),
-        FeedbackAdmin: adminFeedback || '',
+    const fieldsToUpdate: {[key: string]: any} = {};
+    const setField = (displayName: string, value: any) => {
+        const internalName = columnMap.get(displayName);
+        if (internalName) fieldsToUpdate[internalName] = value;
     };
-    await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${historyItem.id}/fields`).patch(fieldsToUpdateHistory);
+    
+    setField("StatusFinal", newStatus);
+    setField("Revisado Por", reviewedBy); // Assumes a simple text field
+    setField("Data Revisão", new Date().toISOString());
+    setField("Feedback do Admin", adminFeedback || '');
 
-    if (newStatus === 'Aprovado' && originalRequest.requestType === 'Alteração') {
+    await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsToUpdate);
+
+    if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Alteração') {
         const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+        const controlsColumnMap = await getControlsColumnMapping();
+        
         const controlItemsResponse = await graphClient
             .api(`/sites/${siteId}/lists/${controlsListId}/items`)
             .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-            .filter(`fields/C_x00f3_digo_x0020_NOVO eq '${originalRequest.controlId}'`)
+            .filter(`${controlsColumnMap.get('Código NOVO')} eq '${requestToUpdate.controlId}'`)
             .get();
             
         if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
-            throw new Error(`Controle principal com ID ${originalRequest.controlId} não encontrado para aplicar a alteração.`);
+            throw new Error(`Controle principal com ID ${requestToUpdate.controlId} não encontrado para aplicar a alteração.`);
         }
         const controlItemSpId = controlItemsResponse.value[0].id;
         
-        const { id, controlId, controlName, ...changesToApply } = originalRequest.changes;
+        const { id, controlId, controlName, ...changesToApply } = requestToUpdate.changes;
         
         if (Object.keys(changesToApply).length > 0) {
-           const dynamicChanges = {};
-           const columnMap = await getControlsColumnMapping();
+           const dynamicChanges: {[key: string]: any} = {};
             for (const [appKey, changeValue] of Object.entries(changesToApply)) {
                 const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
                 if(spDisplayName) {
-                    const spInternalName = columnMap.get(spDisplayName);
+                    const spInternalName = controlsColumnMap.get(spDisplayName);
                     if(spInternalName) {
-                        (dynamicChanges as any)[spInternalName] = changeValue;
+                        dynamicChanges[spInternalName] = changeValue;
                     }
                 }
             }
@@ -406,12 +447,20 @@ export const updateChangeRequestStatus = async (
                 await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(dynamicChanges);
             }
         }
-    } else if (newStatus === 'Aprovado' && originalRequest.requestType === 'Criação') {
-        await addSoxControl(originalRequest.changes);
+    } else if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Criação') {
+        const fieldsForNewControl: {[key: string]: any} = {};
+        for(const [key, value] of Object.entries(requestToUpdate.changes)) {
+            const displayName = (appToSpDisplayNameMapping as any)[key];
+            if (displayName) {
+                fieldsForNewControl[displayName] = value;
+            }
+        }
+        await addSoxControl(fieldsForNewControl);
     }
     
-    return { ...originalRequest, ...fieldsToUpdateHistory, status: newStatus };
+    return { ...requestToUpdate, ...fieldsToUpdate, status: newStatus };
 };
+
 
 // --- Mocked Services (for user management etc.) ---
 export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
