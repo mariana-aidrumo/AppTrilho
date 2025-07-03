@@ -293,30 +293,8 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return null;
     }
     
-    // Logic to determine status: Pendente by default unless explicitly processed.
+    // Logic to determine status: All items are returned for now for debugging
     const statusFinal = getField(["StatusFinal", "Status Final"]);
-    let status: ChangeRequestStatus = "Pendente"; // Default to Pendente
-
-    if (statusFinal === 'Aprovado' || statusFinal === 'Rejeitado' || statusFinal === 'Aguardando Feedback do Dono') {
-      status = statusFinal;
-    }
-    
-    // Replicate ALL fields into the comments section for debugging
-    const allFieldsString = Object.entries(fields)
-        .map(([key, value]) => {
-            let displayValue: string;
-            if (value === null) {
-                displayValue = "null";
-            } else if (value === undefined) {
-                displayValue = "undefined";
-            } else if (typeof value === 'object') {
-                displayValue = JSON.stringify(value);
-            } else {
-                displayValue = String(value);
-            }
-            return `${key}: ${displayValue}`;
-        })
-        .join('\n');
 
     const request: ChangeRequest = {
         id: idDaSolicitacao,
@@ -326,9 +304,9 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         requestType: getField(["Tipo"]) || 'Alteração',
         requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: status,
+        status: (statusFinal as ChangeRequestStatus) || "Status Vazio", // Show raw status
         changes: {}, // Not used in this view, but part of the type
-        comments: allFieldsString, // REPLICATE ALL FIELDS
+        comments: fields.field_7 || '',
         reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
         reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
