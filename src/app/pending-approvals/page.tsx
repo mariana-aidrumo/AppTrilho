@@ -1,4 +1,3 @@
-
 // src/app/pending-approvals/page.tsx
 "use client";
 
@@ -44,11 +43,12 @@ export default function PendingApprovalsPage() {
     loadData();
   }, [currentUser.id, loadData]);
 
-  // PASSO A PASSO: Exibir TUDO sem filtros para depuração.
-  // Colocaremos tudo na primeira aba para garantir que os dados estão sendo lidos.
-  const adminPendingAlterations = useMemo(() => changeRequests, [changeRequests]);
+  // PASSO-A-PASSO: Exibir TUDO sem filtros para depuração.
+  const adminAllRequests = useMemo(() => changeRequests, [changeRequests]);
+
+  const adminPendingAlterations = useMemo(() => adminAllRequests.filter(req => req.status === "Pendente"), [adminAllRequests]);
   const adminPendingNewControls = useMemo(() => [], [changeRequests]);
-  const adminRequestsHistory = useMemo(() => [], [changeRequests]);
+  const adminRequestsHistory = useMemo(() => adminAllRequests.filter(req => req.status !== "Pendente"), [adminAllRequests]);
 
 
   // Filtros para Dono do Controle
@@ -161,7 +161,7 @@ export default function PendingApprovalsPage() {
                       </span>
                 </TableCell>
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
-                    {request.comments}
+                    {request.comments || (request.changes && Object.keys(request.changes).length > 0 ? `Alterações: ${JSON.stringify(request.changes)}` : 'Nenhum detalhe fornecido.')}
                   </TableCell>
                 <TableCell>{request.reviewedBy || "N/A"}</TableCell>
                 <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>
@@ -209,7 +209,7 @@ export default function PendingApprovalsPage() {
             <Tabs defaultValue="alterations">
               <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                 <TabsTrigger value="alterations">
-                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Todas Solicitações ({adminPendingAlterations.length})
+                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Todas Solicitações ({adminAllRequests.length})
                 </TabsTrigger>
                 <TabsTrigger value="new_controls" disabled>
                   <PlusSquare className="mr-2 h-4 w-4 text-green-600" /> Criações Pendentes ({adminPendingNewControls.length})
@@ -219,7 +219,7 @@ export default function PendingApprovalsPage() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="alterations">
-                {renderRequestTable(adminPendingAlterations, "admin-alterations")}
+                {renderRequestTable(adminAllRequests, "admin-alterations")}
               </TabsContent>
               <TabsContent value="new_controls">
                 {renderRequestTable(adminPendingNewControls, "admin-new")}

@@ -1,4 +1,3 @@
-
 // src/services/sox-service.ts
 'use server';
 
@@ -249,12 +248,19 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const fields = item.fields;
     if (!fields) return null;
 
+    // Helper para ler campos do SharePoint com flexibilidade
     const getField = (displayNames: string[]) => {
         for (const name of displayNames) {
             const internalName = columnMap.get(name);
             if (internalName && fields[internalName] !== undefined && fields[internalName] !== null) {
                 return fields[internalName];
             }
+        }
+        // Fallback para nomes comuns, caso o mapeamento falhe
+        for (const name of displayNames) {
+             if (fields[name] !== undefined && fields[name] !== null) return fields[name];
+             const nameWithoutSpaces = name.replace(/\s/g, '');
+             if (fields[nameWithoutSpaces] !== undefined && fields[nameWithoutSpaces] !== null) return fields[nameWithoutSpaces];
         }
         return undefined;
     };
@@ -278,11 +284,9 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         console.warn("Skipping history record due to missing core ID:", { id: item.id });
         return null;
     }
-
-    const controlId = getField(["ID Controle", "ID do Controle"]);
-
-    // PASSO A PASSO: DEBUGGING LOGIC. Read the status as is, default to "Status Vazio"
-    const finalStatus = getField(["StatusFinal", "Status Final"]) || "Status Vazio";
+    
+    // PASSO-A-PASSO: Exibe o valor bruto do status
+    const statusBruto = getField(["Status Final", "StatusFinal"]) || "Status Vazio";
     
     let changes = {};
     const changesJson = getField(["DadosAlteracaoJSON", "DadosAlteraçãoJSON"]);
@@ -297,14 +301,14 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const request: ChangeRequest = {
         id: idDaSolicitacao,
         spListItemId: item.id,
-        controlId: controlId || "N/A",
+        controlId: getField(["ID Controle", "ID do Controle", "IDControle"]) || "N/A",
         controlName: getField(["Nome do Controle", "NomeControle"]),
         requestType: getField(["Tipo"]) || 'Alteração',
         requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: finalStatus as ChangeRequestStatus, // Cast for type compliance
+        status: statusBruto as ChangeRequestStatus, // Cast for type compliance
         changes: changes,
-        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca"]) || 'Nenhum detalhe fornecido.',
+        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca", "Comments", "Comentarios", "Comentários"]),
         reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor", "Revisado por"])),
         reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
