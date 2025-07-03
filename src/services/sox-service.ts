@@ -261,13 +261,13 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
         controlId: fields.IDControle || "N/A",
-        controlName: fields.NomeControle || fields.Nome_x0020_do_x0020_Controle,
+        controlName: fields.NomeControle || fields.Nome_x0020_do_x0020_Controle || "Nome não encontrado",
         requestType: fields.Tipo || 'Alteração',
-        requestedBy: fields.SolicitadoPor,
+        requestedBy: fields.SolicitadoPor || "Não encontrado",
         requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
-        comments: fields.field_7,
+        comments: fields.field_7, // This is Detalhes da Mudança
         reviewedBy: fields.field_11,
         reviewDate: fields.field_10,
         adminFeedback: fields.field_12 || '',
@@ -345,39 +345,57 @@ export const updateChangeRequestStatus = async (
   reviewedBy: string,
   adminFeedback?: string
 ): Promise<ChangeRequest> => {
+    const allRequests = await getChangeRequests();
+    const requestToUpdate = allRequests.find(req => req.id === requestId);
+
+    if (!requestToUpdate || !requestToUpdate.spListItemId) {
+        throw new Error(`Solicitação com ID ${requestId} não encontrada ou não possui um ID de item do SharePoint.`);
+    }
+
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL!);
+    
+    // --- PASSO 1: ATUALIZAR A LISTA DE REGISTRO-MATRIZ ---
     try {
-        if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME || !SHAREPOINT_CONTROLS_LIST_NAME) {
-            throw new Error("SharePoint configuration is missing.");
-        }
-
-        const allRequests = await getChangeRequests();
-        const requestToUpdate = allRequests.find(req => req.id === requestId);
-
-        if (!requestToUpdate || !requestToUpdate.spListItemId) {
-           throw new Error(`Solicitação com ID ${requestId} não encontrada ou não possui um ID de item do SharePoint.`);
-        }
-
-        const graphClient = await getGraphClient();
-        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
-        const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-        
-        const fieldsForHistoryUpdate: {[key: string]: any} = {
+        const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
+        const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,
             'field_10': new Date().toISOString(),
             'field_11': reviewedBy,
+            'field_12': adminFeedback || '',
         };
+        await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
+    } catch (error: any) {
+        console.error("Erro no PASSO 1 (Atualizar Histórico):", JSON.stringify(error, null, 2));
+        let detailedMessage = "Ocorreu um erro ao atualizar o status da solicitação no histórico (PASSO 1).";
         
-        if (adminFeedback) {
-            fieldsForHistoryUpdate['field_12'] = adminFeedback;
+        if (error.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                if (errorBody.error?.message) {
+                    detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
+                } else {
+                    detailedMessage += ` SharePoint returned an error body: ${error.body}`;
+                }
+            } catch (parseError) {
+                detailedMessage += ` Invalid request to SharePoint. Raw response: ${error.body}`;
+            }
+        } else if (error.message) {
+            detailedMessage += ` Details: ${error.message}`;
         }
         
-        await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
+        if (error.statusCode) {
+            detailedMessage += ` (Status code: ${error.statusCode})`;
+        }
+        throw new Error(detailedMessage);
+    }
 
-        if (newStatus === 'Aprovado') {
+    // --- PASSO 2: APLICAR ALTERAÇÕES NA MATRIZ PRINCIPAL (SE APROVADO) ---
+    if (newStatus === 'Aprovado') {
+        try {
             if (requestToUpdate.requestType === 'Alteração') {
-                const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+                const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
                 const controlsColumnMap = await getControlsColumnMapping();
-                
                 const controlIdInternalName = controlsColumnMap.get('Código NOVO');
                 if (!controlIdInternalName) {
                     throw new Error("Não foi possível encontrar o nome interno da coluna 'Código NOVO'.");
@@ -409,11 +427,11 @@ export const updateChangeRequestStatus = async (
                             }
                         }
                     }
-                     if (Object.keys(dynamicChanges).length > 0) {
+                    if (Object.keys(dynamicChanges).length > 0) {
                         await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(dynamicChanges);
                     }
                 }
-            } else if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Criação') {
+            } else if (requestToUpdate.requestType === 'Criação') {
                 const fieldsForNewControl: {[key: string]: any} = {};
                 for(const [key, value] of Object.entries(requestToUpdate.changes)) {
                     const displayName = (appToSpDisplayNameMapping as any)[key];
@@ -421,39 +439,36 @@ export const updateChangeRequestStatus = async (
                         fieldsForNewControl[displayName] = value;
                     }
                 }
-                // Ensure new controls are created as 'Active'
                 fieldsForNewControl['Status'] = 'Ativo';
                 await addSoxControl(fieldsForNewControl);
             }
-        }
-        
-        return { ...requestToUpdate, status: newStatus };
-    } catch (error: any) {
-        console.error("Detailed error in updateChangeRequestStatus:", JSON.stringify(error, null, 2));
-        
-        let detailedMessage = "An unknown error occurred while processing the request.";
-    
-        if (error.body) {
-            try {
-                const errorBody = JSON.parse(error.body);
-                if (errorBody.error?.message) {
-                    detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
-                } else {
-                    detailedMessage = `SharePoint returned an error body: ${error.body}`;
+        } catch (error: any) {
+            console.error("Erro no PASSO 2 (Aplicar Mudanças na Matriz):", JSON.stringify(error, null, 2));
+            let detailedMessage = "O status da solicitação foi atualizado, mas ocorreu um erro ao aplicar as mudanças na matriz principal (PASSO 2).";
+            
+            if (error.body) {
+                try {
+                    const errorBody = JSON.parse(error.body);
+                    if (errorBody.error?.message) {
+                        detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
+                    } else {
+                        detailedMessage += ` SharePoint returned an error body: ${error.body}`;
+                    }
+                } catch (parseError) {
+                    detailedMessage += ` Invalid request to SharePoint. Raw response: ${error.body}`;
                 }
-            } catch (parseError) {
-                detailedMessage = `Invalid request to SharePoint. Raw response: ${error.body}`;
+            } else if (error.message) {
+                detailedMessage += ` Details: ${error.message}`;
             }
-        } else if (error.message) {
-            detailedMessage = error.message;
+            
+            if (error.statusCode) {
+                detailedMessage += ` (Status code: ${error.statusCode})`;
+            }
+            throw new Error(detailedMessage);
         }
-        
-        if (error.statusCode) {
-            detailedMessage += ` (Status code: ${error.statusCode})`;
-        }
-
-        throw new Error(detailedMessage);
     }
+    
+    return { ...requestToUpdate, status: newStatus };
 };
 
 
