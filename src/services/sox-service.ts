@@ -460,36 +460,44 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
 // --- Change Request Services (SharePoint-driven) ---
 
 /**
- * Maps a SharePoint history list item to a ChangeRequest object.
+ * Maps a SharePoint history list item to a ChangeRequest object using a dynamic column map.
  * @param item The SharePoint list item.
+ * @param columnMap A map of Display Names to their internal SharePoint details.
  * @returns A ChangeRequest object.
  */
-const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
+const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, ColumnMapping>): ChangeRequest => {
     const fields = item.fields;
+
+    // Helper to safely get a value using the display name
+    const getValue = (displayName: string): any => {
+        const mapping = columnMap.get(displayName);
+        return mapping ? fields[mapping.internalName] : undefined;
+    };
+
     let changes = {};
-    try {
-        // Use the correct internal name from the user's list
-        if (fields.DadosAlteracaoJSON) {
-            changes = JSON.parse(fields.DadosAlteracaoJSON);
+    const jsonData = getValue("DadosAlteracaoJSON");
+    if (jsonData) {
+        try {
+            changes = JSON.parse(jsonData);
+        } catch (e) {
+            console.warn(`Could not parse DadosAlteracaoJSON for request ${getValue("IDdaSolicitacao")}:`, e);
         }
-    } catch (e) {
-        console.warn(`Could not parse DadosAlteracaoJSON for request ${fields.IDdaSolicitacao}:`, e);
     }
 
     return {
-        id: fields.IDdaSolicitacao || item.id,
-        spListItemId: item.id, // Store the SharePoint list item ID
-        controlId: fields.IDControle,
-        controlName: fields.NomeControle,
-        requestType: fields.Tipo,
-        requestedBy: fields.SolicitadoPor,
-        requestDate: fields.DataSolicitacao || item.createdDateTime,
-        status: fields.StatusFinal || 'Pendente',
+        id: getValue("IDdaSolicitacao") || item.id,
+        spListItemId: item.id,
+        controlId: getValue("IDControle"),
+        controlName: getValue("NomeControle"),
+        requestType: getValue("Tipo"),
+        requestedBy: getValue("SolicitadoPor"),
+        requestDate: getValue("DataSolicitacao") || item.createdDateTime,
+        status: getValue("StatusFinal") || 'Pendente',
         changes: changes,
-        comments: fields.DetalhesDaMudanca,
-        reviewedBy: fields.RevisadoPor,
-        reviewDate: fields.DataRevisao,
-        adminFeedback: fields.FeedbackAdmin,
+        comments: getValue("DetalhesDaMudanca"),
+        reviewedBy: getValue("RevisadoPor"),
+        reviewDate: getValue("DataRevisao"),
+        adminFeedback: getValue("FeedbackAdmin"),
     };
 };
 
@@ -504,6 +512,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+        const columnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
         const allRequests: ChangeRequest[] = [];
         let response = await graphClient
@@ -512,7 +521,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
 
         while (response) {
             if (response.value) {
-                const requestsFromPage = response.value.map(mapHistoryItemToChangeRequest);
+                const requestsFromPage = response.value.map(item => mapHistoryItemToChangeRequest(item, columnMap));
                 allRequests.push(...requestsFromPage);
             }
             if (response['@odata.nextLink']) {
@@ -522,7 +531,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
             }
         }
 
-        // Sort in code to avoid issues with SharePoint column names
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
@@ -547,7 +555,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
 
         console.error(`Failed to get Change Requests from SharePoint. Full error:`, error);
-        // Throw a more specific error to help with debugging
         throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${detailedMessage}`);
     }
 };
@@ -568,7 +575,6 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
-    // Use the exact field names provided by the user, which are likely the display names
     const dataToWrite: { [displayName: string]: any } = {
         "Title": newRequestId,
         "IDdaSolicitacao": newRequestId,
@@ -645,7 +651,6 @@ export const updateChangeRequestStatus = async (
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
-    // 1. Find the history item to update using its request ID
     const idDaSolicitacaoInternalName = historyColumnMap.get("IDdaSolicitacao")?.internalName;
     if (!idDaSolicitacaoInternalName) {
         throw new Error("A coluna 'IDdaSolicitacao' não foi encontrada na lista de histórico.");
@@ -662,9 +667,8 @@ export const updateChangeRequestStatus = async (
     }
     const historyItem = historyItemsResponse.value[0];
     const historyItemSpId = historyItem.id;
-    const originalRequest = mapHistoryItemToChangeRequest(historyItem);
+    const originalRequest = mapHistoryItemToChangeRequest(historyItem, historyColumnMap);
     
-    // 2. Update the status of the history item
     const reviewDate = new Date().toISOString();
     const dataToUpdate: { [displayName: string]: any } = {
         "StatusFinal": newStatus,
@@ -686,7 +690,6 @@ export const updateChangeRequestStatus = async (
             .patch(fieldsToUpdateHistory);
     }
 
-    // 3. If approved, apply the changes to the main controls list
     if (newStatus === 'Aprovado') {
         if (originalRequest.requestType === 'Criação') {
             const changesWithDisplayNames: { [key: string]: any } = {};
@@ -695,11 +698,11 @@ export const updateChangeRequestStatus = async (
                 if (displayName) {
                     changesWithDisplayNames[displayName] = value;
                 } else {
-                     changesWithDisplayNames[appKey] = value; // Fallback
+                     changesWithDisplayNames[appKey] = value;
                 }
             }
             await addSoxControl(changesWithDisplayNames);
-        } else { // It's an 'Alteração'
+        } else {
             const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
             const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
 
@@ -739,7 +742,6 @@ export const updateChangeRequestStatus = async (
         }
     }
     
-    // Return the updated request object to the UI
     originalRequest.status = newStatus;
     originalRequest.reviewedBy = reviewedBy;
     originalRequest.reviewDate = reviewDate;
