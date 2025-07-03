@@ -127,8 +127,8 @@ export default function PendingApprovalsPage() {
               <TableHead>Data da Solicitação</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Detalhes da Mudança</TableHead>
-              <TableHead>Revisado Por</TableHead>
-              <TableHead>Data Revisão</TableHead>
+              {!isAdminActionView && <TableHead>Revisado Por</TableHead>}
+              {!isAdminActionView && <TableHead>Data Revisão</TableHead>}
               <TableHead className="text-right min-w-[120px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -158,8 +158,8 @@ export default function PendingApprovalsPage() {
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
                     {request.comments || 'Nenhum detalhe fornecido.'}
                   </TableCell>
-                <TableCell>{request.reviewedBy || "N/A"}</TableCell>
-                <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>
+                {!isAdminActionView && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
+                {!isAdminActionView && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
                 
                 <TableCell className="text-right">
                   {isAdminActionView && (
