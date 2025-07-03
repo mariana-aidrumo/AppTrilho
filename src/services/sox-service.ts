@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -248,24 +249,27 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const fields = item.fields;
     if (!fields) return null;
 
-    // Helper para ler campos do SharePoint com flexibilidade
+    // Helper to read fields flexibly, trying multiple common names
     const getField = (displayNames: string[]) => {
-        for (const name of displayNames) {
-            const internalName = columnMap.get(name);
-            if (internalName && fields[internalName] !== undefined && fields[internalName] !== null) {
+        // 1. Try mapping display names to internal names from the cache
+        for (const displayName of displayNames) {
+            const internalName = columnMap.get(displayName);
+            if (internalName && fields.hasOwnProperty(internalName)) {
                 return fields[internalName];
             }
         }
-        // Fallback para nomes comuns, caso o mapeamento falhe
+
+        // 2. If map fails, try using the names directly as potential internal names
         for (const name of displayNames) {
-             if (fields[name] !== undefined && fields[name] !== null) return fields[name];
-             // Try variations
-             const nameWithoutSpaces = name.replace(/\s/g, '');
-             if (fields[nameWithoutSpaces] !== undefined && fields[nameWithoutSpaces] !== null) return fields[nameWithoutSpaces];
-             if (fields[nameWithoutSpaces.toLowerCase()] !== undefined && fields[nameWithoutSpaces.toLowerCase()] !== null) return fields[nameWithoutSpaces.toLowerCase()];
-             const spInternalName = name.replace(/\s/g, '_x0020_');
-             if(fields[spInternalName] !== undefined && fields[spInternalName] !== null) return fields[spInternalName];
+            if (fields.hasOwnProperty(name)) return fields[name]; // as-is
+            // with SP-encoded space
+            const encodedName = name.replace(/\s/g, '_x0020_');
+            if (fields.hasOwnProperty(encodedName)) return fields[encodedName];
+            // lowercase
+            const lowerCaseName = name.toLowerCase();
+            if (fields.hasOwnProperty(lowerCaseName)) return fields[lowerCaseName];
         }
+
         return undefined;
     };
     
@@ -282,38 +286,32 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return '';
     };
 
-    const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "IDdaSolicitacao", "Title"]);
+    const idDaSolicitacao = getField(["ID da Solicitação", "IDdaSolicitacao", "Title"]);
     
     if (!idDaSolicitacao) {
         console.warn("Skipping history record due to missing core ID:", { id: item.id });
         return null;
     }
     
-    // PASSO-A-PASSO: Exibe o valor bruto do status
-    const statusBruto = getField(["StatusFinal", "Status Final"]) || "Status Vazio";
-    
-    let changes = {};
-    const changesJson = getField(["DadosAlteracaoJSON", "DadosAlteraçãoJSON"]);
-    if (changesJson) {
-        try {
-            changes = JSON.parse(changesJson);
-        } catch (e) {
-            console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e);
-        }
+    const statusFinal = getField(["StatusFinal", "Status Final"]);
+
+    let status: ChangeRequestStatus = "Pendente"; // Default to Pendente
+    if (statusFinal === 'Aprovado' || statusFinal === 'Rejeitado' || statusFinal === 'Aguardando Feedback do Dono') {
+      status = statusFinal;
     }
     
     const request: ChangeRequest = {
         id: idDaSolicitacao,
         spListItemId: item.id,
-        controlId: getField(["ID Controle", "ID do Controle", "IDControle"]) || "N/A",
+        controlId: getField(["ID Controle", "IDControle"]) || "N/A",
         controlName: getField(["Nome do Controle", "NomeControle"]),
         requestType: getField(["Tipo"]) || 'Alteração',
-        requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor", "Solicitado por"])),
+        requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: statusBruto as ChangeRequestStatus, // Cast for type compliance
-        changes: changes,
-        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca", "Comments", "Comentarios", "Comentários", "detalhesdamudança"]),
-        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor", "Revisado por"])),
+        status: status,
+        changes: {},
+        comments: getField(["detalhesdamudança", "Detalhes da Mudança", "Comments"]),
+        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
         reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
     };
@@ -383,7 +381,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     setField("ID Controle", requestData.controlId);
     setField("Solicitado Por", requestData.requestedBy); // This assumes a simple text field for now
     setField("Data da Solicitação", requestDate);
-    setField("StatusFinal", "Pendente");
+    setField("Status Final", "Pendente");
     setField("DadosAlteracaoJSON", JSON.stringify(requestData.changes || {}));
     setField("Detalhes da Mudança", requestData.comments);
     
