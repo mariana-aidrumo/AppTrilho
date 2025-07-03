@@ -3,7 +3,7 @@
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn, TenantUser } from '@/types';
+import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn, TenantUser, ChangeRequestStatus } from '@/types';
 import {
   mockUsers,
   mockNotifications,
@@ -197,18 +197,25 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
 
     let changes = {};
     if (fields.DadosAlteracaoJSON) {
-        try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { /* ignore */ }
+        try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON", e); }
     }
+    
+    const spStatus = fields.StatusFinal;
+
+    // Core Logic: If a request isn't explicitly resolved, it's considered "Pendente".
+    const status: ChangeRequestStatus = (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') 
+        ? spStatus 
+        : 'Pendente';
 
     return {
-        id: fields.IDdaSolicitacao || item.id,
+        id: fields.IDdaSolicitacao || fields.Title, // Use Title as a fallback for the unique ID
         spListItemId: item.id,
         controlId: fields.IDControle,
         controlName: fields.NomeControle,
         requestType: fields.Tipo,
         requestedBy: fields.SolicitadoPor,
-        requestDate: fields.DataSolicitacao || item.createdDateTime,
-        status: fields.StatusFinal,
+        requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
+        status: status, // Use the defensively calculated status
         changes: changes,
         comments: fields.DetalhesDaMudanca,
         reviewedBy: fields.RevisadoPor,
@@ -225,7 +232,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-
+        
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
             .get();
@@ -268,8 +275,9 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
+    // These are the SharePoint internal field names we are writing to.
     const fieldsToCreate = {
-        Title: newRequestId, // Use Title for reliable filtering
+        Title: newRequestId, 
         IDdaSolicitacao: newRequestId,
         Tipo: requestData.requestType,
         NomeControle: requestData.controlName,
@@ -298,21 +306,31 @@ export const updateChangeRequestStatus = async (
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     
-    // 1. Find the history item to update using the 'Title' field which is indexed by default
+    // Find the history item using a filter on a field we know exists and is unique.
+    // Using `Title` because it's always indexed.
     const historyItemResponse = await graphClient
       .api(`/sites/${siteId}/lists/${historyListId}/items`)
-      .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
       .filter(`fields/Title eq '${requestId}'`)
       .expand('fields')
       .get();
       
     if (!historyItemResponse.value || historyItemResponse.value.length === 0) {
-      throw new Error(`Solicitação com ID ${requestId} não encontrada no histórico.`);
+      // Fallback to IDdaSolicitacao with non-indexed query header for safety
+       const fallbackResponse = await graphClient
+        .api(`/sites/${siteId}/lists/${historyListId}/items`)
+        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
+        .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
+        .expand('fields')
+        .get();
+        if (!fallbackResponse.value || fallbackResponse.value.length === 0) {
+           throw new Error(`Solicitação com ID ${requestId} não encontrada no histórico.`);
+        }
+        historyItemResponse.value = fallbackResponse.value;
     }
+
     const historyItem = historyItemResponse.value[0];
     const originalRequest = mapHistoryItemToChangeRequest(historyItem);
 
-    // 2. Update the history item
     const fieldsToUpdateHistory = {
         StatusFinal: newStatus,
         RevisadoPor: reviewedBy,
@@ -321,11 +339,8 @@ export const updateChangeRequestStatus = async (
     };
     await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${historyItem.id}/fields`).patch(fieldsToUpdateHistory);
 
-    // 3. If approved, apply changes to the main controls list
     if (newStatus === 'Aprovado' && originalRequest.requestType === 'Alteração') {
         const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-        
-        // Find the main control item to update using its ID. This requires a robust mapping.
         const controlItemsResponse = await graphClient
             .api(`/sites/${siteId}/lists/${controlsListId}/items`)
             .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
@@ -336,11 +351,7 @@ export const updateChangeRequestStatus = async (
             throw new Error(`Controle principal com ID ${originalRequest.controlId} não encontrado para aplicar a alteração.`);
         }
         const controlItemSpId = controlItemsResponse.value[0].id;
-
-        // This requires a reverse map from app key to SP internal name. 
-        // For now, we will assume a simple mapping and apply the changes object directly.
-        // THIS IS A POTENTIAL POINT OF FAILURE if the keys in `changes` don't match SP internal names.
-         if (Object.keys(originalRequest.changes).length > 0) {
+        if (Object.keys(originalRequest.changes).length > 0) {
             await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(originalRequest.changes);
         }
     } else if (newStatus === 'Aprovado' && originalRequest.requestType === 'Criação') {
