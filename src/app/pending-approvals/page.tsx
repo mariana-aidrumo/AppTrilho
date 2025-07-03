@@ -44,18 +44,11 @@ export default function PendingApprovalsPage() {
     loadData();
   }, [currentUser.id, loadData]);
 
-  // Filtros para Administrador
-  const adminPendingAlterations = useMemo(() => changeRequests.filter(req => 
-    req.requestType === "Alteração" && req.status === "Pendente"
-  ), [changeRequests]);
-
-  const adminPendingNewControls = useMemo(() => changeRequests.filter(req => 
-    req.requestType === "Criação" && req.status === "Pendente"
-  ), [changeRequests]);
-
-  const adminRequestsHistory = useMemo(() => changeRequests.filter(req => 
-    req.status === "Aprovado" || req.status === "Rejeitado"
-  ), [changeRequests]);
+  // PASSO A PASSO: Exibir TUDO sem filtros para depuração.
+  // Colocaremos tudo na primeira aba para garantir que os dados estão sendo lidos.
+  const adminPendingAlterations = useMemo(() => changeRequests, [changeRequests]);
+  const adminPendingNewControls = useMemo(() => [], [changeRequests]);
+  const adminRequestsHistory = useMemo(() => [], [changeRequests]);
 
 
   // Filtros para Dono do Controle
@@ -137,16 +130,10 @@ export default function PendingApprovalsPage() {
               <TableHead>Controle (ID)</TableHead>
               {isAdminView && <TableHead>Solicitado Por</TableHead>}
               <TableHead>Data da Solicitação</TableHead>
-              
-              {(context === "owner-pending" || isAdminActionView) && <TableHead>Detalhes da Mudança</TableHead>}
-              
-              {context === "owner-pending" && <TableHead>Status Atual</TableHead>}
-              {context === "owner-feedback" && <TableHead>Feedback do Admin</TableHead>}
-
-              {isHistoryView && <TableHead>Status Final</TableHead>}
-              {isHistoryView && <TableHead>Revisado Por</TableHead>}
-              {isHistoryView && <TableHead>Data Revisão</TableHead>}
-              
+              <TableHead>Status (Raw)</TableHead>
+              <TableHead>Detalhes da Mudança</TableHead>
+              <TableHead>Revisado Por</TableHead>
+              <TableHead>Data Revisão</TableHead>
               <TableHead className="text-right min-w-[120px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -160,53 +147,27 @@ export default function PendingApprovalsPage() {
                 </TableCell>
                 
                 {isAdminView && <TableCell>{request.requestedBy}</TableCell>}
-                <TableCell>{new Date(request.requestDate).toLocaleDateString('pt-BR')}</TableCell>
-                
-                {(context === "owner-pending" || isAdminActionView) && (
-                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
-                    {request.comments}
-                  </TableCell>
-                )}
-
-                {context === "owner-pending" && (
-                  <TableCell>
+                <TableCell>{request.requestDate ? new Date(request.requestDate).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                <TableCell>
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                         request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
+                        request.status === "Aprovado" ? "bg-green-100 text-green-700" :
+                        request.status === "Rejeitado" ? "bg-red-100 text-red-700" :
                         request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
+                        request.status === "Aguardando Feedback do Dono" ? "bg-orange-100 text-orange-700" :
                         "bg-gray-100 text-gray-700"
                       }`}>
                         {request.status}
                       </span>
+                </TableCell>
+                 <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
+                    {request.comments}
                   </TableCell>
-                )}
-
-                {context === "owner-feedback" && (
-                  <TableCell className="max-w-xs italic text-sm">
-                    {request.adminFeedback || "Nenhum feedback específico."}
-                     <div className="mt-1">
-                        <span className="text-xs text-muted-foreground">Revise sua proposta e reenvie.</span>
-                    </div>
-                  </TableCell>
-                )}
-
-                {isHistoryView && (
-                  <>
-                    <TableCell>
-                       <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
-                          request.status === "Aprovado" ? "bg-green-100 text-green-700" :
-                          request.status === "Rejeitado" ? "bg-red-100 text-red-700" :
-                          "bg-gray-100 text-gray-700"
-                        }`}>
-                          {request.status}
-                        </span>
-                    </TableCell>
-                    <TableCell>{request.reviewedBy || "N/A"}</TableCell>
-                    <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>
-                  </>
-                )}
+                <TableCell>{request.reviewedBy || "N/A"}</TableCell>
+                <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>
                 
                 <TableCell className="text-right">
-                  {isAdminActionView && request.status === "Pendente" && (
+                  {isAdminActionView && (
                       <div className="flex gap-2 justify-end">
                           <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleOpenDialog(request, 'Aprovado')} title="Aprovar">
                               <CheckCircle className="h-5 w-5" />
@@ -248,12 +209,12 @@ export default function PendingApprovalsPage() {
             <Tabs defaultValue="alterations">
               <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                 <TabsTrigger value="alterations">
-                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Alterações Pendentes ({adminPendingAlterations.length})
+                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Todas Solicitações ({adminPendingAlterations.length})
                 </TabsTrigger>
-                <TabsTrigger value="new_controls">
+                <TabsTrigger value="new_controls" disabled>
                   <PlusSquare className="mr-2 h-4 w-4 text-green-600" /> Criações Pendentes ({adminPendingNewControls.length})
                 </TabsTrigger>
-                 <TabsTrigger value="history">
+                 <TabsTrigger value="history" disabled>
                   <HistoryIcon className="mr-2 h-4 w-4 text-gray-600" /> Histórico de Solicitações ({adminRequestsHistory.length})
                 </TabsTrigger>
               </TabsList>

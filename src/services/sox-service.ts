@@ -273,26 +273,17 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     };
 
     const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "Title"]);
-    const controlId = getField(["ID Controle", "ID do Controle"]);
     
-    if (!idDaSolicitacao || !controlId) {
-        console.warn("Skipping history record due to missing core IDs:", { id: item.id });
+    if (!idDaSolicitacao) {
+        console.warn("Skipping history record due to missing core ID:", { id: item.id });
         return null;
     }
 
-    const spStatusValue = getField(["StatusFinal", "Status Final"]);
-    const spReviewDate = getField(["DataRevisao", "Data Revisao", "Data Revisão"]);
+    const controlId = getField(["ID Controle", "ID do Controle"]);
 
-    let finalStatus: ChangeRequestStatus;
-
-    if (spStatusValue === 'Aprovado' || spStatusValue === 'Rejeitado' || spStatusValue === 'Aguardando Feedback do Dono') {
-        finalStatus = spStatusValue;
-    } else if (spStatusValue === 'Pendente' || !spReviewDate) {
-        finalStatus = 'Pendente';
-    } else {
-        finalStatus = 'Aprovado'; // Default to a processed state if review date exists but status is unclear
-    }
-
+    // PASSO A PASSO: DEBUGGING LOGIC. Read the status as is, default to "Status Vazio"
+    const finalStatus = getField(["StatusFinal", "Status Final"]) || "Status Vazio";
+    
     let changes = {};
     const changesJson = getField(["DadosAlteracaoJSON", "DadosAlteraçãoJSON"]);
     if (changesJson) {
@@ -306,16 +297,16 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const request: ChangeRequest = {
         id: idDaSolicitacao,
         spListItemId: item.id,
-        controlId: controlId,
+        controlId: controlId || "N/A",
         controlName: getField(["Nome do Controle", "NomeControle"]),
         requestType: getField(["Tipo"]) || 'Alteração',
         requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: finalStatus,
+        status: finalStatus as ChangeRequestStatus, // Cast for type compliance
         changes: changes,
         comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca"]) || 'Nenhum detalhe fornecido.',
-        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
-        reviewDate: spReviewDate,
+        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor", "Revisado por"])),
+        reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
     };
     
@@ -420,7 +411,6 @@ export const updateChangeRequestStatus = async (
     };
     
     setField("Status Final", newStatus);
-    setField("StatusFinal", newStatus);
     setField("Revisado Por", reviewedBy); // Assumes a simple text field
     setField("Data Revisao", new Date().toISOString());
     setField("Data Revisão", new Date().toISOString());
