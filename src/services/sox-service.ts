@@ -468,6 +468,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
     const fields = item.fields;
     let changes = {};
     try {
+        // Use the correct internal name from the user's list
         if (fields.DadosAlteracaoJSON) {
             changes = JSON.parse(fields.DadosAlteracaoJSON);
         }
@@ -521,6 +522,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
             }
         }
 
+        // Sort in code to avoid issues with SharePoint column names
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
@@ -545,6 +547,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
 
         console.error(`Failed to get Change Requests from SharePoint. Full error:`, error);
+        // Throw a more specific error to help with debugging
         throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${detailedMessage}`);
     }
 };
@@ -565,17 +568,18 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
+    // Use the exact field names provided by the user, which are likely the display names
     const dataToWrite: { [displayName: string]: any } = {
         "Title": newRequestId,
-        "ID da Solicitação": newRequestId, // This is a display name
+        "IDdaSolicitacao": newRequestId,
         "Tipo": requestData.requestType,
-        "Nome Controle": requestData.controlName,
-        "ID Controle": requestData.controlId,
-        "Solicitado Por": requestData.requestedBy,
-        "Data Solicitação": requestDate,
-        "Detalhes da Mudança": requestData.comments,
-        "Status Final": "Pendente",
-        "Dados Alteracao JSON": JSON.stringify(requestData.changes || {}),
+        "NomeControle": requestData.controlName,
+        "IDControle": requestData.controlId,
+        "SolicitadoPor": requestData.requestedBy,
+        "DataSolicitacao": requestDate,
+        "DetalhesDaMudanca": requestData.comments,
+        "StatusFinal": "Pendente",
+        "DadosAlteracaoJSON": JSON.stringify(requestData.changes || {}),
     };
 
     const fieldsToCreate: { [internalName: string]: any } = {};
@@ -643,9 +647,9 @@ export const updateChangeRequestStatus = async (
     const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
     // 1. Find the history item to update using its request ID
-    const idDaSolicitacaoInternalName = historyColumnMap.get("ID da Solicitação")?.internalName;
+    const idDaSolicitacaoInternalName = historyColumnMap.get("IDdaSolicitacao")?.internalName;
     if (!idDaSolicitacaoInternalName) {
-        throw new Error("A coluna 'ID da Solicitação' não foi encontrada na lista de histórico.");
+        throw new Error("A coluna 'IDdaSolicitacao' não foi encontrada na lista de histórico.");
     }
 
     const historyItemsResponse = await graphClient
@@ -664,9 +668,9 @@ export const updateChangeRequestStatus = async (
     // 2. Update the status of the history item
     const reviewDate = new Date().toISOString();
     const dataToUpdate: { [displayName: string]: any } = {
-        "Status Final": newStatus,
-        "Revisado Por": reviewedBy,
-        "Data Revisão": reviewDate,
+        "StatusFinal": newStatus,
+        "RevisadoPor": reviewedBy,
+        "DataRevisao": reviewDate,
     };
     
     const fieldsToUpdateHistory: { [internalName: string]: any } = {};
