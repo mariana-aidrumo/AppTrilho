@@ -588,9 +588,8 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         const mapping = historyColumnMap.get(displayName);
         if (mapping && value !== undefined && value !== null) {
             fieldsToCreate[mapping.internalName] = value;
-        } else if (displayName === 'Title' && !historyColumnMap.has('Title')) {
-            // Handle case where Title is not in the map but we need to set it
-            fieldsToCreate['Title'] = value;
+        } else if (displayName === 'Title' && historyColumnMap.has('Title')) {
+             fieldsToCreate[historyColumnMap.get('Title')!.internalName] = value;
         }
     }
 
@@ -704,9 +703,14 @@ export const updateChangeRequestStatus = async (
             const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
             const columnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
 
+            const controlIdColumnInternalName = columnMap.get('Código NOVO')?.internalName;
+             if (!controlIdColumnInternalName) {
+                throw new Error("A coluna 'Código NOVO' não foi encontrada na lista de controles principal.");
+            }
+
             const controlItemsResponse = await graphClient
                 .api(`/sites/${siteId}/lists/${controlsListId}/items`)
-                .filter(`fields/${columnMap.get('Código NOVO')?.internalName} eq '${originalRequest.controlId}'`)
+                .filter(`fields/${controlIdColumnInternalName} eq '${originalRequest.controlId}'`)
                 .get();
             
             if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
