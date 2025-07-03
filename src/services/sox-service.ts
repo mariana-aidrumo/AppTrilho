@@ -226,19 +226,33 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
-        const response = await graphClient
+        let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
             .get();
 
-        if (!response || !response.value) return [];
+        const allItems: any[] = [];
+        while (response && response.value) {
+            allItems.push(...response.value);
+            if (response['@odata.nextLink']) {
+                response = await graphClient.api(response['@odata.nextLink']).get();
+            } else {
+                break;
+            }
+        }
 
-        const allRequests = response.value.map(mapHistoryItemToChangeRequest);
-        allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
+        if (allItems.length === 0) return [];
+        
+        const allRequests = allItems.map(mapHistoryItemToChangeRequest);
+        
+        allRequests.sort((a, b) => {
+            const dateA = a.requestDate ? new Date(a.requestDate).getTime() : 0;
+            const dateB = b.requestDate ? new Date(b.requestDate).getTime() : 0;
+            return dateB - dateA;
+        });
         
         return allRequests;
     } catch (error: any) {
         console.error("Failed to get Change Requests from SharePoint:", error);
-        // Re-throw error to make it visible in the UI
         throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${error.message}`);
     }
 };
@@ -287,6 +301,7 @@ export const updateChangeRequestStatus = async (
     // 1. Find the history item to update using the 'Title' field which is indexed by default
     const historyItemResponse = await graphClient
       .api(`/sites/${siteId}/lists/${historyListId}/items`)
+      .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
       .filter(`fields/Title eq '${requestId}'`)
       .expand('fields')
       .get();
