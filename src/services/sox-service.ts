@@ -200,16 +200,20 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
         try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON", e); }
     }
     
-    // Attempt to read status from the most likely SharePoint internal column names.
+    const reviewedBy = fields.RevisadoPor;
+    const reviewDate = fields.DataRevisao;
     const spStatus = fields.StatusFinal || fields.Status_x0020_Final;
+    
+    let status: ChangeRequestStatus;
 
-    // Critical Logic: If the SharePoint status is anything other than a recognized final state,
-    // we will treat it as 'Pendente' for the UI. This correctly handles new items where the
-    // field is blank, or items explicitly set to 'Pendente'.
-    const status: ChangeRequestStatus = 
-        (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') 
-        ? spStatus 
-        : 'Pendente';
+    if (!reviewedBy && !reviewDate) {
+        // If it hasn't been reviewed by an admin (both fields are blank), it's Pending.
+        // This is the primary rule to ensure all new requests appear for review.
+        status = 'Pendente';
+    } else {
+        // If it has been reviewed, it's a historical item. Use the status from SharePoint.
+        status = spStatus;
+    }
 
     return {
         id: fields.IDdaSolicitacao || fields.Title,
@@ -222,8 +226,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
         status: status,
         changes: changes,
         comments: fields.DetalhesDaMudanca,
-        reviewedBy: fields.RevisadoPor,
-        reviewDate: fields.DataRevisao,
+        reviewedBy: reviewedBy,
+        reviewDate: reviewDate,
         adminFeedback: fields.FeedbackAdmin,
     };
 };
@@ -314,22 +318,13 @@ export const updateChangeRequestStatus = async (
     // Using `Title` because it's always indexed.
     const historyItemResponse = await graphClient
       .api(`/sites/${siteId}/lists/${historyListId}/items`)
-      .filter(`fields/Title eq '${requestId}'`)
+      .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
+      .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
       .expand('fields')
       .get();
       
     if (!historyItemResponse.value || historyItemResponse.value.length === 0) {
-      // Fallback to IDdaSolicitacao with non-indexed query header for safety
-       const fallbackResponse = await graphClient
-        .api(`/sites/${siteId}/lists/${historyListId}/items`)
-        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-        .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
-        .expand('fields')
-        .get();
-        if (!fallbackResponse.value || fallbackResponse.value.length === 0) {
-           throw new Error(`Solicitação com ID ${requestId} não encontrada no histórico.`);
-        }
-        historyItemResponse.value = fallbackResponse.value;
+       throw new Error(`Solicitação com ID ${requestId} não encontrada no histórico.`);
     }
 
     const historyItem = historyItemResponse.value[0];
