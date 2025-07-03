@@ -83,7 +83,7 @@ export default function PendingApprovalsPage() {
         loadData(); // Reload data to reflect changes
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Não foi possível processar a solicitação.";
-        toast({ title: "Erro", description: errorMessage, variant: "destructive" });
+        toast({ title: "Erro", description: errorMessage, variant: "destructive", duration: 10000 });
     } finally {
         setIsSubmitting(false);
         setRequestToAction(null);
@@ -127,8 +127,8 @@ export default function PendingApprovalsPage() {
               <TableHead>Data da Solicitação</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Detalhes da Mudança</TableHead>
-              {!isAdminActionView && <TableHead>Revisado Por</TableHead>}
-              {!isAdminActionView && <TableHead>Data Revisão</TableHead>}
+              {context === "admin-history" && <TableHead>Revisado Por</TableHead>}
+              {context === "admin-history" && <TableHead>Data Revisão</TableHead>}
               <TableHead className="text-right min-w-[120px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -158,8 +158,8 @@ export default function PendingApprovalsPage() {
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
                     {request.comments || 'Nenhum detalhe fornecido.'}
                   </TableCell>
-                {!isAdminActionView && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
-                {!isAdminActionView && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
+                {context === "admin-history" && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
+                {context === "admin-history" && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
                 
                 <TableCell className="text-right">
                   {isAdminActionView && (
