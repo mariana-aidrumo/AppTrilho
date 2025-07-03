@@ -245,40 +245,57 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // --- Change Request Services ---
 
-// Helper function to safely extract title from a SharePoint lookup/person field
-const getLookupFieldValue = (field: any): string => {
-    if (Array.isArray(field) && field.length > 0) {
-        return field[0].lookupValue;
-    }
-    if (typeof field === 'object' && field !== null && field.Title) {
-        return field.Title;
-    }
-    if (typeof field === 'string') {
-        return field;
-    }
-    return ''; 
-};
-
 const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    const getField = (displayName: string) => {
-        const internalName = columnMap.get(displayName);
-        return internalName ? fields[internalName] : undefined;
+    // Helper to safely get a field value by trying a few common display names
+    const getField = (displayNames: string[]) => {
+        for (const name of displayNames) {
+            const internalName = columnMap.get(name);
+            if (internalName && fields[internalName] !== undefined && fields[internalName] !== null) {
+                return fields[internalName];
+            }
+        }
+        return undefined;
     };
     
-    const spStatus = getField("StatusFinal") as ChangeRequestStatus;
-    let finalStatus: ChangeRequestStatus;
+    // Helper to safely get a lookup value (for user fields)
+    const getLookupFieldValue = (fieldValue: any): string => {
+        const field = getField(fieldValue);
+        if (Array.isArray(field) && field.length > 0 && field[0].lookupValue) {
+            return field[0].lookupValue;
+        }
+        if (typeof field === 'object' && field !== null && field.Title) {
+            return field.Title;
+        }
+        if (typeof field === 'string') {
+            return field;
+        }
+        return '';
+    };
 
-    if (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') {
-        finalStatus = spStatus;
-    } else {
+    // Get the status value. If it's not explicitly a final state, consider it "Pendente".
+    const spStatusValue = getField(["StatusFinal", "Status Final"]);
+    let finalStatus: ChangeRequestStatus = 'Pendente'; // Default to Pendente
+    if (typeof spStatusValue === 'string' && (spStatusValue === 'Aprovado' || spStatusValue === 'Rejeitado' || spStatusValue === 'Aguardando Feedback do Dono')) {
+        finalStatus = spStatusValue;
+    } else if (typeof spStatusValue === 'string' && spStatusValue.trim() === 'Pendente') {
         finalStatus = 'Pendente';
     }
 
+
+    const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "Title"]);
+    const controlId = getField(["ID Controle", "ID do Controle"]);
+    
+    // If we don't have a basic ID, skip this record as it's invalid.
+    if (!idDaSolicitacao || !controlId) {
+        console.warn("Skipping history record due to missing core IDs:", { id: item.id });
+        return null;
+    }
+
     let changes = {};
-    const changesJson = getField("DadosAlteracaoJSON");
+    const changesJson = getField(["DadosAlteracaoJSON", "DadosAlteraçãoJSON"]);
     if (changesJson) {
         try {
             changes = JSON.parse(changesJson);
@@ -288,25 +305,20 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     }
     
     const request: ChangeRequest = {
-        id: getField("ID da Solicitação") || getField("Title") || `temp-id-${item.id}`,
+        id: idDaSolicitacao,
         spListItemId: item.id,
-        controlId: getField("ID Controle") || '',
-        controlName: getField("Nome do Controle") || '',
-        requestType: getField("Tipo") || 'Alteração',
-        requestedBy: getLookupFieldValue(getField("Solicitado Por")),
-        requestDate: getField("Data da Solicitação") || item.lastModifiedDateTime,
+        controlId: controlId,
+        controlName: getField(["Nome do Controle", "NomeControle"]),
+        requestType: getField(["Tipo"]) || 'Alteração',
+        requestedBy: getLookupFieldValue(["Solicitado Por", "SolicitadoPor"]),
+        requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
         status: finalStatus,
         changes: changes,
-        comments: getField("Detalhes da Mudança") || 'Nenhum detalhe fornecido.',
-        reviewedBy: getLookupFieldValue(getField("Revisado Por")),
-        reviewDate: getField("Data Revisão"),
-        adminFeedback: getField("Feedback do Admin") || '',
+        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca"]) || 'Nenhum detalhe fornecido.',
+        reviewedBy: getLookupFieldValue(["Revisado Por", "RevisadoPor"]),
+        reviewDate: getField(["Data Revisão", "Data Revisao"]),
+        adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
     };
-    
-    if (!request.id || !request.controlId) {
-        console.warn("Skipping history record due to missing core IDs:", item);
-        return null;
-    }
     
     return request;
 };
