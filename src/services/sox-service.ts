@@ -259,8 +259,12 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         // Fallback para nomes comuns, caso o mapeamento falhe
         for (const name of displayNames) {
              if (fields[name] !== undefined && fields[name] !== null) return fields[name];
+             // Try variations
              const nameWithoutSpaces = name.replace(/\s/g, '');
              if (fields[nameWithoutSpaces] !== undefined && fields[nameWithoutSpaces] !== null) return fields[nameWithoutSpaces];
+             if (fields[nameWithoutSpaces.toLowerCase()] !== undefined && fields[nameWithoutSpaces.toLowerCase()] !== null) return fields[nameWithoutSpaces.toLowerCase()];
+             const spInternalName = name.replace(/\s/g, '_x0020_');
+             if(fields[spInternalName] !== undefined && fields[spInternalName] !== null) return fields[spInternalName];
         }
         return undefined;
     };
@@ -278,7 +282,7 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return '';
     };
 
-    const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "Title"]);
+    const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "IDdaSolicitacao", "Title"]);
     
     if (!idDaSolicitacao) {
         console.warn("Skipping history record due to missing core ID:", { id: item.id });
@@ -286,7 +290,7 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     }
     
     // PASSO-A-PASSO: Exibe o valor bruto do status
-    const statusBruto = getField(["Status Final", "StatusFinal"]) || "Status Vazio";
+    const statusBruto = getField(["StatusFinal", "Status Final"]) || "Status Vazio";
     
     let changes = {};
     const changesJson = getField(["DadosAlteracaoJSON", "DadosAlteraçãoJSON"]);
@@ -304,11 +308,11 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         controlId: getField(["ID Controle", "ID do Controle", "IDControle"]) || "N/A",
         controlName: getField(["Nome do Controle", "NomeControle"]),
         requestType: getField(["Tipo"]) || 'Alteração',
-        requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
+        requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor", "Solicitado por"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
         status: statusBruto as ChangeRequestStatus, // Cast for type compliance
         changes: changes,
-        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca", "Comments", "Comentarios", "Comentários"]),
+        comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca", "Comments", "Comentarios", "Comentários", "detalhesdamudança"]),
         reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor", "Revisado por"])),
         reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',

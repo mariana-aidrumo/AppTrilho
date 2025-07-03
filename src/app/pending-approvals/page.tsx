@@ -161,7 +161,7 @@ export default function PendingApprovalsPage() {
                       </span>
                 </TableCell>
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
-                    {request.comments || (request.changes && Object.keys(request.changes).length > 0 ? `Alterações: ${JSON.stringify(request.changes)}` : 'Nenhum detalhe fornecido.')}
+                    {request.comments || 'Nenhum detalhe fornecido.'}
                   </TableCell>
                 <TableCell>{request.reviewedBy || "N/A"}</TableCell>
                 <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>
