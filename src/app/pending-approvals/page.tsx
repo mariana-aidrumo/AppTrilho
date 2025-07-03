@@ -8,7 +8,7 @@ import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { HistoryIcon, AlertTriangle, FileText, PlusSquare, CheckCircle2, Loader2, Edit2, XCircle, CheckCircle } from "lucide-react";
+import { HistoryIcon, AlertTriangle, FileText, CheckCircle2, Loader2, XCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -43,12 +43,9 @@ export default function PendingApprovalsPage() {
     loadData();
   }, [currentUser.id, loadData]);
 
-  // PASSO-A-PASSO: Exibir TUDO sem filtros para depuração.
-  const adminAllRequests = useMemo(() => changeRequests, [changeRequests]);
-
-  const adminPendingAlterations = useMemo(() => adminAllRequests.filter(req => req.status === "Pendente"), [adminAllRequests]);
-  const adminPendingNewControls = useMemo(() => [], [changeRequests]);
-  const adminRequestsHistory = useMemo(() => adminAllRequests.filter(req => req.status !== "Pendente"), [adminAllRequests]);
+  // Filtros para Administrador
+  const adminPendingRequests = useMemo(() => changeRequests.filter(req => req.status === "Pendente"), [changeRequests]);
+  const adminHistoryRequests = useMemo(() => changeRequests.filter(req => req.status !== "Pendente"), [changeRequests]);
 
 
   // Filtros para Dono do Controle
@@ -104,11 +101,10 @@ export default function PendingApprovalsPage() {
     ? "Revise e aprove ou rejeite as solicitações de alteração e criação de controles."
     : "Acompanhe o status das suas propostas e alterações de controles internos.";
 
-  const renderRequestTable = (requests: ChangeRequest[], context: "admin-alterations" | "admin-new" | "admin-history" | "owner-pending" | "owner-feedback" | "owner-history") => {
+  const renderRequestTable = (requests: ChangeRequest[], context: "admin-pending" | "admin-history" | "owner-pending" | "owner-feedback" | "owner-history") => {
     if (requests.length === 0) {
       let message = "Nenhuma solicitação encontrada para esta categoria.";
-      if (context === "admin-alterations" && isUserAdmin()) message = "Nenhuma solicitação de alteração pendente de aprovação.";
-      else if (context === "admin-new" && isUserAdmin()) message = "Nenhuma solicitação de criação de novo controle pendente.";
+      if (context === "admin-pending" && isUserAdmin()) message = "Nenhuma solicitação pendente de aprovação.";
       else if (context === "admin-history") message = "Nenhuma solicitação no histórico.";
       else if (context === "owner-pending") message = "Você não possui solicitações pendentes de aprovação.";
       else if (context === "owner-feedback") message = "Nenhuma solicitação aguardando sua ação.";
@@ -116,9 +112,8 @@ export default function PendingApprovalsPage() {
       return <p className="mt-4 text-center text-muted-foreground">{message}</p>;
     }
 
-    const isAdminActionView = context === "admin-alterations" || context === "admin-new";
+    const isAdminActionView = context === "admin-pending";
     const isAdminView = context.startsWith("admin");
-    const isHistoryView = context.endsWith("history");
 
     return (
       <div className="rounded-md border mt-4 overflow-x-auto">
@@ -130,7 +125,7 @@ export default function PendingApprovalsPage() {
               <TableHead>Controle (ID)</TableHead>
               {isAdminView && <TableHead>Solicitado Por</TableHead>}
               <TableHead>Data da Solicitação</TableHead>
-              <TableHead>Status (Raw)</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Detalhes da Mudança</TableHead>
               <TableHead>Revisado Por</TableHead>
               <TableHead>Data Revisão</TableHead>
@@ -206,26 +201,20 @@ export default function PendingApprovalsPage() {
         </CardHeader>
         <CardContent>
           {isUserAdmin() && (
-            <Tabs defaultValue="alterations">
-              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
-                <TabsTrigger value="alterations">
-                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Todas Solicitações ({adminAllRequests.length})
+            <Tabs defaultValue="pending">
+              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2">
+                <TabsTrigger value="pending">
+                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Solicitações Pendentes ({adminPendingRequests.length})
                 </TabsTrigger>
-                <TabsTrigger value="new_controls" disabled>
-                  <PlusSquare className="mr-2 h-4 w-4 text-green-600" /> Criações Pendentes ({adminPendingNewControls.length})
-                </TabsTrigger>
-                 <TabsTrigger value="history" disabled>
-                  <HistoryIcon className="mr-2 h-4 w-4 text-gray-600" /> Histórico de Solicitações ({adminRequestsHistory.length})
+                <TabsTrigger value="history">
+                  <HistoryIcon className="mr-2 h-4 w-4 text-gray-600" /> Histórico de Solicitações ({adminHistoryRequests.length})
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="alterations">
-                {renderRequestTable(adminAllRequests, "admin-alterations")}
-              </TabsContent>
-              <TabsContent value="new_controls">
-                {renderRequestTable(adminPendingNewControls, "admin-new")}
+              <TabsContent value="pending">
+                {renderRequestTable(adminPendingRequests, "admin-pending")}
               </TabsContent>
               <TabsContent value="history">
-                {renderRequestTable(adminRequestsHistory, "admin-history")}
+                {renderRequestTable(adminHistoryRequests, "admin-history")}
               </TabsContent>
             </Tabs>
           )}

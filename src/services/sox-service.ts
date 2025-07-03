@@ -249,27 +249,14 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const fields = item.fields;
     if (!fields) return null;
 
-    // Helper to read fields flexibly, trying multiple common names
+    // Helper to read fields flexibly
     const getField = (displayNames: string[]) => {
-        // 1. Try mapping display names to internal names from the cache
         for (const displayName of displayNames) {
             const internalName = columnMap.get(displayName);
             if (internalName && fields.hasOwnProperty(internalName)) {
                 return fields[internalName];
             }
         }
-
-        // 2. If map fails, try using the names directly as potential internal names
-        for (const name of displayNames) {
-            if (fields.hasOwnProperty(name)) return fields[name]; // as-is
-            // with SP-encoded space
-            const encodedName = name.replace(/\s/g, '_x0020_');
-            if (fields.hasOwnProperty(encodedName)) return fields[encodedName];
-            // lowercase
-            const lowerCaseName = name.toLowerCase();
-            if (fields.hasOwnProperty(lowerCaseName)) return fields[lowerCaseName];
-        }
-
         return undefined;
     };
     
@@ -293,8 +280,8 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return null;
     }
     
-    // Logic to determine status: All items are returned for now for debugging
-    const statusFinal = getField(["StatusFinal", "Status Final"]);
+    // Read the status directly from field_8 as identified.
+    const statusFinal = fields.field_8;
 
     const request: ChangeRequest = {
         id: idDaSolicitacao,
@@ -304,7 +291,7 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         requestType: getField(["Tipo"]) || 'Alteração',
         requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: (statusFinal as ChangeRequestStatus) || "Status Vazio", // Show raw status
+        status: (statusFinal as ChangeRequestStatus) || "Pendente",
         changes: {}, // Not used in this view, but part of the type
         comments: fields.field_7 || '',
         reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
