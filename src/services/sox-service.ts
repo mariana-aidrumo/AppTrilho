@@ -215,32 +215,48 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e); }
     }
     
-    const reviewedBy = fields.RevisadoPor;
+    const getTextField = (field: any): string => {
+        if (typeof field === 'object' && field !== null && field.Title) {
+            return field.Title;
+        }
+        return field || '';
+    };
+
+    const reviewedBy = getTextField(fields.RevisadoPor);
     const reviewDate = fields.DataRevisao;
+    
+    // Use both explicit "Status Final" and the common internal name
+    const statusFinal = fields.StatusFinal || fields.Status_x0020_Final;
     
     let status: ChangeRequestStatus;
 
     if (!reviewedBy && !reviewDate) {
         status = 'Pendente';
     } else {
-        status = fields.StatusFinal || fields.Status_x0020_Final || 'Aprovado';
+        status = statusFinal || 'Aprovado';
     }
 
-    return {
+    const request: ChangeRequest = {
         id: fields.IDdaSolicitacao || fields.Title,
         spListItemId: item.id,
-        controlId: fields.IDControle,
-        controlName: fields.NomeControle,
+        controlId: fields.IDControle || '',
+        controlName: fields.NomeControle || '',
         requestType: fields.Tipo || 'Alteração',
-        requestedBy: fields.SolicitadoPor,
+        requestedBy: getTextField(fields.SolicitadoPor),
         requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
         status: status,
         changes: changes,
-        comments: fields.DetalhesDaMudanca,
+        comments: fields.DetalhesDaMudanca || 'Nenhum detalhe fornecido.',
         reviewedBy: reviewedBy,
         reviewDate: reviewDate,
-        adminFeedback: fields.FeedbackAdmin,
+        adminFeedback: fields.FeedbackAdmin || '',
     };
+    
+    if (!request.id || !request.controlId) {
+        return null;
+    }
+    
+    return request;
 };
 
 export const getChangeRequests = async (): Promise<ChangeRequest[]> => {

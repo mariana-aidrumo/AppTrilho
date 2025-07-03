@@ -1,3 +1,4 @@
+
 // src/app/pending-approvals/page.tsx
 "use client";
 
@@ -133,7 +134,7 @@ export default function PendingApprovalsPage() {
             <TableRow>
               <TableHead>ID Solicitação</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Controle</TableHead>
+              <TableHead>Controle (ID)</TableHead>
               {isAdminView && <TableHead>Solicitado Por</TableHead>}
               <TableHead>Data da Solicitação</TableHead>
               
@@ -163,8 +164,7 @@ export default function PendingApprovalsPage() {
                 
                 {(context === "owner-pending" || isAdminActionView) && (
                   <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
-                    {request.requestType === "Criação" ? `Proposta para novo controle: ${request.changes.controlName || 'Sem nome'}` : 
-                     (request.comments || 'Nenhum detalhe fornecido.')}
+                    {request.comments}
                   </TableCell>
                 )}
 
