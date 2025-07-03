@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -646,6 +647,18 @@ export const updateChangeRequestStatus = async (
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
     }
+
+    // 1. Fetch all requests - this is a reliable method that avoids filter/indexing issues.
+    const allChangeRequests = await getChangeRequests();
+
+    // 2. Find the target request in the returned array using our custom ID.
+    const originalRequest = allChangeRequests.find(req => req.id === requestId);
+
+    if (!originalRequest || !originalRequest.spListItemId) {
+        throw new Error(`Solicitação com ID ${requestId} não encontrada ou sem um ID do SharePoint associado.`);
+    }
+    
+    const spListItemId = originalRequest.spListItemId;
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
@@ -656,59 +669,37 @@ export const updateChangeRequestStatus = async (
         if (!internalName) throw new Error(`Column '${displayName}' not found in history list.`);
         return internalName;
     };
-    
-    const idColumnInternalName = findInternalNameFromHistory("ID da Solicitação");
 
-    const historyItemsResponse = await graphClient
-        .api(`/sites/${siteId}/lists/${historyListId}/items`)
-        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-        .filter(`fields/${idColumnInternalName} eq '${requestId}'`)
-        .expand('fields')
-        .get();
-
-    if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
-        throw new Error(`Solicitação com ID ${requestId} não encontrada no SharePoint.`);
-    }
-
-    const historyItem = historyItemsResponse.value[0];
-    const spListItemId = historyItem.id;
-
-    if (!spListItemId) {
-         throw new Error(`Falha ao obter o ID do item da lista do SharePoint para a solicitação ${requestId}.`);
-    }
-    
     const reviewDate = new Date().toISOString();
     
+    // 3. Build the update payload using the dynamic map.
     const fieldsToUpdateHistory: { [internalName: string]: any } = {
         [findInternalNameFromHistory("Status Final")]: newStatus,
         [findInternalNameFromHistory("Revisado Por")]: reviewedBy,
         [findInternalNameFromHistory("Data Revisão")]: reviewDate,
     };
-    if(adminFeedback) {
+    if (adminFeedback) {
         const feedbackInternalName = findInternalNameFromHistory("Feedback Admin");
         if(feedbackInternalName) fieldsToUpdateHistory[feedbackInternalName] = adminFeedback;
     }
 
+    // 4. Patch the specific item using its direct SharePoint ID.
     await graphClient
         .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}/fields`)
         .patch(fieldsToUpdateHistory);
     
+    // 5. If approved, apply changes to the main controls list.
     if (newStatus === 'Aprovado') {
-        const originalRequest = mapHistoryItemToChangeRequest(historyItem, historyColumnMap);
-
         if (originalRequest.requestType === 'Criação') {
             await addSoxControl(originalRequest.changes);
         } else { // It's an "Alteração"
             const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
             const controlColumnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
+            const controlIdColumnInternalName = controlColumnMap.get('Código NOVO')?.internalName;
 
-            const findInternalNameFromControls = (displayName: string): string => {
-                const internalName = controlColumnMap.get(displayName)?.internalName;
-                if (!internalName) throw new Error(`Column '${displayName}' not found in controls list.`);
-                return internalName;
-            };
-
-            const controlIdColumnInternalName = findInternalNameFromControls('Código NOVO');
+            if (!controlIdColumnInternalName) {
+                throw new Error("A coluna 'Código NOVO' não foi encontrada na lista de controles.");
+            }
 
             const controlItemsResponse = await graphClient
                 .api(`/sites/${siteId}/lists/${controlsListId}/items`)
@@ -740,7 +731,8 @@ export const updateChangeRequestStatus = async (
         }
     }
     
-    const finalRequestState = { ...mapHistoryItemToChangeRequest(historyItem, historyColumnMap), ...fieldsToUpdateHistory, status: newStatus };
+    // Return an optimistic update of the request object.
+    const finalRequestState = { ...originalRequest, ...fieldsToUpdateHistory, status: newStatus };
     return finalRequestState as ChangeRequest;
 };
 
