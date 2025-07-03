@@ -80,15 +80,8 @@ export default function PendingApprovalsPage() {
     if (!requestToAction) return;
     setIsSubmitting(true);
 
-    if (!requestToAction.request.spListItemId) {
-        toast({ title: "Erro Crítico", description: "O ID do item do SharePoint não foi encontrado para esta solicitação.", variant: "destructive" });
-        setIsSubmitting(false);
-        setRequestToAction(null);
-        return;
-    }
-
     try {
-        await updateChangeRequestStatus(requestToAction.request.spListItemId, requestToAction.action, currentUser.name);
+        await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name);
         toast({
             title: "Sucesso",
             description: `A solicitação foi marcada como "${requestToAction.action}".`,
@@ -299,10 +292,12 @@ export default function PendingApprovalsPage() {
               <AlertDialogHeader>
                   <AlertDialogTitle>Confirmar Ação</AlertDialogTitle>
                   <AlertDialogDescription>
-                      Você tem certeza que deseja <strong>{requestToAction?.action === 'Aprovado' ? 'aprovar' : 'rejeitar'}</strong> a solicitação para o controle <strong>{requestToAction?.request.controlName}</strong>?
-                      <br />
-                      {requestToAction?.action === 'Aprovado' && 'As alterações serão aplicadas permanentemente.'}
-                      {requestToAction?.action === 'Rejeitado' && 'A solicitação será encerrada e o solicitante notificado.'}
+                    <div>
+                        Você tem certeza que deseja <strong>{requestToAction?.action === 'Aprovado' ? 'aprovar' : 'rejeitar'}</strong> a solicitação para o controle <strong>{requestToAction?.request.controlName}</strong>?
+                        <br />
+                        {requestToAction?.action === 'Aprovado' && 'As alterações serão aplicadas permanentemente.'}
+                        {requestToAction?.action === 'Rejeitado' && 'A solicitação será encerrada e o solicitante notificado.'}
+                    </div>
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

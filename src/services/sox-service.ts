@@ -530,7 +530,8 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
                 break;
             }
         }
-
+        
+        // Sort in the application to avoid reliance on SharePoint sorting/indexing
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
@@ -640,7 +641,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
  * Updates the status of a change request in SharePoint and applies changes if approved.
  */
 export const updateChangeRequestStatus = async (
-  spListItemId: string,
+  requestId: string,
   newStatus: 'Aprovado' | 'Rejeitado',
   reviewedBy: string
 ): Promise<ChangeRequest> => {
@@ -652,20 +653,35 @@ export const updateChangeRequestStatus = async (
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
-    // Get the history item directly by its SharePoint List Item ID
-    const historyItem = await graphClient
-        .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}?expand=fields`)
+    // Dynamically find the internal name for the "IDdaSolicitacao" column.
+    const idColumnInternalName = historyColumnMap.get('IDdaSolicitacao')?.internalName;
+    if (!idColumnInternalName) {
+        throw new Error("A coluna 'IDdaSolicitacao' não foi encontrada na lista de histórico. Verifique a configuração.");
+    }
+    
+    // Find the history item by filtering on our custom request ID
+    const historyItemsResponse = await graphClient
+        .api(`/sites/${siteId}/lists/${historyListId}/items`)
+        .filter(`fields/${idColumnInternalName} eq '${requestId}'`)
+        .expand('fields')
+        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
         .get();
 
-    if (!historyItem) {
-        throw new Error(`Solicitação com ID de item ${spListItemId} não encontrada no SharePoint.`);
+    if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
+        throw new Error(`Solicitação com ID ${requestId} não encontrada no SharePoint.`);
+    }
+
+    const historyItem = historyItemsResponse.value[0];
+    const spListItemId = historyItem.id; // The actual SharePoint list item ID
+
+    if (!spListItemId) {
+         throw new Error(`Falha ao obter o ID do item da lista do SharePoint para a solicitação ${requestId}.`);
     }
     
     const originalRequest = mapHistoryItemToChangeRequest(historyItem, historyColumnMap);
     
     const reviewDate = new Date().toISOString();
     
-    // Use the exact Display Names for the keys
     const dataToUpdate: { [displayName: string]: any } = {
         "StatusFinal": newStatus,
         "RevisadoPor": reviewedBy,
@@ -685,7 +701,7 @@ export const updateChangeRequestStatus = async (
             .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}/fields`)
             .patch(fieldsToUpdateHistory);
     }
-
+    
     if (newStatus === 'Aprovado') {
         if (originalRequest.requestType === 'Criação') {
             const changesWithDisplayNames: { [key: string]: any } = {};
