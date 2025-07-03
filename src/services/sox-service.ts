@@ -249,7 +249,7 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const fields = item.fields;
     if (!fields) return null;
 
-    // Helper to read fields flexibly
+    // Helper to read fields flexibly by trying multiple common display names
     const getField = (displayNames: string[]) => {
         for (const displayName of displayNames) {
             const internalName = columnMap.get(displayName);
@@ -260,6 +260,7 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return undefined;
     };
     
+    // Specifically handle lookup fields which return an object
     const getLookupFieldValue = (fieldValue: any): string => {
         if (Array.isArray(fieldValue) && fieldValue.length > 0 && fieldValue[0].lookupValue) {
             return fieldValue[0].lookupValue;
@@ -279,10 +280,15 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         console.warn("Skipping history record due to missing core ID:", { id: item.id });
         return null;
     }
-    
-    // Read the status directly from field_8 as identified.
-    const statusFinal = fields.field_8;
 
+    const changesJSON = getField(["DadosAlteracaoJSON"]);
+    let parsedChanges = {};
+    try {
+        if (changesJSON) parsedChanges = JSON.parse(changesJSON);
+    } catch (e) {
+        console.error(`Failed to parse changes JSON for request ${idDaSolicitacao}:`, e);
+    }
+    
     const request: ChangeRequest = {
         id: idDaSolicitacao,
         spListItemId: item.id,
@@ -291,11 +297,11 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         requestType: getField(["Tipo"]) || 'Alteração',
         requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
-        status: (statusFinal as ChangeRequestStatus) || "Pendente",
-        changes: {}, // Not used in this view, but part of the type
-        comments: fields.field_7 || '',
-        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
-        reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão"]),
+        status: fields.field_8 || 'Pendente',
+        changes: parsedChanges,
+        comments: fields.field_7 || '', // Read directly from field_7
+        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor", "field_11"])),
+        reviewDate: getField(["DataRevisao", "Data Revisao", "Data Revisão", "field_10"]),
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
     };
     
@@ -364,9 +370,9 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     setField("ID Controle", requestData.controlId);
     setField("Solicitado Por", requestData.requestedBy); // This assumes a simple text field for now
     setField("Data da Solicitação", requestDate);
-    setField("Status Final", "Pendente");
+    fieldsToCreate['field_8'] = "Pendente"; // Set status to 'Pendente' using internal name
     setField("DadosAlteracaoJSON", JSON.stringify(requestData.changes || {}));
-    setField("Detalhes da Mudança", requestData.comments);
+    fieldsToCreate['field_7'] = requestData.comments; // Set comments using internal name
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
     return { ...requestData, id: newRequestId, spListItemId: response.id, requestDate, status: 'Pendente' } as ChangeRequest;
@@ -381,6 +387,7 @@ export const updateChangeRequestStatus = async (
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint configuration is missing.");
     }
+
     const allRequests = await getChangeRequests();
     const requestToUpdate = allRequests.find(req => req.id === requestId);
 
@@ -391,66 +398,76 @@ export const updateChangeRequestStatus = async (
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-    const columnMap = await getHistoryColumnMapping();
+    const historyColumnMap = await getHistoryColumnMapping();
     
-    const fieldsToUpdate: {[key: string]: any} = {};
-    const setField = (displayName: string, value: any) => {
-        const internalName = columnMap.get(displayName);
-        if (internalName) fieldsToUpdate[internalName] = value;
+    const fieldsForHistoryUpdate: {[key: string]: any} = {
+        'field_8': newStatus,
+        'field_10': new Date().toISOString(),
+        'field_11': reviewedBy,
     };
     
-    setField("Status Final", newStatus);
-    setField("Revisado Por", reviewedBy); // Assumes a simple text field
-    setField("Data Revisao", new Date().toISOString());
-    setField("Data Revisão", new Date().toISOString());
-    setField("Feedback do Admin", adminFeedback || '');
+    const feedbackInternalName = Array.from(historyColumnMap.entries())
+      .find(([displayName]) => displayName.toLowerCase().includes('feedback'))?.[1];
 
-    await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsToUpdate);
-
-    if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Alteração') {
-        const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-        const controlsColumnMap = await getControlsColumnMapping();
-        
-        const controlItemsResponse = await graphClient
-            .api(`/sites/${siteId}/lists/${controlsListId}/items`)
-            .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-            .filter(`${controlsColumnMap.get('Código NOVO')} eq '${requestToUpdate.controlId}'`)
-            .get();
-            
-        if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
-            throw new Error(`Controle principal com ID ${requestToUpdate.controlId} não encontrado para aplicar a alteração.`);
-        }
-        const controlItemSpId = controlItemsResponse.value[0].id;
-        
-        const { id, controlId, controlName, ...changesToApply } = requestToUpdate.changes;
-        
-        if (Object.keys(changesToApply).length > 0) {
-           const dynamicChanges: {[key: string]: any} = {};
-            for (const [appKey, changeValue] of Object.entries(changesToApply)) {
-                const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
-                if(spDisplayName) {
-                    const spInternalName = controlsColumnMap.get(spDisplayName);
-                    if(spInternalName) {
-                        dynamicChanges[spInternalName] = changeValue;
-                    }
-                }
-            }
-             if (Object.keys(dynamicChanges).length > 0) {
-                await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(dynamicChanges);
-            }
-        }
-    } else if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Criação') {
-        const fieldsForNewControl: {[key: string]: any} = {};
-        for(const [key, value] of Object.entries(requestToUpdate.changes)) {
-            const displayName = (appToSpDisplayNameMapping as any)[key];
-            if (displayName) {
-                fieldsForNewControl[displayName] = value;
-            }
-        }
-        await addSoxControl(fieldsForNewControl);
+    if (feedbackInternalName && adminFeedback) {
+        fieldsForHistoryUpdate[feedbackInternalName] = adminFeedback;
     }
     
-    return { ...requestToUpdate, ...fieldsToUpdate, status: newStatus };
+    await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
+
+    if (newStatus === 'Aprovado') {
+        if (requestToUpdate.requestType === 'Alteração') {
+            const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+            const controlsColumnMap = await getControlsColumnMapping();
+            
+            const controlIdInternalName = controlsColumnMap.get('Código NOVO');
+            if (!controlIdInternalName) {
+                throw new Error("Não foi possível encontrar o nome interno da coluna 'Código NOVO'.");
+            }
+            
+            const controlItemsResponse = await graphClient
+                .api(`/sites/${siteId}/lists/${controlsListId}/items`)
+                .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
+                .filter(`${controlIdInternalName} eq '${requestToUpdate.controlId}'`)
+                .get();
+                
+            if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
+                throw new Error(`Controle principal com ID ${requestToUpdate.controlId} não encontrado para aplicar a alteração.`);
+            }
+            const controlItemSpId = controlItemsResponse.value[0].id;
+            
+            const { id, controlId, controlName, ...changesToApply } = requestToUpdate.changes;
+            
+            if (Object.keys(changesToApply).length > 0) {
+               const dynamicChanges: {[key: string]: any} = {};
+                for (const [appKey, changeValue] of Object.entries(changesToApply)) {
+                    const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
+                    if(spDisplayName) {
+                        const spInternalName = controlsColumnMap.get(spDisplayName);
+                        if(spInternalName) {
+                            dynamicChanges[spInternalName] = changeValue;
+                        }
+                    }
+                }
+                 if (Object.keys(dynamicChanges).length > 0) {
+                    await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(dynamicChanges);
+                }
+            }
+        } else if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Criação') {
+            const fieldsForNewControl: {[key: string]: any} = {};
+            for(const [key, value] of Object.entries(requestToUpdate.changes)) {
+                const displayName = (appToSpDisplayNameMapping as any)[key];
+                if (displayName) {
+                    fieldsForNewControl[displayName] = value;
+                }
+            }
+            // Ensure new controls are created as 'Active'
+            fieldsForNewControl['Status'] = 'Ativo';
+            await addSoxControl(fieldsForNewControl);
+        }
+    }
+    
+    return { ...requestToUpdate, status: newStatus };
 };
 
 
