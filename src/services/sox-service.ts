@@ -261,15 +261,15 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
         controlId: fields.IDControle || "N/A",
-        controlName: fields.NomeControle,
+        controlName: fields.NomeControle || fields.Nome_x0020_do_x0020_Controle,
         requestType: fields.Tipo || 'Alteração',
-        requestedBy: fields.SolicitadoPor, // Assuming simple text field for now
+        requestedBy: fields.SolicitadoPor,
         requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
         comments: fields.field_7,
-        reviewedBy: fields.RevisadoPor,
-        reviewDate: fields.DataRevisao,
+        reviewedBy: fields.RevisadoPor || fields.field_11,
+        reviewDate: fields.DataRevisao || fields.field_10,
         adminFeedback: fields.FeedbackdoAdmin || '',
     };
     
@@ -430,16 +430,29 @@ export const updateChangeRequestStatus = async (
         return { ...requestToUpdate, status: newStatus };
     } catch (error: any) {
         console.error("Detailed error in updateChangeRequestStatus:", JSON.stringify(error, null, 2));
+        
+        let detailedMessage = "An unknown error occurred while processing the request.";
+    
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
-                const errorMessage = errorBody.error?.message || "An unknown error occurred during the SharePoint request.";
-                throw new Error(`SharePoint Error: ${errorMessage}`);
+                if (errorBody.error?.message) {
+                    detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
+                } else {
+                    detailedMessage = `SharePoint returned an error body: ${error.body}`;
+                }
             } catch (parseError) {
-                throw new Error(`Invalid request to SharePoint. Status code: ${error.statusCode || 'N/A'}`);
+                detailedMessage = `Invalid request to SharePoint. Raw response: ${error.body}`;
             }
+        } else if (error.message) {
+            detailedMessage = error.message;
         }
-        throw new Error(error.message || "An unexpected error occurred in sox-service.");
+        
+        if (error.statusCode) {
+            detailedMessage += ` (Status code: ${error.statusCode})`;
+        }
+
+        throw new Error(detailedMessage);
     }
 };
 
