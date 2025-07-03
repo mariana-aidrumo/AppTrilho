@@ -226,7 +226,9 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
 
-        const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`).get();
+        const response = await graphClient
+            .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
+            .get();
 
         if (!response || !response.value) return [];
 
@@ -234,9 +236,10 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to get Change Requests from SharePoint:", error);
-        return [];
+        // Re-throw error to make it visible in the UI
+        throw new Error(`Could not retrieve change requests from SharePoint. Reason: ${error.message}`);
     }
 };
 
@@ -252,7 +255,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const requestDate = new Date().toISOString();
     
     const fieldsToCreate = {
-        Title: newRequestId,
+        Title: newRequestId, // Use Title for reliable filtering
         IDdaSolicitacao: newRequestId,
         Tipo: requestData.requestType,
         NomeControle: requestData.controlName,
@@ -281,11 +284,11 @@ export const updateChangeRequestStatus = async (
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     
-    // 1. Find the history item to update
+    // 1. Find the history item to update using the 'Title' field which is indexed by default
     const historyItemResponse = await graphClient
       .api(`/sites/${siteId}/lists/${historyListId}/items`)
-      .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-      .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
+      .filter(`fields/Title eq '${requestId}'`)
+      .expand('fields')
       .get();
       
     if (!historyItemResponse.value || historyItemResponse.value.length === 0) {
@@ -306,11 +309,12 @@ export const updateChangeRequestStatus = async (
     // 3. If approved, apply changes to the main controls list
     if (newStatus === 'Aprovado' && originalRequest.requestType === 'Alteração') {
         const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-        // Find the main control item to update
+        
+        // Find the main control item to update using its ID. This requires a robust mapping.
         const controlItemsResponse = await graphClient
             .api(`/sites/${siteId}/lists/${controlsListId}/items`)
             .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-            .filter(`fields/C_x00f3_digo_x0020_NOVO eq '${originalRequest.controlId}'`) // C_x00f3_digo_x0020_NOVO is internal name for "Código NOVO"
+            .filter(`fields/C_x00f3_digo_x0020_NOVO eq '${originalRequest.controlId}'`)
             .get();
             
         if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
@@ -318,25 +322,9 @@ export const updateChangeRequestStatus = async (
         }
         const controlItemSpId = controlItemsResponse.value[0].id;
 
-        // Map application keys to SharePoint internal names
-        const fieldsToUpdateControl: { [key: string]: any } = {};
-        for (const [appKey, value] of Object.entries(originalRequest.changes)) {
-            const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
-            if(spDisplayName) {
-                // This is a simplification; a reverse map from displayName to internalName is better
-                // For now, we assume a derivable name or use hardcoded ones.
-                 const spInternalName = Object.keys(appToSpDisplayNameMapping).find(key => appToSpDisplayNameMapping[key as keyof SoxControl] === spDisplayName);
-                 // This is incorrect, needs a proper reverse map. But for now, let's assume direct mapping based on user's list.
-                 // This part needs to be more robust. Let's hardcode a few for now.
-                 if(appKey === 'controlName') fieldsToUpdateControl['Nome_x0020_do_x0020_Controle'] = value;
-                 else if(appKey === 'description') fieldsToUpdateControl['Descri_x00e7__x00e3_o_x0020_do_x1'] = value;
-                 else {
-                    // This will fail for many fields, but it's a starting point.
-                    fieldsToUpdateControl[appKey] = value;
-                 }
-            }
-        }
-        // Patching only the changed fields
+        // This requires a reverse map from app key to SP internal name. 
+        // For now, we will assume a simple mapping and apply the changes object directly.
+        // THIS IS A POTENTIAL POINT OF FAILURE if the keys in `changes` don't match SP internal names.
          if (Object.keys(originalRequest.changes).length > 0) {
             await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(originalRequest.changes);
         }
