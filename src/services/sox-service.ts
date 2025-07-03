@@ -191,39 +191,39 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // --- Change Request Services ---
 
-const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
+const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
-    if (!fields) return {} as ChangeRequest;
+    // Safety check: if an item has no fields, it's invalid. Skip it to prevent crashes.
+    if (!fields) return null;
 
     let changes = {};
     if (fields.DadosAlteracaoJSON) {
-        try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON", e); }
+        try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e); }
     }
     
     const reviewedBy = fields.RevisadoPor;
     const reviewDate = fields.DataRevisao;
-    const spStatus = fields.StatusFinal || fields.Status_x0020_Final;
     
     let status: ChangeRequestStatus;
 
+    // The user's rule: if it hasn't been reviewed, it's 'Pendente'.
     if (!reviewedBy && !reviewDate) {
-        // If it hasn't been reviewed by an admin (both fields are blank), it's Pending.
-        // This is the primary rule to ensure all new requests appear for review.
         status = 'Pendente';
     } else {
-        // If it has been reviewed, it's a historical item. Use the status from SharePoint.
-        status = spStatus;
+        // If it has been reviewed, use the status from SharePoint.
+        // Fallback to a "processed" status to prevent it from reappearing in the pending queue.
+        status = fields.StatusFinal || fields.Status_x0020_Final || 'Aprovado';
     }
 
     return {
-        id: fields.IDdaSolicitacao || fields.Title,
+        id: fields.IDdaSolicitacao || fields.Title, // Fallback to Title to ensure an ID
         spListItemId: item.id,
         controlId: fields.IDControle,
         controlName: fields.NomeControle,
-        requestType: fields.Tipo,
+        requestType: fields.Tipo || 'Alteração', // Fallback to prevent crashes on filter
         requestedBy: fields.SolicitadoPor,
         requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
-        status: status,
+        status: status, // Status is now always a valid value
         changes: changes,
         comments: fields.DetalhesDaMudanca,
         reviewedBy: reviewedBy,
@@ -254,10 +254,10 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
                 break;
             }
         }
-
-        if (allItems.length === 0) return [];
         
-        const allRequests = allItems.map(mapHistoryItemToChangeRequest);
+        const allRequests = allItems
+            .map(mapHistoryItemToChangeRequest)
+            .filter((req): req is ChangeRequest => req !== null); // Filter out any invalid items
         
         allRequests.sort((a, b) => {
             const dateA = a.requestDate ? new Date(a.requestDate).getTime() : 0;
@@ -292,7 +292,6 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         IDControle: requestData.controlId,
         SolicitadoPor: requestData.requestedBy,
         DataSolicitacao: requestDate,
-        DetalhesDaMudanca: requestData.comments,
         StatusFinal: "Pendente",
         DadosAlteracaoJSON: JSON.stringify(requestData.changes || {}),
     };
@@ -314,8 +313,6 @@ export const updateChangeRequestStatus = async (
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     
-    // Find the history item using a filter on a field we know exists and is unique.
-    // Using `Title` because it's always indexed.
     const historyItemResponse = await graphClient
       .api(`/sites/${siteId}/lists/${historyListId}/items`)
       .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
@@ -329,6 +326,10 @@ export const updateChangeRequestStatus = async (
 
     const historyItem = historyItemResponse.value[0];
     const originalRequest = mapHistoryItemToChangeRequest(historyItem);
+    
+    if (!originalRequest) {
+        throw new Error(`Solicitação com ID ${requestId} é inválida e não pode ser processada.`);
+    }
 
     const fieldsToUpdateHistory = {
         StatusFinal: newStatus,
@@ -393,6 +394,3 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
   const response = await graphClient.api('/users').header('ConsistencyLevel', 'eventual').count(true).filter(filterString).top(25).select('id,displayName,mail,userPrincipalName').get();
   return response.value.map((user: any) => ({ id: user.id, name: user.displayName, email: user.mail || user.userPrincipalName }));
 };
-
-
-    
