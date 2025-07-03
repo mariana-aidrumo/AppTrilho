@@ -206,42 +206,62 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // --- Change Request Services ---
 
+// Helper function to safely extract title from a SharePoint lookup/person field
+const getLookupFieldValue = (field: any): string => {
+    if (typeof field === 'object' && field !== null && field.Title) {
+        return field.Title;
+    }
+    // Handle cases where it might just be a string (e.g., from older entries)
+    if (typeof field === 'string') {
+        return field;
+    }
+    return ''; // Return empty string if not a valid lookup or string
+};
+
 const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
+    // Robust Status Logic: Default to 'Pendente' unless explicitly closed or waiting.
+    const spStatus = fields.StatusFinal as ChangeRequestStatus;
+    let finalStatus: ChangeRequestStatus;
+
+    if (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') {
+        finalStatus = spStatus;
+    } else {
+        // This covers null, undefined, empty string, and the explicit "Pendente" value.
+        finalStatus = 'Pendente';
+    }
+
+    // Parse changes from JSON, with a fallback
     let changes = {};
     if (fields.DadosAlteracaoJSON) {
-        try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e); }
+        try {
+            changes = JSON.parse(fields.DadosAlteracaoJSON);
+        } catch (e) {
+            console.error("Failed to parse DadosAlteracaoJSON for item ID:", item.id, e);
+        }
     }
     
-    const getTextField = (field: any): string => {
-        if (typeof field === 'object' && field !== null && field.Title) {
-            return field.Title;
-        }
-        return field || '';
-    };
-    
-    // Attempt to read status from the most common internal names for "Status Final"
-    const statusFinal = fields.StatusFinal || fields.Status_x0020_Final;
-
     const request: ChangeRequest = {
         id: fields.IDdaSolicitacao || fields.Title,
         spListItemId: item.id,
         controlId: fields.IDControle || '',
         controlName: fields.NomeControle || '',
         requestType: fields.Tipo || 'Alteração',
-        requestedBy: getTextField(fields.SolicitadoPor),
+        requestedBy: getLookupFieldValue(fields.SolicitadoPor),
         requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
-        status: statusFinal as ChangeRequestStatus,
+        status: finalStatus, // Use the robustly determined status
         changes: changes,
         comments: fields.DetalhesDaMudanca || 'Nenhum detalhe fornecido.',
-        reviewedBy: getTextField(fields.RevisadoPor),
+        reviewedBy: getLookupFieldValue(fields.RevisadoPor),
         reviewDate: fields.DataRevisao,
         adminFeedback: fields.FeedbackAdmin || '',
     };
     
+    // Data integrity check: if we don't have the core IDs, skip this record.
     if (!request.id || !request.controlId) {
+        console.warn("Skipping history record due to missing core IDs:", item);
         return null;
     }
     
