@@ -129,6 +129,7 @@ export default function PendingApprovalsPage() {
               <TableHead>Detalhes da Mudança</TableHead>
               {context === "admin-history" && <TableHead>Revisado Por</TableHead>}
               {context === "admin-history" && <TableHead>Data Revisão</TableHead>}
+              {context === "admin-history" && <TableHead>Feedback do Admin</TableHead>}
               <TableHead className="text-right min-w-[120px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -160,6 +161,7 @@ export default function PendingApprovalsPage() {
                   </TableCell>
                 {context === "admin-history" && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
                 {context === "admin-history" && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
+                {context === "admin-history" && <TableCell className="whitespace-pre-wrap">{request.adminFeedback || "N/A"}</TableCell>}
                 
                 <TableCell className="text-right">
                   {isAdminActionView && (

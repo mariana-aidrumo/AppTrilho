@@ -268,9 +268,9 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
         comments: fields.field_7,
-        reviewedBy: fields.RevisadoPor || fields.field_11,
-        reviewDate: fields.DataRevisao || fields.field_10,
-        adminFeedback: fields.FeedbackdoAdmin || '',
+        reviewedBy: fields.field_11,
+        reviewDate: fields.field_10,
+        adminFeedback: fields.field_12 || '',
     };
     
     return request;
@@ -368,7 +368,7 @@ export const updateChangeRequestStatus = async (
         };
         
         if (adminFeedback) {
-            fieldsForHistoryUpdate['FeedbackdoAdmin'] = adminFeedback;
+            fieldsForHistoryUpdate['field_12'] = adminFeedback;
         }
         
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
