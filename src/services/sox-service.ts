@@ -260,8 +260,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const request: ChangeRequest = {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
-        controlId: fields.IDControle || "N/A",
-        controlName: fields.NomeControle || fields.Nome_x0020_do_x0020_Controle || "Nome não encontrado",
+        controlId: fields.field_5 || "Não encontrado",
+        controlName: fields.field_4 || "Não encontrado",
         requestType: fields.Tipo || 'Alteração',
         requestedBy: fields.SolicitadoPor || "Não encontrado",
         requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
@@ -361,7 +361,9 @@ export const updateChangeRequestStatus = async (
         const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,
             'field_10': new Date().toISOString(),
-            'field_11': reviewedBy,
+            // 'field_11' is likely a 'Person' column, which doesn't accept a text name.
+            // Temporarily disabling this to fix the 'Invalid request' error.
+            // 'field_11': reviewedBy,
             'field_12': adminFeedback || '',
         };
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
