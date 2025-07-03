@@ -200,22 +200,26 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest => {
         try { changes = JSON.parse(fields.DadosAlteracaoJSON); } catch (e) { console.error("Failed to parse DadosAlteracaoJSON", e); }
     }
     
-    const spStatus = fields.StatusFinal;
+    // Attempt to read status from the most likely SharePoint internal column names.
+    const spStatus = fields.StatusFinal || fields.Status_x0020_Final;
 
-    // Core Logic: If a request isn't explicitly resolved, it's considered "Pendente".
-    const status: ChangeRequestStatus = (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') 
+    // Critical Logic: If the SharePoint status is anything other than a recognized final state,
+    // we will treat it as 'Pendente' for the UI. This correctly handles new items where the
+    // field is blank, or items explicitly set to 'Pendente'.
+    const status: ChangeRequestStatus = 
+        (spStatus === 'Aprovado' || spStatus === 'Rejeitado' || spStatus === 'Aguardando Feedback do Dono') 
         ? spStatus 
         : 'Pendente';
 
     return {
-        id: fields.IDdaSolicitacao || fields.Title, // Use Title as a fallback for the unique ID
+        id: fields.IDdaSolicitacao || fields.Title,
         spListItemId: item.id,
         controlId: fields.IDControle,
         controlName: fields.NomeControle,
         requestType: fields.Tipo,
         requestedBy: fields.SolicitadoPor,
         requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
-        status: status, // Use the defensively calculated status
+        status: status,
         changes: changes,
         comments: fields.DetalhesDaMudanca,
         reviewedBy: fields.RevisadoPor,
@@ -394,3 +398,6 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
   const response = await graphClient.api('/users').header('ConsistencyLevel', 'eventual').count(true).filter(filterString).top(25).select('id,displayName,mail,userPrincipalName').get();
   return response.value.map((user: any) => ({ id: user.id, name: user.displayName, email: user.mail || user.userPrincipalName }));
 };
+
+
+    
