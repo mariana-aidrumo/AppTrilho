@@ -13,6 +13,8 @@ import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getChangeRequests, updateChangeRequestStatus } from "@/services/sox-service";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function PendingApprovalsPage() {
   const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
@@ -21,6 +23,7 @@ export default function PendingApprovalsPage() {
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   
   const [requestToAction, setRequestToAction] = useState<{request: ChangeRequest, action: 'Aprovado' | 'Rejeitado'} | null>(null);
+  const [adminFeedback, setAdminFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -81,7 +84,7 @@ export default function PendingApprovalsPage() {
     setIsSubmitting(true);
 
     try {
-        await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name);
+        await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name, adminFeedback);
         toast({
             title: "Sucesso",
             description: `A solicitação foi marcada como "${requestToAction.action}".`,
@@ -93,7 +96,13 @@ export default function PendingApprovalsPage() {
     } finally {
         setIsSubmitting(false);
         setRequestToAction(null);
+        setAdminFeedback("");
     }
+  };
+
+  const handleOpenDialog = (request: ChangeRequest, action: 'Aprovado' | 'Rejeitado') => {
+    setRequestToAction({ request, action });
+    setAdminFeedback(""); // Reset feedback on open
   };
 
   const pageTitle = isUserAdmin() ? "Aprovações Pendentes" : "Minhas Solicitações";
@@ -199,11 +208,11 @@ export default function PendingApprovalsPage() {
                 <TableCell className="text-right">
                   {isAdminActionView && request.status === "Pendente" && (
                       <div className="flex gap-2 justify-end">
-                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => setRequestToAction({request, action: 'Aprovado'})} title="Aprovar">
+                          <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleOpenDialog(request, 'Aprovado')} title="Aprovar">
                               <CheckCircle className="h-5 w-5" />
                               <span className="sr-only">Aprovar</span>
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => setRequestToAction({request, action: 'Rejeitado'})} title="Rejeitar">
+                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleOpenDialog(request, 'Rejeitado')} title="Rejeitar">
                               <XCircle className="h-5 w-5" />
                               <span className="sr-only">Rejeitar</span>
                           </Button>
@@ -287,7 +296,7 @@ export default function PendingApprovalsPage() {
         </CardContent>
       </Card>
 
-       <AlertDialog open={!!requestToAction} onOpenChange={(open) => !open && setRequestToAction(null)}>
+       <AlertDialog open={!!requestToAction} onOpenChange={(open) => { if (!open) { setRequestToAction(null); setAdminFeedback(""); }}}>
           <AlertDialogContent>
               <AlertDialogHeader>
                   <AlertDialogTitle>Confirmar Ação</AlertDialogTitle>
@@ -300,6 +309,15 @@ export default function PendingApprovalsPage() {
                     </div>
                   </AlertDialogDescription>
               </AlertDialogHeader>
+              <div className="grid gap-2">
+                 <Label htmlFor="admin-feedback">Feedback (Opcional)</Label>
+                 <Textarea 
+                    id="admin-feedback"
+                    placeholder="Deixe um comentário para o solicitante..."
+                    value={adminFeedback}
+                    onChange={(e) => setAdminFeedback(e.target.value)}
+                 />
+              </div>
               <AlertDialogFooter>
                   <AlertDialogCancel onClick={() => setRequestToAction(null)} disabled={isSubmitting}>Cancelar</AlertDialogCancel>
                   <AlertDialogAction onClick={handleConfirmAction} disabled={isSubmitting}>
