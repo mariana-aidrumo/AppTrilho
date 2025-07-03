@@ -280,10 +280,10 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         controlName: fields.field_3,
         requestType: fields.field_2 || 'Alteração',
         requestedBy: fields.field_5 || "Não encontrado",
-        requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
+        requestDate: fields.DatadaSolicita_x00e7__x00e3_o || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
-        comments: fields.field_7 || '',
+        comments: fields.field_7, // Detalhes da mudança
         reviewedBy: fields.field_11,
         reviewDate: fields.field_10,
         adminFeedback: fields.field_12 || '',
@@ -345,7 +345,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_3': requestData.controlName, // Nome do Controle
         'field_4': requestData.controlId,   // ID do Controle
         'field_5': requestData.requestedBy, // Solicitado Por
-        'DatadaSolicitacao': requestDate,
+        'DatadaSolicita_x00e7__x00e3_o': requestDate, // Using encoded name for "Data da Solicitação"
         'field_8': "Pendente", // Status Final
         'field_7': requestData.comments, // Detalhes da mudança (Texto 'de-para')
         
