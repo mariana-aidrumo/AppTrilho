@@ -480,29 +480,29 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, ColumnM
     };
     
     let changes = {};
-    const jsonData = findValueByDisplayName("DadosAlteracaoJSON");
+    const jsonData = findValueByDisplayName("Dados Alteracao JSON");
     if (jsonData) {
         try {
             changes = JSON.parse(jsonData);
         } catch (e) {
-            console.warn(`Could not parse DadosAlteracaoJSON for request ${findValueByDisplayName("IDdaSolicitacao")}:`, e);
+            console.warn(`Could not parse DadosAlteracaoJSON for request ${findValueByDisplayName("ID da Solicitação")}:`, e);
         }
     }
 
     return {
-        id: findValueByDisplayName("IDdaSolicitacao") || item.id,
+        id: findValueByDisplayName("ID da Solicitação") || item.id,
         spListItemId: item.id,
-        controlId: findValueByDisplayName("IDControle"),
-        controlName: findValueByDisplayName("NomeControle"),
+        controlId: findValueByDisplayName("ID Controle"),
+        controlName: findValueByDisplayName("Nome Controle"),
         requestType: findValueByDisplayName("Tipo"),
-        requestedBy: findValueByDisplayName("SolicitadoPor"),
-        requestDate: findValueByDisplayName("DataSolicitacao") || item.createdDateTime,
-        status: findValueByDisplayName("StatusFinal") || 'Pendente',
+        requestedBy: findValueByDisplayName("Solicitado Por"),
+        requestDate: findValueByDisplayName("Data Solicitação") || item.createdDateTime,
+        status: findValueByDisplayName("Status Final") || 'Pendente',
         changes: changes,
-        comments: findValueByDisplayName("DetalhesDaMudanca"),
-        reviewedBy: findValueByDisplayName("RevisadoPor"),
-        reviewDate: findValueByDisplayName("DataRevisao"),
-        adminFeedback: findValueByDisplayName("FeedbackAdmin"),
+        comments: findValueByDisplayName("Detalhes da Mudança"),
+        reviewedBy: findValueByDisplayName("Revisado Por"),
+        reviewDate: findValueByDisplayName("Data Revisão"),
+        adminFeedback: findValueByDisplayName("Feedback Admin"),
     };
 };
 
@@ -536,7 +536,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
             }
         }
         
-        // Sort in the application to avoid reliance on SharePoint sorting/indexing
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
         
         return allRequests;
@@ -585,15 +584,15 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     
     const fieldsToCreate: { [internalName: string]: any } = {
         [findInternalName("Title")!]: newRequestId,
-        [findInternalName("IDdaSolicitacao")!]: newRequestId,
+        [findInternalName("ID da Solicitação")!]: newRequestId,
         [findInternalName("Tipo")!]: requestData.requestType,
-        [findInternalName("NomeControle")!]: requestData.controlName,
-        [findInternalName("IDControle")!]: requestData.controlId,
-        [findInternalName("SolicitadoPor")!]: requestData.requestedBy,
-        [findInternalName("DataSolicitacao")!]: requestDate,
-        [findInternalName("DetalhesDaMudanca")!]: requestData.comments,
-        [findInternalName("StatusFinal")!]: "Pendente",
-        [findInternalName("DadosAlteracaoJSON")!]: JSON.stringify(requestData.changes || {}),
+        [findInternalName("Nome Controle")!]: requestData.controlName,
+        [findInternalName("ID Controle")!]: requestData.controlId,
+        [findInternalName("Solicitado Por")!]: requestData.requestedBy,
+        [findInternalName("Data Solicitação")!]: requestDate,
+        [findInternalName("Detalhes da Mudança")!]: requestData.comments,
+        [findInternalName("Status Final")!]: "Pendente",
+        [findInternalName("Dados Alteracao JSON")!]: JSON.stringify(requestData.changes || {}),
     };
 
     // Remove any entries where the internal name was not found
@@ -658,10 +657,11 @@ export const updateChangeRequestStatus = async (
         return internalName;
     };
     
-    const idColumnInternalName = findInternalNameFromHistory("IDdaSolicitacao");
+    const idColumnInternalName = findInternalNameFromHistory("ID da Solicitação");
 
     const historyItemsResponse = await graphClient
         .api(`/sites/${siteId}/lists/${historyListId}/items`)
+        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
         .filter(`fields/${idColumnInternalName} eq '${requestId}'`)
         .expand('fields')
         .get();
@@ -680,13 +680,13 @@ export const updateChangeRequestStatus = async (
     const reviewDate = new Date().toISOString();
     
     const fieldsToUpdateHistory: { [internalName: string]: any } = {
-        [findInternalNameFromHistory("StatusFinal")]: newStatus,
-        [findInternalNameFromHistory("RevisadoPor")]: reviewedBy,
-        [findInternalNameFromHistory("DataRevisao")]: reviewDate,
+        [findInternalNameFromHistory("Status Final")]: newStatus,
+        [findInternalNameFromHistory("Revisado Por")]: reviewedBy,
+        [findInternalNameFromHistory("Data Revisão")]: reviewDate,
     };
     if(adminFeedback) {
-        const feedbackInternalName = findInternalNameFromHistory("FeedbackAdmin");
-        fieldsToUpdateHistory[feedbackInternalName] = adminFeedback;
+        const feedbackInternalName = findInternalNameFromHistory("Feedback Admin");
+        if(feedbackInternalName) fieldsToUpdateHistory[feedbackInternalName] = adminFeedback;
     }
 
     await graphClient
@@ -712,6 +712,7 @@ export const updateChangeRequestStatus = async (
 
             const controlItemsResponse = await graphClient
                 .api(`/sites/${siteId}/lists/${controlsListId}/items`)
+                .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
                 .filter(`fields/${controlIdColumnInternalName} eq '${originalRequest.controlId}'`)
                 .get();
             
