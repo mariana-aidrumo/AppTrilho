@@ -249,7 +249,6 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
     const fields = item.fields;
     if (!fields) return null;
 
-    // Helper to safely get a field value by trying a few common display names
     const getField = (displayNames: string[]) => {
         for (const name of displayNames) {
             const internalName = columnMap.get(name);
@@ -260,38 +259,38 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         return undefined;
     };
     
-    // Helper to safely get a lookup value (for user fields)
     const getLookupFieldValue = (fieldValue: any): string => {
-        const field = getField(fieldValue);
-        if (Array.isArray(field) && field.length > 0 && field[0].lookupValue) {
-            return field[0].lookupValue;
+        if (Array.isArray(fieldValue) && fieldValue.length > 0 && fieldValue[0].lookupValue) {
+            return fieldValue[0].lookupValue;
         }
-        if (typeof field === 'object' && field !== null && field.Title) {
-            return field.Title;
+        if (typeof fieldValue === 'object' && fieldValue !== null && fieldValue.Title) {
+            return fieldValue.Title;
         }
-        if (typeof field === 'string') {
-            return field;
+        if (typeof fieldValue === 'string') {
+            return fieldValue;
         }
         return '';
     };
 
-    // Get the status value. If it's not explicitly a final state, consider it "Pendente".
-    const spStatusValue = getField(["StatusFinal", "Status Final"]);
-    let finalStatus: ChangeRequestStatus = 'Pendente'; // Default to Pendente
-    if (typeof spStatusValue === 'string' && (spStatusValue === 'Aprovado' || spStatusValue === 'Rejeitado' || spStatusValue === 'Aguardando Feedback do Dono')) {
-        finalStatus = spStatusValue;
-    } else if (typeof spStatusValue === 'string' && spStatusValue.trim() === 'Pendente') {
-        finalStatus = 'Pendente';
-    }
-
-
     const idDaSolicitacao = getField(["ID da Solicitação", "ID da Solicitacao", "Title"]);
     const controlId = getField(["ID Controle", "ID do Controle"]);
     
-    // If we don't have a basic ID, skip this record as it's invalid.
     if (!idDaSolicitacao || !controlId) {
         console.warn("Skipping history record due to missing core IDs:", { id: item.id });
         return null;
+    }
+
+    const spStatusValue = getField(["StatusFinal", "Status Final"]);
+    const spReviewDate = getField(["DataRevisao", "Data Revisao", "Data Revisão"]);
+
+    let finalStatus: ChangeRequestStatus;
+
+    if (spStatusValue === 'Aprovado' || spStatusValue === 'Rejeitado' || spStatusValue === 'Aguardando Feedback do Dono') {
+        finalStatus = spStatusValue;
+    } else if (spStatusValue === 'Pendente' || !spReviewDate) {
+        finalStatus = 'Pendente';
+    } else {
+        finalStatus = 'Aprovado'; // Default to a processed state if review date exists but status is unclear
     }
 
     let changes = {};
@@ -310,13 +309,13 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, string>
         controlId: controlId,
         controlName: getField(["Nome do Controle", "NomeControle"]),
         requestType: getField(["Tipo"]) || 'Alteração',
-        requestedBy: getLookupFieldValue(["Solicitado Por", "SolicitadoPor"]),
+        requestedBy: getLookupFieldValue(getField(["Solicitado Por", "SolicitadoPor"])),
         requestDate: getField(["Data da Solicitação", "Data da Solicitacao"]) || item.lastModifiedDateTime,
         status: finalStatus,
         changes: changes,
         comments: getField(["Detalhes da Mudança", "Detalhes da Mudanca"]) || 'Nenhum detalhe fornecido.',
-        reviewedBy: getLookupFieldValue(["Revisado Por", "RevisadoPor"]),
-        reviewDate: getField(["Data Revisão", "Data Revisao"]),
+        reviewedBy: getLookupFieldValue(getField(["Revisado Por", "RevisadoPor"])),
+        reviewDate: spReviewDate,
         adminFeedback: getField(["Feedback do Admin", "Feedback do Administrador"]) || '',
     };
     
@@ -420,8 +419,10 @@ export const updateChangeRequestStatus = async (
         if (internalName) fieldsToUpdate[internalName] = value;
     };
     
+    setField("Status Final", newStatus);
     setField("StatusFinal", newStatus);
     setField("Revisado Por", reviewedBy); // Assumes a simple text field
+    setField("Data Revisao", new Date().toISOString());
     setField("Data Revisão", new Date().toISOString());
     setField("Feedback do Admin", adminFeedback || '');
 
