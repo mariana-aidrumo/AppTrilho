@@ -660,6 +660,7 @@ export const updateChangeRequestStatus = async (
         .api(`/sites/${siteId}/lists/${historyListId}/items`)
         .filter(`fields/${idDaSolicitacaoInternalName} eq '${requestId}'`)
         .expand('fields')
+        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
         .get();
 
     if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
@@ -714,6 +715,7 @@ export const updateChangeRequestStatus = async (
             const controlItemsResponse = await graphClient
                 .api(`/sites/${siteId}/lists/${controlsListId}/items`)
                 .filter(`fields/${controlIdColumnInternalName} eq '${originalRequest.controlId}'`)
+                .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
                 .get();
             
             if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
