@@ -575,6 +575,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
+    // Use the exact column names provided by the user as the Display Names
     const dataToWrite: { [displayName: string]: any } = {
         "Title": newRequestId,
         "IDdaSolicitacao": newRequestId,
@@ -639,7 +640,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
  * Updates the status of a change request in SharePoint and applies changes if approved.
  */
 export const updateChangeRequestStatus = async (
-  requestId: string,
+  spListItemId: string,
   newStatus: 'Aprovado' | 'Rejeitado',
   reviewedBy: string
 ): Promise<ChangeRequest> => {
@@ -651,26 +652,20 @@ export const updateChangeRequestStatus = async (
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
     const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
-    const idDaSolicitacaoInternalName = historyColumnMap.get("IDdaSolicitacao")?.internalName;
-    if (!idDaSolicitacaoInternalName) {
-        throw new Error("A coluna 'IDdaSolicitacao' não foi encontrada na lista de histórico.");
-    }
-
-    const historyItemsResponse = await graphClient
-        .api(`/sites/${siteId}/lists/${historyListId}/items`)
-        .filter(`fields/${idDaSolicitacaoInternalName} eq '${requestId}'`)
-        .expand('fields')
-        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
+    // Get the history item directly by its SharePoint List Item ID
+    const historyItem = await graphClient
+        .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}?expand=fields`)
         .get();
 
-    if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
-        throw new Error(`Solicitação com ID ${requestId} não encontrada no SharePoint.`);
+    if (!historyItem) {
+        throw new Error(`Solicitação com ID de item ${spListItemId} não encontrada no SharePoint.`);
     }
-    const historyItem = historyItemsResponse.value[0];
-    const historyItemSpId = historyItem.id;
+    
     const originalRequest = mapHistoryItemToChangeRequest(historyItem, historyColumnMap);
     
     const reviewDate = new Date().toISOString();
+    
+    // Use the exact Display Names for the keys
     const dataToUpdate: { [displayName: string]: any } = {
         "StatusFinal": newStatus,
         "RevisadoPor": reviewedBy,
@@ -687,7 +682,7 @@ export const updateChangeRequestStatus = async (
 
     if (Object.keys(fieldsToUpdateHistory).length > 0) {
         await graphClient
-            .api(`/sites/${siteId}/lists/${historyListId}/items/${historyItemSpId}/fields`)
+            .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}/fields`)
             .patch(fieldsToUpdateHistory);
     }
 

@@ -79,11 +79,19 @@ export default function PendingApprovalsPage() {
   const handleConfirmAction = async () => {
     if (!requestToAction) return;
     setIsSubmitting(true);
+
+    if (!requestToAction.request.spListItemId) {
+        toast({ title: "Erro Crítico", description: "O ID do item do SharePoint não foi encontrado para esta solicitação.", variant: "destructive" });
+        setIsSubmitting(false);
+        setRequestToAction(null);
+        return;
+    }
+
     try {
-        await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name);
+        await updateChangeRequestStatus(requestToAction.request.spListItemId, requestToAction.action, currentUser.name);
         toast({
             title: "Sucesso",
-            description: `A solicitação ${requestToAction.request.id} foi marcada como "${requestToAction.action}".`,
+            description: `A solicitação foi marcada como "${requestToAction.action}".`,
         });
         loadData(); // Reload data to reflect changes
     } catch (error) {
