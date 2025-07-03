@@ -139,7 +139,7 @@ export default function PendingApprovalsPage() {
                 <TableCell className="font-medium">{request.id}</TableCell>
                 <TableCell>{request.requestType}</TableCell>
                 <TableCell>
-                  {request.controlName ? `${request.controlName} (${request.controlId})` : request.controlId}
+                  {request.controlName ? `${request.controlId} (${request.controlName})` : request.controlId}
                 </TableCell>
                 
                 {isAdminView && <TableCell>{request.requestedBy}</TableCell>}
@@ -159,8 +159,8 @@ export default function PendingApprovalsPage() {
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
                     {request.comments || 'Nenhum detalhe fornecido.'}
                   </TableCell>
-                {context === "admin-history" && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
-                {context === "admin-history" && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
+                {context === "admin-history" && <TableHead>Revisado Por</TableHead>}
+                {context === "admin-history" && <TableHead>Data Revisão</TableHead>}
                 {context === "admin-history" && <TableCell className="whitespace-pre-wrap">{request.adminFeedback || "N/A"}</TableCell>}
                 
                 <TableCell className="text-right">

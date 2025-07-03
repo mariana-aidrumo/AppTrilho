@@ -260,14 +260,14 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const request: ChangeRequest = {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
-        controlId: fields.field_5 || "Não encontrado",
-        controlName: fields.field_4 || "Não encontrado",
+        controlId: fields.field_4 || "Não encontrado",
+        controlName: fields.field_3 || "Não encontrado",
         requestType: fields.Tipo || 'Alteração',
-        requestedBy: fields.SolicitadoPor || "Não encontrado",
+        requestedBy: fields.field_5 || "Não encontrado",
         requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
-        comments: fields.field_7, // This is Detalhes da Mudança
+        comments: fields.field_7 || '',
         reviewedBy: fields.field_11,
         reviewDate: fields.field_10,
         adminFeedback: fields.field_12 || '',
@@ -451,7 +451,7 @@ export const updateChangeRequestStatus = async (
             if (error.body) {
                 try {
                     const errorBody = JSON.parse(error.body);
-                    if (errorBody.error?.message) {
+                    if (errorBody.error.message) {
                         detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
                     } else {
                         detailedMessage += ` SharePoint returned an error body: ${error.body}`;
