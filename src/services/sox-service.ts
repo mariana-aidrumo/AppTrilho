@@ -221,20 +221,9 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         }
         return field || '';
     };
-
-    const reviewedBy = getTextField(fields.RevisadoPor);
-    const reviewDate = fields.DataRevisao;
     
-    // Use both explicit "Status Final" and the common internal name
+    // Attempt to read status from the most common internal names for "Status Final"
     const statusFinal = fields.StatusFinal || fields.Status_x0020_Final;
-    
-    let status: ChangeRequestStatus;
-
-    if (!reviewedBy && !reviewDate) {
-        status = 'Pendente';
-    } else {
-        status = statusFinal || 'Aprovado';
-    }
 
     const request: ChangeRequest = {
         id: fields.IDdaSolicitacao || fields.Title,
@@ -244,11 +233,11 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestType: fields.Tipo || 'Alteração',
         requestedBy: getTextField(fields.SolicitadoPor),
         requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
-        status: status,
+        status: statusFinal as ChangeRequestStatus,
         changes: changes,
         comments: fields.DetalhesDaMudanca || 'Nenhum detalhe fornecido.',
-        reviewedBy: reviewedBy,
-        reviewDate: reviewDate,
+        reviewedBy: getTextField(fields.RevisadoPor),
+        reviewDate: fields.DataRevisao,
         adminFeedback: fields.FeedbackAdmin || '',
     };
     
