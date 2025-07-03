@@ -469,40 +469,40 @@ const mapHistoryItemToChangeRequest = (item: any, columnMap: Map<string, ColumnM
     const fields = item.fields;
     if (!fields) return {} as ChangeRequest;
 
-    // Helper to safely get a value using the display name. Falls back to trying the key as an internal name.
-    const findValue = (key: string): any => {
-        const mapping = columnMap.get(key); // Try display name first
-        if (mapping && fields[mapping.internalName] !== undefined) {
-            return fields[mapping.internalName];
-        }
-        // Fallback for cases where the key is the internal name
-        return fields[key];
+    const internalNameToDisplayName = new Map<string, string>();
+    columnMap.forEach((value, key) => {
+        internalNameToDisplayName.set(value.internalName, key);
+    });
+
+    const findValueByDisplayName = (displayName: string): any => {
+        const internalName = columnMap.get(displayName)?.internalName;
+        return internalName ? fields[internalName] : undefined;
     };
     
     let changes = {};
-    const jsonData = findValue("DadosAlteracaoJSON");
+    const jsonData = findValueByDisplayName("DadosAlteracaoJSON");
     if (jsonData) {
         try {
             changes = JSON.parse(jsonData);
         } catch (e) {
-            console.warn(`Could not parse DadosAlteracaoJSON for request ${findValue("IDdaSolicitacao")}:`, e);
+            console.warn(`Could not parse DadosAlteracaoJSON for request ${findValueByDisplayName("IDdaSolicitacao")}:`, e);
         }
     }
 
     return {
-        id: findValue("IDdaSolicitacao") || item.id,
+        id: findValueByDisplayName("IDdaSolicitacao") || item.id,
         spListItemId: item.id,
-        controlId: findValue("IDControle"),
-        controlName: findValue("NomeControle"),
-        requestType: findValue("Tipo"),
-        requestedBy: findValue("SolicitadoPor"),
-        requestDate: findValue("DataSolicitacao") || item.createdDateTime,
-        status: findValue("StatusFinal") || 'Pendente',
+        controlId: findValueByDisplayName("IDControle"),
+        controlName: findValueByDisplayName("NomeControle"),
+        requestType: findValueByDisplayName("Tipo"),
+        requestedBy: findValueByDisplayName("SolicitadoPor"),
+        requestDate: findValueByDisplayName("DataSolicitacao") || item.createdDateTime,
+        status: findValueByDisplayName("StatusFinal") || 'Pendente',
         changes: changes,
-        comments: findValue("DetalhesDaMudanca"),
-        reviewedBy: findValue("RevisadoPor"),
-        reviewDate: findValue("DataRevisao"),
-        adminFeedback: findValue("FeedbackAdmin"),
+        comments: findValueByDisplayName("DetalhesDaMudanca"),
+        reviewedBy: findValueByDisplayName("RevisadoPor"),
+        reviewDate: findValueByDisplayName("DataRevisao"),
+        adminFeedback: findValueByDisplayName("FeedbackAdmin"),
     };
 };
 
@@ -576,23 +576,33 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const columnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
     
+    const findInternalName = (displayName: string): string | undefined => columnMap.get(displayName)?.internalName;
+
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
     
     const fieldsToCreate: { [internalName: string]: any } = {
-        Title: newRequestId, // SharePoint requires the Title field
-        IDdaSolicitacao: newRequestId,
-        Tipo: requestData.requestType,
-        NomeControle: requestData.controlName,
-        IDControle: requestData.controlId,
-        SolicitadoPor: requestData.requestedBy,
-        DataSolicitacao: requestDate,
-        DetalhesDaMudanca: requestData.comments,
-        StatusFinal: "Pendente",
-        DadosAlteracaoJSON: JSON.stringify(requestData.changes || {}),
+        [findInternalName("Title")!]: newRequestId,
+        [findInternalName("IDdaSolicitacao")!]: newRequestId,
+        [findInternalName("Tipo")!]: requestData.requestType,
+        [findInternalName("NomeControle")!]: requestData.controlName,
+        [findInternalName("IDControle")!]: requestData.controlId,
+        [findInternalName("SolicitadoPor")!]: requestData.requestedBy,
+        [findInternalName("DataSolicitacao")!]: requestDate,
+        [findInternalName("DetalhesDaMudanca")!]: requestData.comments,
+        [findInternalName("StatusFinal")!]: "Pendente",
+        [findInternalName("DadosAlteracaoJSON")!]: JSON.stringify(requestData.changes || {}),
     };
 
+    // Remove any entries where the internal name was not found
+    for (const key in fieldsToCreate) {
+        if (key === 'undefined') {
+            delete fieldsToCreate[key];
+        }
+    }
+    
     const newItem = { fields: fieldsToCreate };
 
     try {
@@ -640,14 +650,20 @@ export const updateChangeRequestStatus = async (
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const historyColumnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
 
-    // Step 1: Find the history item by filtering on our custom request ID.
-    // We assume 'IDdaSolicitacao' is the correct internal name as per user instruction.
+    const findInternalNameFromHistory = (displayName: string): string => {
+        const internalName = historyColumnMap.get(displayName)?.internalName;
+        if (!internalName) throw new Error(`Column '${displayName}' not found in history list.`);
+        return internalName;
+    };
+    
+    const idColumnInternalName = findInternalNameFromHistory("IDdaSolicitacao");
+
     const historyItemsResponse = await graphClient
         .api(`/sites/${siteId}/lists/${historyListId}/items`)
-        .filter(`fields/IDdaSolicitacao eq '${requestId}'`)
+        .filter(`fields/${idColumnInternalName} eq '${requestId}'`)
         .expand('fields')
-        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
         .get();
 
     if (!historyItemsResponse.value || historyItemsResponse.value.length === 0) {
@@ -661,54 +677,42 @@ export const updateChangeRequestStatus = async (
          throw new Error(`Falha ao obter o ID do item da lista do SharePoint para a solicitação ${requestId}.`);
     }
     
-    // Step 2: Update the found history item with the new status and review details.
     const reviewDate = new Date().toISOString();
     
-    // We use the internal names directly, as provided by the user.
     const fieldsToUpdateHistory: { [internalName: string]: any } = {
-        StatusFinal: newStatus,
-        RevisadoPor: reviewedBy,
-        DataRevisao: reviewDate,
+        [findInternalNameFromHistory("StatusFinal")]: newStatus,
+        [findInternalNameFromHistory("RevisadoPor")]: reviewedBy,
+        [findInternalNameFromHistory("DataRevisao")]: reviewDate,
     };
     if(adminFeedback) {
-        fieldsToUpdateHistory.FeedbackAdmin = adminFeedback;
+        const feedbackInternalName = findInternalNameFromHistory("FeedbackAdmin");
+        fieldsToUpdateHistory[feedbackInternalName] = adminFeedback;
     }
 
     await graphClient
         .api(`/sites/${siteId}/lists/${historyListId}/items/${spListItemId}/fields`)
         .patch(fieldsToUpdateHistory);
     
-    // Step 3: If approved, apply the changes to the main controls list.
     if (newStatus === 'Aprovado') {
-        const columnMap = await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME);
-        const originalRequest = mapHistoryItemToChangeRequest(historyItem, columnMap);
+        const originalRequest = mapHistoryItemToChangeRequest(historyItem, historyColumnMap);
 
         if (originalRequest.requestType === 'Criação') {
-            const changesWithDisplayNames: { [key: string]: any } = {};
-            for (const [appKey, value] of Object.entries(originalRequest.changes)) {
-                const displayName = (appToSpDisplayNameMapping as any)[appKey];
-                if (displayName) {
-                    changesWithDisplayNames[displayName] = value;
-                } else {
-                     changesWithDisplayNames[appKey] = value;
-                }
-            }
-            await addSoxControl(changesWithDisplayNames);
+            await addSoxControl(originalRequest.changes);
         } else { // It's an "Alteração"
             const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
             const controlColumnMap = await buildColumnMappings(SHAREPOINT_CONTROLS_LIST_NAME);
 
-            // Find the correct internal name for 'Código NOVO'
-            const controlIdColumnInternalName = Array.from(controlColumnMap.entries())
-                .find(([_, val]) => val.displayName === 'Código NOVO')?.[1].internalName;
-             if (!controlIdColumnInternalName) {
-                throw new Error("A coluna 'Código NOVO' não foi encontrada na lista de controles principal.");
-            }
+            const findInternalNameFromControls = (displayName: string): string => {
+                const internalName = controlColumnMap.get(displayName)?.internalName;
+                if (!internalName) throw new Error(`Column '${displayName}' not found in controls list.`);
+                return internalName;
+            };
+
+            const controlIdColumnInternalName = findInternalNameFromControls('Código NOVO');
 
             const controlItemsResponse = await graphClient
                 .api(`/sites/${siteId}/lists/${controlsListId}/items`)
                 .filter(`fields/${controlIdColumnInternalName} eq '${originalRequest.controlId}'`)
-                .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
                 .get();
             
             if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
@@ -717,16 +721,14 @@ export const updateChangeRequestStatus = async (
             const controlItemSpId = controlItemsResponse.value[0].id;
 
             const fieldsToUpdateControl: { [key: string]: any } = {};
-            const appKeyToSpInternalName = Object.entries(appToSpDisplayNameMapping)
-                .reduce((acc, [appKey, spName]) => {
-                    const mapping = controlColumnMap.get(spName);
-                    if (mapping) { (acc as any)[appKey] = mapping.internalName; }
-                    return acc;
-                }, {} as Record<string, string>);
-
-            for (const [key, value] of Object.entries(originalRequest.changes)) {
-                const spInternalName = appKeyToSpInternalName[key];
-                if (spInternalName) { fieldsToUpdateControl[spInternalName] = value; }
+            for (const [appKey, value] of Object.entries(originalRequest.changes)) {
+                const displayName = (appToSpDisplayNameMapping as any)[appKey];
+                if (displayName) {
+                    const spInternalName = controlColumnMap.get(displayName)?.internalName;
+                    if (spInternalName) { 
+                        fieldsToUpdateControl[spInternalName] = value; 
+                    }
+                }
             }
             
             if (Object.keys(fieldsToUpdateControl).length > 0) {
@@ -737,7 +739,7 @@ export const updateChangeRequestStatus = async (
         }
     }
     
-    const finalRequestState = { ...mapHistoryItemToChangeRequest(historyItem, await buildColumnMappings(SHAREPOINT_HISTORY_LIST_NAME)), ...fieldsToUpdateHistory, status: newStatus };
+    const finalRequestState = { ...mapHistoryItemToChangeRequest(historyItem, historyColumnMap), ...fieldsToUpdateHistory, status: newStatus };
     return finalRequestState as ChangeRequest;
 };
 
