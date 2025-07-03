@@ -253,7 +253,7 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // --- Change Request Services ---
 
-const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
+const mapHistoryItemToChangeRequest = (item: any, historyColumnMap: Map<string, string>): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
     
@@ -273,6 +273,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         }
     }
     
+    const dateFieldInternalName = historyColumnMap.get("Data da Solicitação") || "Modified";
+
     const request: ChangeRequest = {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
@@ -280,7 +282,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         controlName: fields.field_3,
         requestType: fields.field_2 || 'Alteração',
         requestedBy: fields.field_5 || "Não encontrado",
-        requestDate: fields.DatadaSolicita_x00e7__x00e3_o || item.lastModifiedDateTime,
+        requestDate: fields[dateFieldInternalName] || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
         comments: fields.field_7, // Detalhes da mudança
@@ -300,7 +302,8 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-        
+        const historyColumnMap = await getHistoryColumnMapping(); // Get map once
+
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
             .get();
@@ -316,7 +319,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
         
         const allRequests = allItems
-            .map(item => mapHistoryItemToChangeRequest(item))
+            .map(item => mapHistoryItemToChangeRequest(item, historyColumnMap))
             .filter((req): req is ChangeRequest => req !== null);
         
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
@@ -335,6 +338,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    const historyColumnMap = await getHistoryColumnMapping();
     
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
@@ -345,18 +349,20 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_3': requestData.controlName, // Nome do Controle
         'field_4': requestData.controlId,   // ID do Controle
         'field_5': requestData.requestedBy, // Solicitado Por
-        'DatadaSolicita_x00e7__x00e3_o': requestDate, // Using encoded name for "Data da Solicitação"
         'field_8': "Pendente", // Status Final
         'field_7': requestData.comments, // Detalhes da mudança (Texto 'de-para')
         
-        // Mantém a estrutura completa da mudança para a lógica de aprovação
         'DadosAlteracaoJSON': JSON.stringify(requestData.changes || {}),
-        
-        // Popula os campos individuais conforme solicitado
         'field_13': requestData.changes ? Object.keys(requestData.changes)[0] : '', // Campo Alterado (nome técnico)
         'field_14': requestData.changes ? formatSpValue(Object.values(requestData.changes)[0]) : '', // Valor Novo (texto)
     };
     
+    const dateFieldInternalName = historyColumnMap.get("Data da Solicitação");
+    if (!dateFieldInternalName) {
+        throw new Error("A coluna com o nome de exibição 'Data da Solicitação' não foi encontrada na sua lista REGISTRO-MATRIZ. Por favor, verifique se a coluna existe e o nome corresponde exatamente.");
+    }
+    fieldsToCreate[dateFieldInternalName] = requestDate;
+
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
     return { ...requestData, id: newRequestId, spListItemId: response.id, requestDate, status: 'Pendente' } as ChangeRequest;
 };
