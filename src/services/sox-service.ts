@@ -21,6 +21,14 @@ const SHAREPOINT_HISTORY_LIST_NAME = 'REGISTRO-MATRIZ';
 let controlsColumnMapCache: Map<string, string> | null = null;
 let historyColumnMapCache: Map<string, string> | null = null;
 
+// Helper to format values for text storage in SharePoint
+const formatSpValue = (val: any): string => {
+    if (val === undefined || val === null || val === '') return '';
+    if (Array.isArray(val)) return val.length > 0 ? val.join('; ') : '';
+    if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
+    return String(val);
+};
+
 // Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
     if (controlsColumnMapCache) {
@@ -252,17 +260,25 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const changesJSON = fields.DadosAlteracaoJSON;
     let parsedChanges = {};
     try {
-        if (changesJSON) parsedChanges = JSON.parse(changesJSON);
+        if (changesJSON) {
+            parsedChanges = JSON.parse(changesJSON);
+        } else if (fields.field_13 && fields.field_14 !== undefined) {
+            // Fallback for older data or if JSON is missing
+            parsedChanges = { [fields.field_13]: fields.field_14 };
+        }
     } catch (e) {
         console.error(`Failed to parse changes JSON for request ${fields.Title}:`, e);
+         if (fields.field_13 && fields.field_14 !== undefined) {
+            parsedChanges = { [fields.field_13]: fields.field_14 };
+        }
     }
     
     const request: ChangeRequest = {
         id: fields.Title, // ID da Solicitação is in Title
         spListItemId: item.id,
-        controlId: fields.field_4 || "Não encontrado",
-        controlName: fields.field_3 || "Não encontrado",
-        requestType: fields.Tipo || 'Alteração',
+        controlId: fields.field_4,
+        controlName: fields.field_3,
+        requestType: fields.field_2 || 'Alteração',
         requestedBy: fields.field_5 || "Não encontrado",
         requestDate: fields.DatadaSolicitacao || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
@@ -324,15 +340,21 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const requestDate = new Date().toISOString();
 
     const fieldsToCreate: {[key: string]: any} = {
-        'Title': newRequestId, // Title is mandatory, maps to ID
-        'Tipo': requestData.requestType,
-        'NomeControle': requestData.controlName,
-        'IDControle': requestData.controlId,
-        'SolicitadoPor': requestData.requestedBy,
+        'Title': newRequestId, // ID da Solicitação
+        'field_2': requestData.requestType, // "Alteração" ou "Criação"
+        'field_3': requestData.controlName, // Nome do Controle
+        'field_4': requestData.controlId,   // ID do Controle
+        'field_5': requestData.requestedBy, // Solicitado Por
         'DatadaSolicitacao': requestDate,
-        'field_8': "Pendente",
+        'field_8': "Pendente", // Status Final
+        'field_7': requestData.comments, // Detalhes da mudança (Texto 'de-para')
+        
+        // Mantém a estrutura completa da mudança para a lógica de aprovação
         'DadosAlteracaoJSON': JSON.stringify(requestData.changes || {}),
-        'field_7': requestData.comments,
+        
+        // Popula os campos individuais conforme solicitado
+        'field_13': requestData.changes ? Object.keys(requestData.changes)[0] : '', // Campo Alterado (nome técnico)
+        'field_14': requestData.changes ? formatSpValue(Object.values(requestData.changes)[0]) : '', // Valor Novo (texto)
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
