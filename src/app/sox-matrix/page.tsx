@@ -179,14 +179,17 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             const newValue = changes[key];
             const displayName = appKeyToDisplayName[key] || key;
             const singleChangeSummary = `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
+            
+            // Embed technical data inside the comments field
+            const technicalData = JSON.stringify({ [key]: newValue });
+            const commentsWithTechData = `${singleChangeSummary}\n[INTERNAL_CHANGE_DATA:${technicalData}]`;
 
             return {
                 controlId: control.controlId,
                 controlName: control.controlName,
-                changes: { [key]: newValue },
                 requestedBy: currentUser.name,
                 requestType: "Alteração" as "Alteração",
-                comments: singleChangeSummary,
+                comments: commentsWithTechData, // Pass the combined string
             };
         });
         
@@ -196,13 +199,15 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
     const handleConfirmAndSubmit = async () => {
         if (!changesToConfirm) return;
 
-        const submissionPromises = changesToConfirm.requests.map(requestData => addChangeRequest(requestData));
-
         try {
-            await Promise.all(submissionPromises);
+            // The addChangeRequest now handles batching if needed, but here we send one by one.
+            for (const requestData of changesToConfirm.requests) {
+                await addChangeRequest(requestData);
+            }
+            
             toast({
                 title: "Solicitações Enviadas",
-                description: `${submissionPromises.length} solicitações de alteração foram enviadas para aprovação.`,
+                description: `${changesToConfirm.requests.length} solicitações de alteração foram enviadas para aprovação.`,
             });
             setChangesToConfirm(null);
             onOpenChange(false);
@@ -213,6 +218,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 title: "Erro ao Enviar",
                 description: errorMessage,
                 variant: "destructive",
+                duration: 15000,
             });
         }
     };

@@ -29,21 +29,6 @@ const formatSpValue = (val: any): string => {
     return String(val);
 };
 
-const convertChangeToOriginalType = (key: string, value: string): any => {
-    const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-    const arrayKeys: (keyof SoxControl)[] = ['sistemasRelacionados', 'executorControle'];
-    
-    if (booleanFields.includes(key as keyof SoxControl)) {
-        return parseSharePointBoolean(value);
-    }
-    if (arrayKeys.includes(key as keyof SoxControl)) {
-        // formatSpValue joins arrays with '; ', so we split by that.
-        return value.split(';').map(s => s.trim()).filter(Boolean);
-    }
-    return value;
-};
-
-
 // Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
     if (controlsColumnMapCache) {
@@ -272,11 +257,23 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
     
+    // Logic to parse the technical data from the comments field
+    const rawComments = fields.field_7 || '';
+    const techDataRegex = /\[INTERNAL_CHANGE_DATA:(.*?)\]/;
+    const match = rawComments.match(techDataRegex);
+
     let parsedChanges = {};
-    if (fields.field_13 && fields.field_14 !== undefined) {
-        // Here, we store the raw string value. It will be converted to its
-        // proper type during the approval step.
-        parsedChanges = { [fields.field_13]: fields.field_14 };
+    let displayComments = rawComments;
+
+    if (match && match[1]) {
+        try {
+            parsedChanges = JSON.parse(match[1]);
+            displayComments = rawComments.replace(techDataRegex, '').trim();
+        } catch (e) {
+            console.error("Failed to parse internal change data from comments:", rawComments);
+            // If parsing fails, the whole comment is shown, but the change can't be auto-applied
+            parsedChanges = {}; 
+        }
     }
     
     const request: ChangeRequest = {
@@ -286,10 +283,10 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         controlName: fields.field_3,
         requestType: fields.field_2 || 'Alteração',
         requestedBy: fields.field_5 || "Não encontrado",
-        requestDate: fields.field_6 || item.lastModifiedDateTime,
+        requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
-        comments: fields.field_7, // Detalhes da mudança
+        comments: displayComments, // Use the cleaned comments
         reviewedBy: fields.field_11,
         reviewDate: fields.field_10,
         adminFeedback: fields.field_12 || '',
@@ -345,18 +342,16 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
 
+    // The 'comments' field now contains the technical data embedded within it
     const fieldsToCreate: {[key: string]: any} = {
-        'Title': newRequestId, // ID da Solicitação
-        'field_2': requestData.requestType, // "Alteração" ou "Criação"
-        'field_3': requestData.controlName, // Nome do Controle
-        'field_4': requestData.controlId,   // ID do Controle
-        'field_5': requestData.requestedBy, // Solicitado Por
-        'field_6': requestDate,             // Data da Solicitação
-        'field_8': "Pendente", // Status Final
-        'field_7': requestData.comments, // Detalhes da mudança (Texto 'de-para')
-        
-        'field_13': requestData.changes ? Object.keys(requestData.changes)[0] : '', // Campo Alterado (nome técnico)
-        'field_14': requestData.changes ? formatSpValue(Object.values(requestData.changes)[0]) : '', // Valor Novo (texto)
+        'Title': newRequestId,
+        'field_2': requestData.requestType,
+        'field_3': requestData.controlName,
+        'field_4': requestData.controlId,
+        'field_5': requestData.requestedBy,
+        'DataSolicitacao': requestDate,
+        'field_8': "Pendente",
+        'field_7': requestData.comments,
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
@@ -438,16 +433,17 @@ export const updateChangeRequestStatus = async (
                 }
                 const controlItemSpId = controlItemsResponse.value[0].id;
                 
-                const { id, controlId, controlName, ...changesFromHistory } = requestToUpdate.changes;
+                const changesToApply = requestToUpdate.changes;
                 
-                if (Object.keys(changesFromHistory).length > 0) {
+                if (Object.keys(changesToApply).length > 0) {
                    const dynamicChanges: {[key: string]: any} = {};
-                    for (const [appKey, stringValue] of Object.entries(changesFromHistory)) {
+                    for (const [appKey, value] of Object.entries(changesToApply)) {
                         const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
                         if(spDisplayName) {
                             const spInternalName = controlsColumnMap.get(spDisplayName);
                             if(spInternalName) {
-                                dynamicChanges[spInternalName] = convertChangeToOriginalType(appKey, stringValue as string);
+                                // The value is already the correct type because it was parsed from JSON
+                                dynamicChanges[spInternalName] = value;
                             } else {
                                 console.warn(`Could not find internal name for display name '${spDisplayName}' while applying changes. Skipping this field.`);
                             }
