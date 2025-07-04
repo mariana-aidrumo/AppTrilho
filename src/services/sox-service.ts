@@ -29,6 +29,21 @@ const formatSpValue = (val: any): string => {
     return String(val);
 };
 
+const convertChangeToOriginalType = (key: string, value: string): any => {
+    const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
+    const arrayKeys: (keyof SoxControl)[] = ['sistemasRelacionados', 'executorControle'];
+    
+    if (booleanFields.includes(key as keyof SoxControl)) {
+        return parseSharePointBoolean(value);
+    }
+    if (arrayKeys.includes(key as keyof SoxControl)) {
+        // formatSpValue joins arrays with '; ', so we split by that.
+        return value.split(';').map(s => s.trim()).filter(Boolean);
+    }
+    return value;
+};
+
+
 // Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
     if (controlsColumnMapCache) {
@@ -253,24 +268,15 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 
 // --- Change Request Services ---
 
-const mapHistoryItemToChangeRequest = (item: any, historyColumnMap: Map<string, string>): ChangeRequest | null => {
+const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
     
-    const changesJSON = fields.DadosAlteracaoJSON;
     let parsedChanges = {};
-    try {
-        if (changesJSON) {
-            parsedChanges = JSON.parse(changesJSON);
-        } else if (fields.field_13 && fields.field_14 !== undefined) {
-            // Fallback for older data or if JSON is missing
-            parsedChanges = { [fields.field_13]: fields.field_14 };
-        }
-    } catch (e) {
-        console.error(`Failed to parse changes JSON for request ${fields.Title}:`, e);
-         if (fields.field_13 && fields.field_14 !== undefined) {
-            parsedChanges = { [fields.field_13]: fields.field_14 };
-        }
+    if (fields.field_13 && fields.field_14 !== undefined) {
+        // Here, we store the raw string value. It will be converted to its
+        // proper type during the approval step.
+        parsedChanges = { [fields.field_13]: fields.field_14 };
     }
     
     const request: ChangeRequest = {
@@ -300,7 +306,6 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         const graphClient = await getGraphClient();
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-        const historyColumnMap = await getHistoryColumnMapping(); // Get map once
 
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${historyListId}/items?expand=fields`)
@@ -317,7 +322,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
         }
         
         const allRequests = allItems
-            .map(item => mapHistoryItemToChangeRequest(item, historyColumnMap))
+            .map(item => mapHistoryItemToChangeRequest(item))
             .filter((req): req is ChangeRequest => req !== null);
         
         allRequests.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
@@ -350,7 +355,6 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_8': "Pendente", // Status Final
         'field_7': requestData.comments, // Detalhes da mudança (Texto 'de-para')
         
-        'DadosAlteracaoJSON': JSON.stringify(requestData.changes || {}),
         'field_13': requestData.changes ? Object.keys(requestData.changes)[0] : '', // Campo Alterado (nome técnico)
         'field_14': requestData.changes ? formatSpValue(Object.values(requestData.changes)[0]) : '', // Valor Novo (texto)
     };
@@ -434,16 +438,16 @@ export const updateChangeRequestStatus = async (
                 }
                 const controlItemSpId = controlItemsResponse.value[0].id;
                 
-                const { id, controlId, controlName, ...changesToApply } = requestToUpdate.changes;
+                const { id, controlId, controlName, ...changesFromHistory } = requestToUpdate.changes;
                 
-                if (Object.keys(changesToApply).length > 0) {
+                if (Object.keys(changesFromHistory).length > 0) {
                    const dynamicChanges: {[key: string]: any} = {};
-                    for (const [appKey, changeValue] of Object.entries(changesToApply)) {
+                    for (const [appKey, stringValue] of Object.entries(changesFromHistory)) {
                         const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
                         if(spDisplayName) {
                             const spInternalName = controlsColumnMap.get(spDisplayName);
                             if(spInternalName) {
-                                dynamicChanges[spInternalName] = changeValue;
+                                dynamicChanges[spInternalName] = convertChangeToOriginalType(appKey, stringValue as string);
                             } else {
                                 console.warn(`Could not find internal name for display name '${spDisplayName}' while applying changes. Skipping this field.`);
                             }
