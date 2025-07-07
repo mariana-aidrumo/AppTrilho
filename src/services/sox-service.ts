@@ -99,24 +99,27 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
-    const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString']);
+    const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString', '_ComplianceTag', '_ComplianceTagWrittenTime', '_ComplianceTagUserId']);
     
+    // Fetch all column properties by removing the .select() clause
     const response = await graphClient
         .api(`/sites/${siteId}/lists/${listId}/columns`)
-        .select('displayName,hidden,readOnly,name,text,number,boolean,choice,dateTime')
         .get();
 
     if (!response || !response.value) {
       throw new Error("Could not fetch column details from SharePoint.");
     }
 
+    // A more comprehensive way to determine type, falling back to 'text'
     const getColumnType = (spColumn: any): SharePointColumn['type'] => {
         if (spColumn.boolean) return 'boolean';
         if (spColumn.dateTime) return 'dateTime';
         if (spColumn.number) return 'number';
         if (spColumn.choice) return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
         if (spColumn.text) return spColumn.text.allowMultipleLines ? 'note' : 'text';
-        return 'unsupported';
+        if (spColumn.lookup) return 'text'; // Treat lookups as text for display
+        if (spColumn.personOrGroup) return 'text'; // Treat people as text for display
+        return 'text'; // Default to text for any other unsupported type
     };
 
     return response.value
@@ -124,7 +127,7 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         .map((column: any) => ({
             displayName: column.displayName,
             internalName: column.name,
-            type: getColumnType(column),
+            type: getColumnType(column), // Type is now more general
         }));
 };
 
@@ -137,7 +140,6 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
         lastUpdated: item.lastModifiedDateTime,
     };
 
-    // Use a reverse mapping for efficient lookup
     const spDisplayNameToAppKey: { [key: string]: string } = {};
     for (const [key, value] of Object.entries(appToSpDisplayNameMapping)) {
         spDisplayNameToAppKey[value] = key;
@@ -145,22 +147,33 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
 
     const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
 
-    // Iterate over the column map which contains all user-visible columns
     for (const [displayName, internalName] of columnMap.entries()) {
-        if (spFields[internalName] !== undefined) {
-            const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/\s+/g, '');
-            let value = spFields[internalName];
-            
-            // Perform type conversion for booleans
-            if (booleanFields.has(appKey)) {
-                value = parseSharePointBoolean(value);
-            }
+        if (spFields[internalName] !== undefined && spFields[internalName] !== null) {
+            const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/[^a-zA-Z0-9]/g, '');
+            const originalValue = spFields[internalName];
+            let finalValue: any = originalValue;
 
-            (soxControl as any)[appKey] = value;
+            const transformItem = (subItem: any): string => {
+                if (typeof subItem !== 'object' || subItem === null) return String(subItem);
+                if ('lookupValue' in subItem) return subItem.lookupValue;
+                if ('displayName' in subItem) return subItem.displayName;
+                if ('Title' in subItem) return subItem.Title;
+                if ('Url' in subItem) return subItem.Url;
+                return JSON.stringify(subItem);
+            };
+
+            if (booleanFields.has(appKey)) {
+                finalValue = parseSharePointBoolean(originalValue);
+            } else if (Array.isArray(originalValue)) {
+                finalValue = originalValue.map(transformItem);
+            } else if (typeof originalValue === 'object') {
+                finalValue = transformItem(originalValue);
+            }
+            
+            (soxControl as any)[appKey] = finalValue;
         }
     }
     
-    // Status is a special case, might not be in the mapping or could have a different display name
     const statusInternalName = columnMap.get("Status") || 'Status';
     soxControl.status = (spFields[statusInternalName] as SoxControlStatus) || 'Ativo';
     
@@ -386,9 +399,6 @@ export const updateChangeRequestStatus = async (
         const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,
             'field_10': new Date().toISOString(),
-            // 'field_11' is likely a 'Person' column, which doesn't accept a text name.
-            // Temporarily disabling this to fix the 'Invalid request' error.
-            // 'field_11': reviewedBy,
             'field_12': adminFeedback || '',
         };
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
@@ -448,8 +458,14 @@ export const updateChangeRequestStatus = async (
                         if(spDisplayName) {
                             const spInternalName = controlsColumnMap.get(spDisplayName);
                             if(spInternalName) {
-                                // The value is already the correct type because it was parsed from JSON
-                                dynamicChanges[spInternalName] = value;
+                                let finalValue = value;
+                                // For boolean fields, SharePoint API expects true/false, not "Sim"/"Não"
+                                if (typeof finalValue === 'boolean') {
+                                    dynamicChanges[spInternalName] = finalValue;
+                                } else {
+                                    // Handle other types or just pass as is
+                                    dynamicChanges[spInternalName] = finalValue;
+                                }
                             } else {
                                 console.warn(`Could not find internal name for display name '${spDisplayName}' while applying changes. Skipping this field.`);
                             }
