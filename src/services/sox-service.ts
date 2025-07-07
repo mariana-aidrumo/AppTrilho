@@ -302,7 +302,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         controlName: fields.field_3,
         requestType: fields.field_2 || 'Alteração',
         requestedBy: fields.field_5 || "Não encontrado",
-        requestDate: fields.DataSolicitacao || item.lastModifiedDateTime,
+        requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
         comments: displayComments, // Use the cleaned comments
@@ -368,7 +368,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_3': requestData.controlName,
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
-        'DataSolicitacao': requestDate,
+        'field_6': requestDate,
         'field_8': "Pendente",
         'field_7': requestData.comments,
     };
@@ -550,5 +550,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
   return response.value.map((user: any) => ({ id: user.id, name: user.displayName, email: user.mail || user.userPrincipalName }));
 };
 
+
+    
 
     
