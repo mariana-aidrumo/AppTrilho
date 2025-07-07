@@ -276,7 +276,6 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
     
-    // Logic to parse the technical data from the comments field
     const rawComments = fields.field_7 || '';
     const techDataRegex = /\[INTERNAL_CHANGE_DATA:(.*?)\]/;
     const match = rawComments.match(techDataRegex);
@@ -290,13 +289,12 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
             displayComments = rawComments.replace(techDataRegex, '').trim();
         } catch (e) {
             console.error("Failed to parse internal change data from comments:", rawComments);
-            // If parsing fails, the whole comment is shown, but the change can't be auto-applied
             parsedChanges = {}; 
         }
     }
     
     const request: ChangeRequest = {
-        id: fields.Title, // ID da Solicitação is in Title
+        id: fields.Title,
         spListItemId: item.id,
         controlId: fields.field_4,
         controlName: fields.field_3,
@@ -305,7 +303,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
         changes: parsedChanges,
-        comments: displayComments, // Use the cleaned comments
+        comments: displayComments,
         reviewedBy: fields.field_11,
         reviewDate: fields.field_10,
         adminFeedback: fields.field_12 || '',
@@ -361,7 +359,6 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
 
-    // The 'comments' field now contains the technical data embedded within it
     const fieldsToCreate: {[key: string]: any} = {
         'Title': newRequestId,
         'field_2': requestData.requestType,
@@ -399,6 +396,7 @@ export const updateChangeRequestStatus = async (
         const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,
             'field_10': new Date().toISOString(),
+            'field_11': reviewedBy,
             'field_12': adminFeedback || '',
         };
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
@@ -433,21 +431,17 @@ export const updateChangeRequestStatus = async (
             if (requestToUpdate.requestType === 'Alteração') {
                 const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
                 const controlsColumnMap = await getControlsColumnMapping();
-                const controlIdInternalName = controlsColumnMap.get('Código NOVO');
-                if (!controlIdInternalName) {
-                    throw new Error("Não foi possível encontrar o nome interno da coluna 'Código NOVO'.");
-                }
                 
-                const controlItemsResponse = await graphClient
-                    .api(`/sites/${siteId}/lists/${controlsListId}/items`)
-                    .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-                    .filter(`fields/${controlIdInternalName} eq '${requestToUpdate.controlId}'`)
-                    .get();
+                // Fetch all controls from the main list (more robust than filtering)
+                const allControls = await getSoxControls();
+
+                // Find the specific control to update by its 'controlId' (Código NOVO)
+                const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                     
-                if (!controlItemsResponse.value || controlItemsResponse.value.length === 0) {
-                    throw new Error(`Controle principal com ID ${requestToUpdate.controlId} não encontrado para aplicar a alteração.`);
+                if (!controlToUpdate || !controlToUpdate.id) {
+                    throw new Error(`Controle principal com ID '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
                 }
-                const controlItemSpId = controlItemsResponse.value[0].id;
+                const controlItemSpId = controlToUpdate.id;
                 
                 const changesToApply = requestToUpdate.changes;
                 
