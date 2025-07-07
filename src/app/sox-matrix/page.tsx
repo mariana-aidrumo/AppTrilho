@@ -180,16 +180,14 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             const displayName = appKeyToDisplayName[key] || key;
             const singleChangeSummary = `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
             
-            // Embed technical data inside the comments field
-            const technicalData = JSON.stringify({ [key]: newValue });
-            const commentsWithTechData = `${singleChangeSummary}\n[INTERNAL_CHANGE_DATA:${technicalData}]`;
-
             return {
                 controlId: control.controlId,
                 controlName: control.controlName,
                 requestedBy: currentUser.name,
                 requestType: "Alteração" as "Alteração",
-                comments: commentsWithTechData, // Pass the combined string
+                comments: singleChangeSummary, // Human-readable summary
+                fieldName: key, // The app-level key of the field being changed
+                newValue: newValue, // The new value, with its type preserved
             };
         });
         
@@ -425,7 +423,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {isUserControlOwner() && !isUserAdmin() && (
+                {isUserControlOwner() && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
@@ -447,7 +445,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
 
 
 export default function SoxMatrixPage() {
-  const { currentUser, isUserAdmin } = useUserProfile();
+  const { currentUser, isUserAdmin, isUserControlOwner } = useUserProfile();
   const { toast } = useToast();
 
   // Data states from server
@@ -1023,7 +1021,7 @@ export default function SoxMatrixPage() {
 
   return (
     <div className="space-y-6 w-full">
-      {currentUser.activeProfile === "Administrador de Controles Internos" && (
+      {isUserAdmin() && (
           <>
             <div className="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
               <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
@@ -1091,7 +1089,7 @@ export default function SoxMatrixPage() {
           </>
       )}
 
-      {currentUser.activeProfile === "Dono do Controle" && (
+      {isUserControlOwner() && (
         <div className="space-y-6 w-full">
             <CardHeader className="px-0">
                 <CardTitle className="text-2xl">Painel (Visão Geral)</CardTitle>
@@ -1171,3 +1169,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+

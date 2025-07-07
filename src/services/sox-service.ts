@@ -321,21 +321,19 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
 const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
-    
-    const rawComments = fields.field_7 || ''; // Detalhes da Mudança
-    
-    const techDataRegex = /\[INTERNAL_CHANGE_DATA:(.*?)\]/;
-    const match = rawComments.match(techDataRegex);
-    let parsedChanges = {};
-    let displayComments = rawComments;
 
-    if (match && match[1]) {
+    const fieldName = fields.field_13; // Campo
+    const newValueJson = fields.field_14; // Mudança (JSON string)
+    let parsedChanges = {};
+
+    if (fieldName && newValueJson) {
         try {
-            parsedChanges = JSON.parse(match[1]);
-            displayComments = rawComments.replace(techDataRegex, '').trim();
+            // Reconstruct the changes object from the dedicated fields
+            parsedChanges = { [fieldName]: JSON.parse(newValueJson) };
         } catch (e) {
-            console.error("Failed to parse internal change data from comments:", rawComments);
-            parsedChanges = {}; 
+            console.error(`Failed to parse change data JSON from field_14 for request ${fields.Title}:`, newValueJson);
+            // Fallback for older data or malformed JSON
+            parsedChanges = { [fieldName]: newValueJson };
         }
     }
     
@@ -348,7 +346,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestedBy: fields.field_5 || "Não encontrado", 
         requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente', // Status
-        comments: displayComments, 
+        comments: fields.field_7 || '', // Detalhes da Mudança (agora só o resumo)
         changes: parsedChanges,
         reviewedBy: fields.field_10, // Revisado Por
         reviewDate: fields.field_11, // Data Revisão
@@ -394,7 +392,7 @@ export const getChangeRequests = async (): Promise<ChangeRequest[]> => {
     }
 };
 
-export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Promise<ChangeRequest> => {
+export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { fieldName?: string; newValue?: any }): Promise<ChangeRequest> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
       throw new Error("SharePoint history list name is not configured.");
     }
@@ -412,8 +410,10 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
-        'field_7': requestData.comments, // This contains the technical data now
+        'field_7': requestData.comments, // Human-readable summary
         'field_8': "Pendente",
+        'field_13': requestData.fieldName, // The field being changed
+        'field_14': JSON.stringify(requestData.newValue ?? null) // The new value, JSON-stringified
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
@@ -591,6 +591,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
