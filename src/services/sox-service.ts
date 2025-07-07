@@ -350,9 +350,9 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         status: fields.field_8 || 'Pendente',
         comments: comments,
         changes: changes,
-        reviewedBy: fields.RevisadoPor,
-        reviewDate: fields.DataRevisao,
-        adminFeedback: fields.FeedbackAdmin || '',
+        reviewedBy: fields.field_10,
+        reviewDate: fields.field_11,
+        adminFeedback: fields.field_12 || '',
     };
     
     return request;
@@ -453,10 +453,10 @@ export const updateChangeRequestStatus = async (
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
         
         const fieldsForHistoryUpdate: { [key: string]: any } = {
-            'field_8': newStatus,                 // Status
-            'RevisadoPor': reviewedBy,               // Revisado Por
-            'DataRevisao': new Date().toISOString(), // Data Revisão
-            'FeedbackAdmin': adminFeedback || '',      // Feedback do Admin
+            'field_8': newStatus,                    // Status
+            'field_10': reviewedBy,                  // Revisado Por
+            'field_11': new Date().toISOString(),    // Data Revisão
+            'field_12': adminFeedback || '',         // Feedback do Admin
         };
         
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
@@ -633,3 +633,6 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
 
 
 
+
+
+    
