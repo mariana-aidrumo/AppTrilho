@@ -137,25 +137,31 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
         lastUpdated: item.lastModifiedDateTime,
     };
 
-    // Use the appToSpDisplayNameMapping to dynamically look up internal names and map fields
-    for (const [appKey, spDisplayName] of Object.entries(appToSpDisplayNameMapping)) {
-        const spInternalName = columnMap.get(spDisplayName);
-        
-        if (spInternalName && spFields[spInternalName] !== undefined) {
-            let value = spFields[spInternalName];
+    // Use a reverse mapping for efficient lookup
+    const spDisplayNameToAppKey: { [key: string]: string } = {};
+    for (const [key, value] of Object.entries(appToSpDisplayNameMapping)) {
+        spDisplayNameToAppKey[value] = key;
+    }
 
-            // Handle boolean parsing for specific boolean fields based on our app's type definition
-            const booleanFields: (keyof SoxControl)[] = ['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul'];
-            if (booleanFields.includes(appKey as keyof SoxControl)) {
+    const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+
+    // Iterate over the column map which contains all user-visible columns
+    for (const [displayName, internalName] of columnMap.entries()) {
+        if (spFields[internalName] !== undefined) {
+            const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/\s+/g, '');
+            let value = spFields[internalName];
+            
+            // Perform type conversion for booleans
+            if (booleanFields.has(appKey)) {
                 value = parseSharePointBoolean(value);
             }
-            
+
             (soxControl as any)[appKey] = value;
         }
     }
     
     // Status is a special case, might not be in the mapping or could have a different display name
-    const statusInternalName = columnMap.get("Status") || 'Status'; // Fallback to common names
+    const statusInternalName = columnMap.get("Status") || 'Status';
     soxControl.status = (spFields[statusInternalName] as SoxControlStatus) || 'Ativo';
     
     return soxControl as SoxControl;
