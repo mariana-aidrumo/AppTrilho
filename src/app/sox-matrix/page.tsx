@@ -179,16 +179,15 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
             const originalValue = control[key];
             const newValue = changes[key];
             const displayName = appKeyToDisplayName[key] || key;
-            const singleChangeSummary = `"${displayName}": de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`;
             
             return {
                 controlId: control.controlId,
                 controlName: control.controlName,
                 requestedBy: currentUser.name,
                 requestType: "Alteração" as "Alteração",
-                comments: singleChangeSummary, // Human-readable summary
-                fieldName: key, // The app-level key of the field being changed
-                newValue: newValue, // The new value, with its type preserved
+                comments: `Alterar "${displayName}" de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`, // Human-readable summary
+                fieldName: 'Campoajustado', // The technical field being changed
+                newValue: key, // The app-level key of the field being changed
             };
         });
         
@@ -199,9 +198,17 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
         if (!changesToConfirm) return;
 
         try {
-            // The addChangeRequest now handles batching if needed, but here we send one by one.
             for (const requestData of changesToConfirm.requests) {
-                await addChangeRequest(requestData);
+                 await addChangeRequest({
+                    ...requestData,
+                    fieldName: 'Campoajustado',
+                    newValue: (requestData as any).newValue, 
+                    comments: requestData.comments,
+                    // We need a separate field for the new value itself
+                    changes: { 
+                        'Descricaocampo': (changesToConfirm.requests.find(r => r.comments === requestData.comments) as any)?.newValue
+                    }
+                });
             }
             
             toast({
@@ -1134,36 +1141,6 @@ export default function SoxMatrixPage() {
                 <CardTitle className="text-2xl">Painel (Visão Geral)</CardTitle>
                 <CardDescription>Acompanhe os controles e suas solicitações.</CardDescription>
             </CardHeader>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-medium">Minhas Solicitações</CardTitle>
-                        <Link href="/pending-approvals"><ListChecks className="h-5 w-5 text-primary" /></Link>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-xs text-muted-foreground">
-                            Acompanhe o status das suas propostas e alterações.
-                        </p>
-                        <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                            <Link href="/pending-approvals">Ver Minhas Solicitações</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-md hover:shadow-lg transition-shadow w-full">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-base font-medium">Meus Controles</CardTitle>
-                         <Link href="/my-registered-controls"><Layers className="h-5 w-5 text-primary" /></Link>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-xs text-muted-foreground">
-                            Acesse e gerencie seus controles e solicitações.
-                        </p>
-                         <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                            <Link href="/my-registered-controls">Acessar Meus Controles</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
             
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="item-1" className="border rounded-lg shadow-sm bg-card">
@@ -1209,5 +1186,3 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
-
-
