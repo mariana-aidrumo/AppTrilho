@@ -136,24 +136,30 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
     if (!spFields) return {} as SoxControl;
 
     const soxControl: Partial<SoxControl> = {
-        id: item.id,
-        lastUpdated: item.lastModifiedDateTime,
+        id: spFields.id, // The list item ID is inside fields
+        spListItemId: spFields.id,
+        lastUpdated: spFields.lastModifiedDateTime,
     };
-
-    const spDisplayNameToAppKey: { [key: string]: string } = {};
-    for (const [key, value] of Object.entries(appToSpDisplayNameMapping)) {
-        spDisplayNameToAppKey[value] = key;
+    
+    const internalNameToDisplayNameMap = new Map<string, string>();
+    for (const [displayName, internalName] of columnMap.entries()) {
+        internalNameToDisplayNameMap.set(internalName, displayName);
     }
+    
+    const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => {
+        (acc as any)[spName] = appKey;
+        return acc;
+    }, {} as Record<string, string>);
 
     const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
 
-    for (const [displayName, internalName] of columnMap.entries()) {
-        if (spFields[internalName] !== undefined && spFields[internalName] !== null) {
-            const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/[^a-zA-Z0-9]/g, '');
-            const originalValue = spFields[internalName];
-            let finalValue: any = originalValue;
-
-            const transformItem = (subItem: any): string => {
+    for (const [internalName, originalValue] of Object.entries(spFields)) {
+        const displayName = internalNameToDisplayNameMap.get(internalName);
+        if (displayName && originalValue !== null && originalValue !== undefined) {
+             const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/\s+/g, '');
+             let finalValue: any = originalValue;
+             
+             const transformItem = (subItem: any): string => {
                 if (typeof subItem !== 'object' || subItem === null) return String(subItem);
                 if ('lookupValue' in subItem) return subItem.lookupValue;
                 if ('displayName' in subItem) return subItem.displayName;
@@ -166,7 +172,7 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
                 finalValue = parseSharePointBoolean(originalValue);
             } else if (Array.isArray(originalValue)) {
                 finalValue = originalValue.map(transformItem);
-            } else if (typeof originalValue === 'object') {
+            } else if (typeof originalValue === 'object' && !(originalValue instanceof Date)) {
                 finalValue = transformItem(originalValue);
             }
             
@@ -177,6 +183,12 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
     const statusInternalName = columnMap.get("Status") || 'Status';
     soxControl.status = (spFields[statusInternalName] as SoxControlStatus) || 'Ativo';
     
+    // Ensure essential IDs are set correctly
+    soxControl.id = item.id;
+    const controlIdInternalName = columnMap.get("Código NOVO") || 'controlId'; // Fallback
+    soxControl.controlId = spFields[controlIdInternalName];
+
+
     return soxControl as SoxControl;
 };
 
@@ -196,7 +208,7 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const columnMap = await getControlsColumnMapping();
         
         let response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`) // Select all fields
             .get();
 
         const allControls: SoxControl[] = [];
@@ -276,10 +288,11 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
     
-    const rawComments = fields.field_7 || '';
+    const rawComments = fields.field_7 || ''; // Detalhes da Mudança
+    
+    // Logic to extract technical data from comments
     const techDataRegex = /\[INTERNAL_CHANGE_DATA:(.*?)\]/;
     const match = rawComments.match(techDataRegex);
-
     let parsedChanges = {};
     let displayComments = rawComments;
 
@@ -294,19 +307,19 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     }
     
     const request: ChangeRequest = {
-        id: fields.Title,
+        id: fields.Title, // ID da Solicitação
         spListItemId: item.id,
-        controlId: fields.field_4,
-        controlName: fields.field_3,
-        requestType: fields.field_2 || 'Alteração',
-        requestedBy: fields.field_5 || "Não encontrado",
-        requestDate: fields.field_6 || item.lastModifiedDateTime,
-        status: fields.field_8 || 'Pendente',
+        controlId: fields.field_4, // ID do Controle
+        controlName: fields.field_3, // Nome do Controle
+        requestType: fields.field_2 || 'Alteração', // Tipo
+        requestedBy: fields.field_5 || "Não encontrado", // Solicitado Por
+        requestDate: fields.field_6 || item.lastModifiedDateTime, // Data da Solicitação
+        status: fields.field_8 || 'Pendente', // Status
+        comments: displayComments, // Detalhes da Mudança (cleaned)
         changes: parsedChanges,
-        comments: displayComments,
-        reviewedBy: fields.field_11,
-        reviewDate: fields.field_10,
-        adminFeedback: fields.field_12 || '',
+        reviewedBy: fields.field_11, // Revisado Por
+        reviewDate: fields.field_10, // Data Revisão
+        adminFeedback: fields.field_12 || '', // Feedback do Admin
     };
     
     return request;
@@ -366,8 +379,8 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest>): Pro
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
+        'field_7': requestData.comments, // This contains the technical data now
         'field_8': "Pendente",
-        'field_7': requestData.comments,
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
@@ -393,12 +406,30 @@ export const updateChangeRequestStatus = async (
     // --- PASSO 1: ATUALIZAR A LISTA DE REGISTRO-MATRIZ ---
     try {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
-        const fieldsForHistoryUpdate: { [key: string]: any } = {
-            'field_8': newStatus,
-            'field_10': new Date().toISOString(),
-            'field_11': reviewedBy,
-            'field_12': adminFeedback || '',
+        const historyColumnMap = await getHistoryColumnMapping();
+        
+        const fieldsForHistoryUpdate: { [key: string]: any } = {};
+
+        // Define the mapping from a conceptual key to the expected SharePoint Display Name
+        const updateFieldMappings: { [key: string]: string | Date | undefined } = {
+            'Status': newStatus,
+            'Data Revisão': new Date().toISOString(),
+            'Revisado Por': reviewedBy,
+            'Feedback do Admin': adminFeedback || '',
         };
+
+        // Dynamically build the payload based on what columns actually exist in the list
+        for (const [displayName, value] of Object.entries(updateFieldMappings)) {
+            const internalName = historyColumnMap.get(displayName);
+            if (internalName) {
+                fieldsForHistoryUpdate[internalName] = value;
+            }
+        }
+        
+        if (Object.keys(fieldsForHistoryUpdate).length === 0) {
+            throw new Error(`Nenhuma das colunas de atualização ('Status', 'Data Revisão', 'Revisado Por', 'Feedback do Admin') foi encontrada na lista ${SHAREPOINT_HISTORY_LIST_NAME}. A atualização não pode continuar.`);
+        }
+
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
     } catch (error: any) {
         console.error("Erro no PASSO 1 (Atualizar Histórico):", JSON.stringify(error, null, 2));
@@ -431,11 +462,7 @@ export const updateChangeRequestStatus = async (
             if (requestToUpdate.requestType === 'Alteração') {
                 const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
                 const controlsColumnMap = await getControlsColumnMapping();
-                
-                // Fetch all controls from the main list (more robust than filtering)
                 const allControls = await getSoxControls();
-
-                // Find the specific control to update by its 'controlId' (Código NOVO)
                 const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                     
                 if (!controlToUpdate || !controlToUpdate.id) {
@@ -453,13 +480,14 @@ export const updateChangeRequestStatus = async (
                             const spInternalName = controlsColumnMap.get(spDisplayName);
                             if(spInternalName) {
                                 let finalValue = value;
-                                // For boolean fields, SharePoint API expects true/false, not "Sim"/"Não"
-                                if (typeof finalValue === 'boolean') {
-                                    dynamicChanges[spInternalName] = finalValue;
-                                } else {
-                                    // Handle other types or just pass as is
-                                    dynamicChanges[spInternalName] = finalValue;
+                                if (typeof finalValue === 'string') {
+                                    // Check if the target field is boolean and convert string back to boolean
+                                    const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+                                    if(booleanFields.has(appKey)){
+                                        finalValue = parseSharePointBoolean(finalValue);
+                                    }
                                 }
+                                dynamicChanges[spInternalName] = finalValue;
                             } else {
                                 console.warn(`Could not find internal name for display name '${spDisplayName}' while applying changes. Skipping this field.`);
                             }
@@ -548,4 +576,5 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
