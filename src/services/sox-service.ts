@@ -322,19 +322,19 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
+    // Use a readable summary for the main comments field
     const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
-    // Attempt to parse the field data to reconstruct the changes object.
-    const fieldName = fields.Campoajustado; // The technical name of the field from "Campoajustado"
-    const newValueJson = fields.Descricaocampo; // The new value, as a JSON string from "Descricaocampo"
+    const fieldName = fields.Campoajustado; // The technical name of the field
+    const newValueJson = fields.Descricaocampo; // The new value as a JSON string
+    
     let changes = {};
-
     if (fieldName && newValueJson !== undefined) {
         try {
-            // It's stored as a JSON string, so we need to parse it back
+            // It's stored as a JSON string, so we need to parse it back to preserve type
             const newValue = JSON.parse(newValueJson);
             changes = { [fieldName]: newValue };
         } catch (e) {
-            // Fallback if parsing fails (e.g., it was just a simple string)
+            // Fallback for older data that might not have been JSON stringified
             changes = { [fieldName]: newValueJson };
         }
     }
@@ -350,9 +350,9 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         status: fields.field_8 || 'Pendente',
         comments: comments,
         changes: changes,
-        reviewedBy: fields.field_10,
-        reviewDate: fields.field_11,
-        adminFeedback: fields.field_12 || '',
+        reviewedBy: fields.RevisadoPor,
+        reviewDate: fields.DataRevisao,
+        adminFeedback: fields.FeedbackAdmin || '',
     };
     
     return request;
@@ -454,9 +454,9 @@ export const updateChangeRequestStatus = async (
         
         const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,                 // Status
-            'field_10': reviewedBy,               // Revisado Por
-            'field_11': new Date().toISOString(), // Data Revisão
-            'field_12': adminFeedback || '',      // Feedback do Admin
+            'RevisadoPor': reviewedBy,               // Revisado Por
+            'DataRevisao': new Date().toISOString(), // Data Revisão
+            'FeedbackAdmin': adminFeedback || '',      // Feedback do Admin
         };
         
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
@@ -622,6 +622,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
