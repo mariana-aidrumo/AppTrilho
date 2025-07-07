@@ -94,9 +94,8 @@ const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColum
     const spFields = item.fields;
     if (!spFields) return {} as SoxControl;
 
-    // Create a reverse map from SharePoint Display Name to our application's key
     const spDisplayNameToAppKeyMap = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => {
-        acc[spName] = appKey as keyof SoxControl;
+        (acc as any)[spName] = appKey as keyof SoxControl;
         return acc;
     }, {} as Record<string, keyof SoxControl>);
 
@@ -105,25 +104,21 @@ const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColum
         spListItemId: item.id,
         lastUpdated: spFields.lastModifiedDateTime || spFields.Modified,
     };
-
-    const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
     
-    // Iterate through all columns returned by SharePoint for this list
+    const booleanAppKeys = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+
     for (const column of columnDetails) {
         const { displayName, internalName } = column;
-
-        // Find the corresponding key in our application's data model (e.g., 'controlId')
-        const appKey = spDisplayNameToAppKeyMap[displayName];
         
-        // If it's a field we care about and it has a value in the SharePoint item
-        if (appKey && spFields[internalName] !== undefined && spFields[internalName] !== null) {
+        const appKeyFromMap = spDisplayNameToAppKeyMap[displayName];
+        const finalAppKey = appKeyFromMap || displayName.replace(/\s+/g, '');
+
+        if (spFields[internalName] !== undefined && spFields[internalName] !== null) {
             let value = spFields[internalName];
 
-            // Handle boolean fields, which might be "Sim"/"Não", true/false, etc.
-            if (booleanFields.has(appKey)) {
+            if (appKeyFromMap && booleanAppKeys.has(appKeyFromMap)) {
                 value = parseSharePointBoolean(value);
             } 
-            // Handle multi-value fields (e.g., multi-lookup or multi-person)
             else if (Array.isArray(value) && value.length > 0) {
                 value = value.map(subItem => {
                     if (subItem && typeof subItem === 'object') {
@@ -134,18 +129,16 @@ const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColum
                     return String(subItem);
                 });
             } 
-            // Handle single-value complex fields (e.g., single lookup or person)
             else if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
                 if ('lookupValue' in value) value = value.lookupValue;
                 else if ('DisplayName' in value) value = value.DisplayName;
                 else if ('Title' in value) value = value.Title;
             }
             
-            (soxControl as any)[appKey] = value;
+            (soxControl as any)[finalAppKey] = value;
         }
     }
     
-    // Ensure status is correctly set
     if (spFields.Status) {
         soxControl.status = spFields.Status as SoxControlStatus;
     } else {
@@ -167,10 +160,8 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
-        // 1. Fetch all column definitions for this list to get displayName -> internalName mapping
         const columnDetails = await getSharePointColumnDetails();
         
-        // 2. Fetch all list items
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`)
             .get();
@@ -185,14 +176,12 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
             }
         }
         
-        // 3. Map each raw SharePoint item to a structured SoxControl object
         const allControls = allItems.map(item => mapSharePointItemToSoxControl(item, columnDetails));
         
         return allControls;
 
     } catch (error: any) {
         console.error("Failed to get SOX controls from SharePoint:", error);
-        // Better to re-throw so the UI can show a proper error message
         throw new Error(`Could not retrieve SOX controls from SharePoint. Reason: ${error.message}`);
     }
 };
@@ -217,19 +206,16 @@ export const updateSoxControlField = async (
 
         const { appKey, value } = fieldToUpdate;
 
-        // Find the SharePoint display name from our mapping
         const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
         if (!spDisplayName) {
             console.warn(`No SharePoint display name mapping found for app key '${appKey}'. Attempting to update using app key directly.`);
         }
 
-        // Find the SharePoint internal name from the dynamically fetched map
         const spInternalName = columnMap.get(spDisplayName);
         if (!spInternalName) {
             throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || appKey}'. The column may not exist or is not accessible.`);
         }
 
-        // Prepare the value, especially for boolean fields
         const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
         let finalValue = value;
         if (booleanFields.has(appKey)) {
@@ -281,7 +267,7 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
         }
     }
   
-    const newItem = { fields: fieldsToCreate };
+    const newItem = { fields: { ...fieldsToCreate, Status: 'Ativo' } };
     return graphClient.api(`/sites/${siteId}/lists/${listId}/items`).post(newItem);
 };
 
@@ -301,7 +287,6 @@ export const addSoxControlsInBulk = async (controls: { [key: string]: any }[]): 
 };
 
 export const addSharePointColumn = async (columnData: { displayName: string; type: 'text' | 'note' | 'number' | 'boolean' }) => {
-    // This function can be improved, but is not part of the current fix.
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) throw new Error("SharePoint configuration is missing.");
 
     const graphClient = await getGraphClient();
@@ -322,17 +307,12 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
-    const fieldName = fields.Campoajustado;
-    const newValueJson = fields.Descricaocampo;
-    
-    let changes = {};
-    if (fieldName && newValueJson !== undefined) {
+    const changes = {};
+    if (fields.Campoajustado && fields.Descricaocampo) {
         try {
-            const newValue = JSON.parse(newValueJson);
-            changes = { [fieldName]: newValue };
-        } catch (e) {
-            changes = { [fieldName]: newValueJson };
+            (changes as any)[fields.Campoajustado] = JSON.parse(fields.Descricaocampo);
+        } catch(e) {
+            (changes as any)[fields.Campoajustado] = fields.Descricaocampo;
         }
     }
     
@@ -345,10 +325,10 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestedBy: fields.field_5 || "Não encontrado", 
         requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente',
-        comments: comments,
+        comments: fields.field_7 || 'Nenhum detalhe fornecido.',
         changes: changes,
-        fieldName: fieldName,
-        newValue: newValueJson ? JSON.parse(newValueJson) : undefined,
+        fieldName: fields.Campoajustado,
+        newValue: fields.Descricaocampo ? JSON.parse(fields.Descricaocampo) : undefined,
         reviewedBy: fields.field_10,
         reviewDate: fields.field_11,
         adminFeedback: fields.field_12 || '',
@@ -472,8 +452,6 @@ export const updateChangeRequestStatus = async (
         throw new Error(detailedMessage);
     }
 
-    // Only apply changes to the main matrix for APPROVED requests.
-    // The "Ciente" status for "Criação" should NOT modify the main matrix.
     if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Alteração') {
         try {
             const allControls = await getSoxControls();
@@ -491,7 +469,6 @@ export const updateChangeRequestStatus = async (
             if (fieldNameFromRequest) {
                 await updateSoxControlField(controlItemSpId, { appKey: fieldNameFromRequest as keyof SoxControl, value: newValueFromRequest });
             } else {
-                 console.warn(`Attempted to approve change request ${requestId} but 'fieldName' was missing. This indicates a data saving issue.`);
                  throw new Error("Não foi possível aplicar a alteração: o nome do campo a ser modificado não foi encontrado na solicitação.");
             }
 
@@ -508,6 +485,21 @@ export const updateChangeRequestStatus = async (
                 detailedMessage += ` Detalhes: ${error.message}`;
             }
             throw new Error(detailedMessage);
+        }
+    } else if (newStatus === 'Ciente' && requestToUpdate.requestType === 'Criação') {
+        try {
+            if (!requestToUpdate.controlName) {
+                throw new Error("O nome do controle proposto não foi encontrado na solicitação de criação.");
+            }
+            const newControlData = {
+                [appToSpDisplayNameMapping.controlName]: requestToUpdate.controlName,
+                [appToSpDisplayNameMapping.description]: requestToUpdate.comments || 'Descrição a ser preenchida.',
+                // Add other default values for a new control here if needed
+            };
+            await addSoxControl(newControlData);
+
+        } catch (error: any) {
+             throw new Error(`O status foi atualizado para Ciente, mas ocorreu um erro ao criar o novo controle na matriz. Detalhes: ${error.message}`);
         }
     }
     

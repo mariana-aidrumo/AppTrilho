@@ -185,9 +185,9 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
                 controlName: control.controlName,
                 requestedBy: currentUser.name,
                 requestType: "Alteração" as "Alteração",
-                comments: `Alterar "${displayName}" de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`, // Human-readable summary
-                fieldName: 'Campoajustado', // The technical field being changed
-                newValue: key, // The app-level key of the field being changed
+                comments: `Alterar "${displayName}" de '${formatValue(originalValue)}' para '${formatValue(newValue)}'`,
+                fieldName: key,
+                newValue: changes[key],
             };
         });
         
@@ -199,16 +199,7 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
 
         try {
             for (const requestData of changesToConfirm.requests) {
-                 await addChangeRequest({
-                    ...requestData,
-                    fieldName: 'Campoajustado',
-                    newValue: (requestData as any).newValue, 
-                    comments: requestData.comments,
-                    // We need a separate field for the new value itself
-                    changes: { 
-                        'Descricaocampo': (changesToConfirm.requests.find(r => r.comments === requestData.comments) as any)?.newValue
-                    }
-                });
+                 await addChangeRequest(requestData);
             }
             
             toast({
@@ -408,7 +399,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns, changeReques
     const isLongText = typeof displayValue === 'string' && (displayValue.includes('\n') || displayValue.length > 80);
 
     return (
-       <div className="grid grid-cols-12 gap-2 py-2 border-b text-sm">
+       <div className="grid grid-cols-12 gap-4 px-4 py-3 text-sm">
          <dt className="col-span-4 font-semibold text-muted-foreground">{label}</dt>
          <dd className={cn("col-span-8", isLongText && "whitespace-pre-wrap")}>
            {displayValue}
@@ -434,7 +425,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns, changeReques
                     <TabsTrigger value="history">Histórico Controle</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4">
-                    <dl>
+                    <dl className="divide-y divide-border rounded-lg border bg-muted/30">
                       {allColumns.map(col => {
                           if (!visibleFields.has(col.label)) {
                             return null;
@@ -1186,3 +1177,4 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
+
