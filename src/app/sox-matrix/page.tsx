@@ -460,7 +460,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns, changeReques
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {isUserControlOwner() && (
+                {isUserControlOwner() && !isUserAdmin() && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
@@ -684,10 +684,9 @@ export default function SoxMatrixPage() {
           (item.previousDisplayId || '').toLowerCase().includes(lowerSearchTerm) ||
           item.name?.toLowerCase().includes(lowerSearchTerm);
 
-        const matchesProcess = selectedProcess === "Todos" || (item.processo || "").includes(selectedProcess);
-        const matchesSubProcess = selectedSubProcess === "Todos" || (item.subProcesso || "").includes(selectedSubProcess);
-        const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner || (item.itemType === 'Controle Ativo' && item.controlOwner === selectedOwner);
-        
+        const matchesProcess = selectedProcess === "Todos" || item.processo === selectedProcess;
+        const matchesSubProcess = selectedSubProcess === "Todos" || item.subProcesso === selectedSubProcess;
+        const matchesOwner = selectedOwner === "Todos" || item.ownerOrRequester === selectedOwner;
         const matchesResponsavelFilter = selectedResponsavel === "Todos" || item.responsavel === selectedResponsavel;
         const matchesN3ResponsavelFilter = selectedN3Responsavel === "Todos" || item.n3Responsavel === selectedN3Responsavel;
 
@@ -875,7 +874,7 @@ export default function SoxMatrixPage() {
                     <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
                     <CommandGroup>
                       {processos.map(p => (
-                        <CommandItem key={p} value={p} onSelect={(currentValue) => { setSelectedProcess(currentValue === p ? 'Todos' : p); setProcessoPopoverOpen(false); }}>
+                        <CommandItem key={p} value={p} onSelect={(currentValue) => { setSelectedProcess(currentValue); setProcessoPopoverOpen(false); }}>
                           <Check className={cn("mr-2 h-4 w-4", selectedProcess === p ? "opacity-100" : "opacity-0")} />
                           {p}
                         </CommandItem>
@@ -903,7 +902,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum subprocesso encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {subProcessos.map(s => (
-                                    <CommandItem key={s} value={s} onSelect={(currentValue) => { setSelectedSubProcess(currentValue === s ? 'Todos' : s); setSubProcessoPopoverOpen(false); }}>
+                                    <CommandItem key={s} value={s} onSelect={(currentValue) => { setSelectedSubProcess(currentValue); setSubProcessoPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedSubProcess === s ? "opacity-100" : "opacity-0")} />
                                         {s}
                                     </CommandItem>
@@ -931,7 +930,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum dono encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {donos.map(o => (
-                                    <CommandItem key={o} value={o} onSelect={(currentValue) => { setSelectedOwner(currentValue === o ? 'Todos' : o); setOwnerPopoverOpen(false); }}>
+                                    <CommandItem key={o} value={o} onSelect={(currentValue) => { setSelectedOwner(currentValue); setOwnerPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedOwner === o ? "opacity-100" : "opacity-0")} />
                                         {o}
                                     </CommandItem>
@@ -959,7 +958,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum responsável encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {responsaveis.map(r => (
-                                    <CommandItem key={r} value={r} onSelect={(currentValue) => { setSelectedResponsavel(currentValue === r ? 'Todos' : r); setResponsavelPopoverOpen(false); }}>
+                                    <CommandItem key={r} value={r} onSelect={(currentValue) => { setSelectedResponsavel(currentValue); setResponsavelPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedResponsavel === r ? "opacity-100" : "opacity-0")} />
                                         {r}
                                     </CommandItem>
@@ -987,7 +986,7 @@ export default function SoxMatrixPage() {
                             <CommandEmpty>Nenhum N3 encontrado.</CommandEmpty>
                             <CommandGroup>
                                 {n3Responsaveis.map(n3 => (
-                                    <CommandItem key={n3} value={n3} onSelect={(currentValue) => { setSelectedN3Responsavel(currentValue === n3 ? 'Todos' : n3); setN3ResponsavelPopoverOpen(false); }}>
+                                    <CommandItem key={n3} value={n3} onSelect={(currentValue) => { setSelectedN3Responsavel(currentValue); setN3ResponsavelPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", selectedN3Responsavel === n3 ? "opacity-100" : "opacity-0")} />
                                         {n3}
                                     </CommandItem>
@@ -1126,7 +1125,7 @@ export default function SoxMatrixPage() {
           </>
       )}
 
-      {isUserControlOwner() && (
+      {isUserControlOwner() && !isUserAdmin() && (
         <div className="space-y-6 w-full">
             <CardHeader className="px-0">
                 <CardTitle className="text-2xl">Painel (Visão Geral)</CardTitle>
@@ -1177,4 +1176,3 @@ export default function SoxMatrixPage() {
     </div>
   );
 }
-
