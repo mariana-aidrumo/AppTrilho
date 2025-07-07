@@ -15,6 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, Filter, RotateCcw, Search, CheckSquare, TrendingUp, Users, LayoutDashboard, Layers, Download, ListChecks, Loader2, SlidersHorizontal, Check, ChevronsUpDown, Edit2 } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
@@ -341,11 +342,12 @@ const RequestChangeDialog = ({ control, onOpenChange, open }: { control: SoxCont
     );
 };
 
-const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: { 
+const ControlDetailSheet = ({ item, open, onOpenChange, allColumns, changeRequests }: { 
   item: UnifiedTableItem | null; 
   open: boolean; 
   onOpenChange: (open: boolean) => void;
   allColumns: { key: string, label: string }[];
+  changeRequests: ChangeRequest[];
 }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -374,6 +376,14 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
     }
   }, [open, allColumns]);
 
+  const controlHistory = useMemo(() => {
+    if (!item || !changeRequests) return [];
+    return changeRequests
+      .filter(req => req.controlId === item.controlId)
+      .sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
+  }, [item, changeRequests]);
+
+
   if (!item) return null;
 
   const DetailRow = ({ label, value }: { label: string; value?: ReactNode }) => {
@@ -399,27 +409,56 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
        </div>
     );
   };
-
+  
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-3xl flex flex-col">
           <SheetHeader>
             <SheetTitle>{item.name}</SheetTitle>
-            <SheetDescription>Detalhes completos do controle e suas responsabilidades.</SheetDescription>
+            <SheetDescription>Detalhes completos e histórico de alterações do controle.</SheetDescription>
           </SheetHeader>
           <div className="py-4 flex-1 overflow-y-auto">
               {!hasLoaded && <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
               {hasLoaded && (
-                <dl>
-                  {allColumns.map(col => {
-                      if (!visibleFields.has(col.label)) {
-                        return null;
-                      }
-                      const value = (item as any)[col.key];
-                      return <DetailRow key={col.key} label={col.label} value={value} />;
-                  })}
-                </dl>
+                <Tabs defaultValue="details" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="details">Detalhes do Controle</TabsTrigger>
+                    <TabsTrigger value="history">Histórico Controle</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="details" className="mt-4">
+                    <dl>
+                      {allColumns.map(col => {
+                          if (!visibleFields.has(col.label)) {
+                            return null;
+                          }
+                          const value = (item as any)[col.key];
+                          return <DetailRow key={col.key} label={col.label} value={value} />;
+                      })}
+                    </dl>
+                  </TabsContent>
+                  <TabsContent value="history" className="mt-4">
+                    {controlHistory.length > 0 ? (
+                      <div className="space-y-4">
+                        {controlHistory.map(log => (
+                           <div key={log.id} className="relative pl-6 border-l-2 border-border">
+                              <div className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-primary" />
+                              <p className="text-sm font-semibold">{log.requestType} por {log.requestedBy}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(log.requestDate).toLocaleString('pt-BR')}</p>
+                              <div className="mt-2 p-3 bg-muted/50 rounded-md">
+                                  <p className="text-sm"><strong>Status:</strong> {log.status}</p>
+                                  <p className="text-sm text-foreground/80 whitespace-pre-wrap"><strong>Detalhes:</strong> {log.comments}</p>
+                                  {log.reviewedBy && <p className="text-sm mt-1"><strong>Revisado por:</strong> {log.reviewedBy} em {log.reviewDate ? new Date(log.reviewDate).toLocaleDateString('pt-BR') : ''}</p>}
+                                  {log.adminFeedback && <p className="text-sm mt-1"><strong>Feedback:</strong> {log.adminFeedback}</p>}
+                              </div>
+                           </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-center text-muted-foreground py-8">Nenhum histórico de alterações encontrado para este controle.</p>
+                    )}
+                  </TabsContent>
+                </Tabs>
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
@@ -1165,8 +1204,10 @@ export default function SoxMatrixPage() {
             }
         }}
         allColumns={allPossibleColumns}
+        changeRequests={changeRequests}
       />
     </div>
   );
 }
+
 
