@@ -322,19 +322,20 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    const detailsJson = fields.field_7 || '{}';
-    let comments = '';
+    const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
+    const fieldName = fields.Campoatualizado;
+    const newValueJson = fields.Descricaocampo;
     let changes = {};
 
-    try {
-        const parsedDetails = JSON.parse(detailsJson);
-        comments = parsedDetails.summary || '';
-        if (parsedDetails.fieldName && parsedDetails.newValue !== undefined) {
-            changes = { [parsedDetails.fieldName]: parsedDetails.newValue };
+    if (fieldName && newValueJson) {
+        try {
+            // Attempt to parse the stored value to restore its original type (e.g., boolean, array)
+            const newValue = JSON.parse(newValueJson);
+            changes = { [fieldName]: newValue };
+        } catch (e) {
+            // If parsing fails, it's likely a simple string. Use it as is.
+            changes = { [fieldName]: newValueJson };
         }
-    } catch (e) {
-        // Fallback for old data that might have been a simple string
-        comments = detailsJson;
     }
     
     const request: ChangeRequest = {
@@ -346,8 +347,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestedBy: fields.field_5 || "Não encontrado", 
         requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente', // Status
-        comments: comments, // Parsed human-readable summary
-        changes: changes, // Parsed technical changes
+        comments: comments,
+        changes: changes,
         reviewedBy: fields.field_10, // Revisado Por
         reviewDate: fields.field_11, // Data Revisão
         adminFeedback: fields.field_12 || '', // Feedback do Admin
@@ -403,12 +404,6 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
 
-    const changeDetails = {
-        summary: requestData.comments || '',
-        fieldName: requestData.fieldName,
-        newValue: requestData.newValue,
-    };
-
     const fieldsToCreate: {[key: string]: any} = {
         'Title': newRequestId,
         'field_2': requestData.requestType,
@@ -416,7 +411,9 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
-        'field_7': JSON.stringify(changeDetails), // All details in one structured field
+        'field_7': requestData.comments, // The readable summary for the user.
+        'Campoatualizado': requestData.fieldName, // The technical name of the field being changed.
+        'Descricaocampo': JSON.stringify(requestData.newValue), // The new value, JSON-stringified to preserve its type.
         'field_8': "Pendente",
     };
     
@@ -490,32 +487,13 @@ export const updateChangeRequestStatus = async (
                 }
                 
                 const controlItemSpId = controlToUpdate.id;
-                const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
-                const controlsColumnMap = await getControlsColumnMapping();
                 const changesToApply = requestToUpdate.changes;
                 
                 if (Object.keys(changesToApply).length > 0) {
-                   const dynamicChanges: {[key: string]: any} = {};
-                    for (const [appKey, value] of Object.entries(changesToApply)) {
-                        const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
-                        if(spDisplayName) {
-                            const spInternalName = controlsColumnMap.get(spDisplayName);
-                            if(spInternalName) {
-                                let finalValue = value;
-                                const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
-                                if(booleanFields.has(appKey)){
-                                    finalValue = parseSharePointBoolean(finalValue);
-                                }
-                                dynamicChanges[spInternalName] = finalValue;
-                            } else {
-                                console.warn(`Could not find internal name for display name '${spDisplayName}' while applying changes. Skipping this field.`);
-                            }
-                        }
-                    }
-                    if (Object.keys(dynamicChanges).length > 0) {
-                        await graphClient.api(`/sites/${siteId}/lists/${controlsListId}/items/${controlItemSpId}/fields`).patch(dynamicChanges);
-                    }
+                    const [appKey, value] = Object.entries(changesToApply)[0];
+                    await updateSoxControlField(controlItemSpId, { appKey: appKey as keyof SoxControl, value });
                 }
+
             } else if (requestToUpdate.requestType === 'Criação') {
                 const fieldsForNewControl: {[key: string]: any} = {};
                 for(const [key, value] of Object.entries(requestToUpdate.changes)) {
@@ -595,6 +573,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
