@@ -322,19 +322,19 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    const fieldName = fields.field_13; // Campo
-    const newValueJson = fields.field_14; // Mudança (JSON string)
-    let parsedChanges = {};
+    const detailsJson = fields.field_7 || '{}';
+    let comments = '';
+    let changes = {};
 
-    if (fieldName && newValueJson) {
-        try {
-            // Reconstruct the changes object from the dedicated fields
-            parsedChanges = { [fieldName]: JSON.parse(newValueJson) };
-        } catch (e) {
-            console.error(`Failed to parse change data JSON from field_14 for request ${fields.Title}:`, newValueJson);
-            // Fallback for older data or malformed JSON
-            parsedChanges = { [fieldName]: newValueJson };
+    try {
+        const parsedDetails = JSON.parse(detailsJson);
+        comments = parsedDetails.summary || '';
+        if (parsedDetails.fieldName && parsedDetails.newValue !== undefined) {
+            changes = { [parsedDetails.fieldName]: parsedDetails.newValue };
         }
+    } catch (e) {
+        // Fallback for old data that might have been a simple string
+        comments = detailsJson;
     }
     
     const request: ChangeRequest = {
@@ -346,8 +346,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         requestedBy: fields.field_5 || "Não encontrado", 
         requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente', // Status
-        comments: fields.field_7 || '', // Detalhes da Mudança (agora só o resumo)
-        changes: parsedChanges,
+        comments: comments, // Parsed human-readable summary
+        changes: changes, // Parsed technical changes
         reviewedBy: fields.field_10, // Revisado Por
         reviewDate: fields.field_11, // Data Revisão
         adminFeedback: fields.field_12 || '', // Feedback do Admin
@@ -403,6 +403,12 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
 
+    const changeDetails = {
+        summary: requestData.comments || '',
+        fieldName: requestData.fieldName,
+        newValue: requestData.newValue,
+    };
+
     const fieldsToCreate: {[key: string]: any} = {
         'Title': newRequestId,
         'field_2': requestData.requestType,
@@ -410,10 +416,8 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
-        'field_7': requestData.comments, // Human-readable summary
+        'field_7': JSON.stringify(changeDetails), // All details in one structured field
         'field_8': "Pendente",
-        'field_13': requestData.fieldName, // The field being changed
-        'field_14': JSON.stringify(requestData.newValue ?? null) // The new value, JSON-stringified
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
@@ -591,6 +595,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
