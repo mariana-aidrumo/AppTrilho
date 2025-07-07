@@ -324,16 +324,18 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
 
     const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
     // Attempt to parse the field data to reconstruct the changes object.
-    const fieldName = fields.Campoatualizado; // The technical name of the field
-    const newValueJson = fields.Descricaocampo; // The new value, as a JSON string
+    const fieldName = fields.Campoajustado; // The technical name of the field from "Campoajustado"
+    const newValueJson = fields.Descricaocampo; // The new value, as a JSON string from "Descricaocampo"
     let changes = {};
 
-    if (fieldName && newValueJson) {
+    if (fieldName && newValueJson !== undefined) {
         try {
+            // It's stored as a JSON string, so we need to parse it back
             const newValue = JSON.parse(newValueJson);
             changes = { [fieldName]: newValue };
         } catch (e) {
-            changes = { [fieldName]: newValueJson }; // Fallback for simple strings
+            // Fallback if parsing fails (e.g., it was just a simple string)
+            changes = { [fieldName]: newValueJson };
         }
     }
     
@@ -403,7 +405,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
     const newRequestId = `cr-new-${Date.now()}`;
     const requestDate = new Date().toISOString();
 
-    const fieldsToCreate: {[key: string]: any} = {
+    const fieldsToCreate: {[key:string]: any} = {
         'Title': newRequestId,
         'field_2': requestData.requestType,
         'field_3': requestData.controlName,
@@ -411,13 +413,23 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
         'field_7': requestData.comments, // Human-readable summary
-        'Campoatualizado': requestData.fieldName, // The technical name of the field
+        'Campoajustado': requestData.fieldName, // The technical name of the field
         'Descricaocampo': JSON.stringify(requestData.newValue), // The new value, JSON-stringified
         'field_8': "Pendente",
     };
     
     const response = await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items`).post({ fields: fieldsToCreate });
-    return { ...requestData, id: newRequestId, spListItemId: response.id, requestDate, status: 'Pendente' } as ChangeRequest;
+
+    const changes = requestData.fieldName ? { [requestData.fieldName]: requestData.newValue } : {};
+    
+    return { 
+        ...requestData, 
+        id: newRequestId, 
+        spListItemId: response.id, 
+        requestDate, 
+        status: 'Pendente',
+        changes
+    } as ChangeRequest;
 };
 
 export const updateChangeRequestStatus = async (
@@ -479,10 +491,12 @@ export const updateChangeRequestStatus = async (
         try {
             if (requestToUpdate.requestType === 'Alteração') {
                 const allControls = await getSoxControls();
+                
+                // Find control by controlId, which is 'Código NOVO'
                 const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                     
                 if (!controlToUpdate || !controlToUpdate.id) {
-                    throw new Error(`Controle principal com ID '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
+                    throw new Error(`Controle principal com Código NOVO '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
                 }
                 
                 const controlItemSpId = controlToUpdate.id;
@@ -608,6 +622,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
