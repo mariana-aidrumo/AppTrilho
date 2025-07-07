@@ -472,39 +472,29 @@ export const updateChangeRequestStatus = async (
         throw new Error(detailedMessage);
     }
 
-    if (newStatus === 'Aprovado' || newStatus === 'Ciente') {
+    // Only apply changes to the main matrix for APPROVED requests.
+    // The "Ciente" status for "Criação" should NOT modify the main matrix.
+    if (newStatus === 'Aprovado' && requestToUpdate.requestType === 'Alteração') {
         try {
-            if (requestToUpdate.requestType === 'Alteração' && newStatus === 'Aprovado') {
-                const allControls = await getSoxControls();
-                const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
-                    
-                if (!controlToUpdate || !controlToUpdate.id) {
-                    throw new Error(`Controle principal com Código NOVO '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
-                }
+            const allControls = await getSoxControls();
+            const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                 
-                const controlItemSpId = controlToUpdate.id;
-                const changesToApply = requestToUpdate.changes;
-                
-                if (Object.keys(changesToApply).length > 0) {
-                    const [appKey, value] = Object.entries(changesToApply)[0];
-                    await updateSoxControlField(controlItemSpId, { appKey: appKey as keyof SoxControl, value });
-                }
-
-            } else if (requestToUpdate.requestType === 'Criação' && newStatus === 'Ciente') {
-                const fieldsForNewControl: {[key: string]: any} = {};
-                for(const [key, value] of Object.entries(requestToUpdate.changes)) {
-                    const displayName = (appToSpDisplayNameMapping as any)[key];
-                    if (displayName) {
-                        fieldsForNewControl[displayName] = value;
-                    }
-                }
-                fieldsForNewControl['Status'] = 'Ativo';
-                const descriptionDisplayName = appToSpDisplayNameMapping.description;
-                if(descriptionDisplayName) {
-                    fieldsForNewControl[descriptionDisplayName] = requestToUpdate.comments;
-                }
-                await addSoxControl(fieldsForNewControl);
+            if (!controlToUpdate || !controlToUpdate.id) {
+                throw new Error(`Controle principal com Código NOVO '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
             }
+            
+            const controlItemSpId = controlToUpdate.id;
+            
+            const fieldNameFromRequest = requestToUpdate.fieldName;
+            const newValueFromRequest = requestToUpdate.newValue;
+
+            if (fieldNameFromRequest) {
+                await updateSoxControlField(controlItemSpId, { appKey: fieldNameFromRequest as keyof SoxControl, value: newValueFromRequest });
+            } else {
+                 console.warn(`Attempted to approve change request ${requestId} but 'fieldName' was missing. This indicates a data saving issue.`);
+                 throw new Error("Não foi possível aplicar a alteração: o nome do campo a ser modificado não foi encontrado na solicitação.");
+            }
+
         } catch (error: any) {
             let detailedMessage = "O status foi atualizado, mas ocorreu um erro ao aplicar as mudanças na matriz principal.";
             if (error.body) {
@@ -514,6 +504,8 @@ export const updateChangeRequestStatus = async (
                         detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
                     }
                 } catch (parseError) {}
+            } else if (error.message) {
+                detailedMessage += ` Detalhes: ${error.message}`;
             }
             throw new Error(detailedMessage);
         }
