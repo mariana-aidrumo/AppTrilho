@@ -23,7 +23,7 @@ import type { ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import * as xlsx from 'xlsx';
-import { getSoxControls, getChangeRequests, getSharePointColumnDetails, addChangeRequest } from "@/services/sox-service";
+import { getSoxControls, getChangeRequests, getSharePointColumnDetails, addChangeRequest, updateSoxControlField } from "@/services/sox-service";
 import { appToSpDisplayNameMapping } from "@/lib/sharepoint-utils";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -351,7 +351,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
 }) => {
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
-  const { currentUser, isUserControlOwner } = useUserProfile();
+  const { currentUser, isUserControlOwner, isUserAdmin } = useUserProfile();
   const [isRequestChangeDialogOpen, setIsRequestChangeDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -425,7 +425,7 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
               )}
           </div>
            <SheetFooter className="mt-auto border-t pt-4">
-                {isUserControlOwner() && (
+                {isUserControlOwner() && !isUserAdmin() && (
                     <Button onClick={() => setIsRequestChangeDialogOpen(true)}>
                        <Edit2 className="mr-2 h-4 w-4" />
                        Solicitar Alteração
@@ -447,7 +447,8 @@ const ControlDetailSheet = ({ item, open, onOpenChange, allColumns }: {
 
 
 export default function SoxMatrixPage() {
-  const { currentUser } = useUserProfile();
+  const { currentUser, isUserAdmin } = useUserProfile();
+  const { toast } = useToast();
 
   // Data states from server
   const [soxControls, setSoxControls] = useState<SoxControl[]>([]);
@@ -479,6 +480,37 @@ export default function SoxMatrixPage() {
   const isResizing = useRef<string | null>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
+
+  const handleFieldUpdate = async (spListItemId: string, appKey: keyof SoxControl, newValue: string, originalValue: any) => {
+    if (String(newValue || '').trim() === String(originalValue || '').trim()) {
+        return; // No change, do nothing
+    }
+
+    const fieldToUpdate = { appKey, value: newValue };
+
+    try {
+        await updateSoxControlField(spListItemId, fieldToUpdate);
+        toast({
+            title: "Campo Atualizado",
+            description: `O controle foi atualizado com sucesso.`,
+        });
+        
+        // Optimistically update local state for instant feedback
+        setSoxControls(prevControls => 
+            prevControls.map(c => 
+                c.id === spListItemId ? { ...c, [appKey]: newValue } : c
+            )
+        );
+
+    } catch (error: any) {
+        toast({
+            title: "Erro ao Atualizar",
+            description: error.message,
+            variant: "destructive",
+        });
+        // You could revert the change here on error if needed, but a toast is often sufficient.
+    }
+  };
   
   // Dynamically generate filter options from loaded data
   const processos = useMemo(() => {
@@ -703,7 +735,10 @@ export default function SoxMatrixPage() {
   }, [columnWidths]);
 
 
-  const renderUnifiedTable = (items: UnifiedTableItem[]) => (
+  const renderUnifiedTable = (items: UnifiedTableItem[]) => {
+    const EDITABLE_COLUMNS: (keyof SoxControl)[] = ['processo', 'subProcesso', 'controlName', 'description', 'controlFrequency', 'modalidade', 'controlType', 'controlOwner', 'responsavel', 'n3Responsavel'];
+    
+    return (
      <div className="rounded-md border mt-4 overflow-x-auto">
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         <colgroup>{displayableColumns.map(col => visibleColumns.has(col.label) ? (<col key={col.key} style={{ width: `${columnWidths[col.key] || DEFAULT_WIDTHS[col.key] || 150}px` }} />) : null)}<col style={{ width: '100px' }} /></colgroup>
@@ -722,21 +757,28 @@ export default function SoxMatrixPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((item) => (
+          {items.map((item) => {
+            return (
             <TableRow
               key={item.key}
-              onClick={() => handleViewDetails(item)}
-              className="cursor-pointer"
             >
              {displayableColumns.map(col => {
                 if (!visibleColumns.has(col.label)) return null;
                 const value = (item as any)[col.key];
-
-                const cellClassName = "truncate";
+                const isEditable = isUserAdmin() && EDITABLE_COLUMNS.includes(col.key as keyof SoxControl);
                 
                 return (
-                    <TableCell key={col.key} className={cellClassName} title={typeof value === 'string' ? value : undefined}>
-                        {Array.isArray(value) ? value.join(', ') : (value || "N/A")}
+                    <TableCell key={col.key} className="truncate" title={typeof value === 'string' ? value : undefined}>
+                        {isEditable ? (
+                             <Input
+                                defaultValue={value || ''}
+                                onBlur={(e) => handleFieldUpdate(item.originalId, col.key as keyof SoxControl, e.target.value, value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                className="h-auto p-0 border-0 rounded-none bg-transparent shadow-none ring-offset-background focus-visible:ring-1 focus-visible:ring-ring focus-visible:bg-background"
+                            />
+                        ) : (
+                          <span>{Array.isArray(value) ? value.join(', ') : (value || "N/A")}</span>
+                        )}
                     </TableCell>
                 );
             })}
@@ -754,7 +796,7 @@ export default function SoxMatrixPage() {
                 </Button>
               </TableCell>
             </TableRow>
-          ))}
+          )})}
         </TableBody>
       </Table>
        {items.length === 0 && !isLoading && (
@@ -763,7 +805,7 @@ export default function SoxMatrixPage() {
         </p>
       )}
     </div>
-  );
+  )};
 
   const renderFilters = () => (
     <div className="space-y-4">
@@ -1037,7 +1079,7 @@ export default function SoxMatrixPage() {
                 <div>
                   <CardTitle>Matriz Geral de Controles</CardTitle>
                   <CardDescription>
-                    Visualize todos os controles ativos na matriz. Use o ícone <Eye className="inline h-4 w-4" /> para ver os detalhes completos.
+                    Visualize e edite todos os controles ativos na matriz. Use o ícone <Eye className="inline h-4 w-4" /> para ver os detalhes completos.
                   </CardDescription>
                 </div>
                 {renderTableActions()}

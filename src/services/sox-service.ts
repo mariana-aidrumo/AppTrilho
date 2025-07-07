@@ -197,6 +197,70 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
     }
 };
 
+export const updateSoxControlField = async (
+  spListItemId: string,
+  fieldToUpdate: { appKey: keyof SoxControl; value: any }
+): Promise<any> => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for controls list.");
+    }
+
+    if (!spListItemId) {
+        throw new Error("SharePoint List Item ID is required for updating.");
+    }
+    
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
+        const columnMap = await getControlsColumnMapping();
+
+        const { appKey, value } = fieldToUpdate;
+
+        // Find the SharePoint display name from our mapping
+        const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
+        if (!spDisplayName) {
+            console.warn(`No SharePoint display name mapping found for app key '${appKey}'. Attempting to update using app key directly.`);
+        }
+
+        // Find the SharePoint internal name from the dynamically fetched map
+        const spInternalName = columnMap.get(spDisplayName);
+        if (!spInternalName) {
+            throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || appKey}'. The column may not exist or is not accessible.`);
+        }
+
+        // Prepare the value, especially for boolean fields
+        const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+        let finalValue = value;
+        if (booleanFields.has(appKey)) {
+            finalValue = parseSharePointBoolean(finalValue);
+        }
+
+        const fieldsToUpdate = {
+            [spInternalName]: finalValue
+        };
+
+        return await graphClient
+            .api(`/sites/${siteId}/lists/${listId}/items/${spListItemId}/fields`)
+            .patch(fieldsToUpdate);
+
+    } catch (error: any) {
+        console.error(`Failed to update field '${fieldToUpdate.appKey}' on item '${spListItemId}' in SharePoint:`, error);
+        
+        let detailedMessage = `Could not update field in SharePoint. Reason: ${error.message}`;
+        if (error.body) {
+            try {
+                const errorBody = JSON.parse(error.body);
+                if (errorBody.error?.message) {
+                    detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
+                }
+            } catch (e) { /* ignore parse error */ }
+        }
+        
+        throw new Error(detailedMessage);
+    }
+};
+
 
 export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -376,12 +440,11 @@ export const updateChangeRequestStatus = async (
     try {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
         
-        // Use the exact internal field names provided by the user.
         const fieldsForHistoryUpdate: { [key: string]: any } = {
             'field_8': newStatus,                 // Status
-            'field_10': reviewedBy,               // RevisadoPor
-            'field_11': new Date().toISOString(), // DataRevisao
-            'field_12': adminFeedback || '',      // FeedbackAdmin
+            'field_10': reviewedBy,               // Revisado Por
+            'field_11': new Date().toISOString(), // Data Revisão
+            'field_12': adminFeedback || '',      // Feedback do Admin
         };
         
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
@@ -528,6 +591,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
