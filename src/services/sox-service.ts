@@ -19,15 +19,6 @@ const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
 const SHAREPOINT_HISTORY_LIST_NAME = 'REGISTRO-MATRIZ';
 
 let controlsColumnMapCache: Map<string, string> | null = null;
-let historyColumnMapCache: Map<string, string> | null = null;
-
-// Helper to format values for text storage in SharePoint
-const formatSpValue = (val: any): string => {
-    if (val === undefined || val === null || val === '') return '';
-    if (Array.isArray(val)) return val.length > 0 ? val.join('; ') : '';
-    if (typeof val === 'boolean') return val ? 'Sim' : 'Não';
-    return String(val);
-};
 
 // Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
@@ -59,38 +50,6 @@ async function getControlsColumnMapping(): Promise<Map<string, string>> {
     controlsColumnMapCache = mapping;
     return mapping;
 }
-
-// Dynamically gets and caches the column mapping for the HISTORY list
-async function getHistoryColumnMapping(): Promise<Map<string, string>> {
-    if (historyColumnMapCache) {
-        return historyColumnMapCache;
-    }
-
-    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
-        throw new Error("SharePoint configuration is missing for history list.");
-    }
-    const graphClient = await getGraphClient();
-    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
-    const listId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
-
-    const response = await graphClient
-        .api(`/sites/${siteId}/lists/${listId}/columns`)
-        .select('displayName,name')
-        .get();
-    
-    if (!response || !response.value) {
-      throw new Error("Could not fetch column details from SharePoint for history mapping.");
-    }
-
-    const mapping = new Map<string, string>();
-    for (const column of response.value) {
-        mapping.set(column.displayName, column.name);
-    }
-    
-    historyColumnMapCache = mapping;
-    return mapping;
-}
-
 
 export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -131,9 +90,15 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         }));
 };
 
-const mapSharePointItemToSoxControl = (item: any): SoxControl => {
+const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColumn[]): SoxControl => {
     const spFields = item.fields;
     if (!spFields) return {} as SoxControl;
+
+    // Create a reverse map from SharePoint Display Name to our application's key
+    const spDisplayNameToAppKeyMap = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => {
+        acc[spName] = appKey as keyof SoxControl;
+        return acc;
+    }, {} as Record<string, keyof SoxControl>);
 
     const soxControl: Partial<SoxControl> = {
         id: item.id,
@@ -141,53 +106,51 @@ const mapSharePointItemToSoxControl = (item: any): SoxControl => {
         lastUpdated: spFields.lastModifiedDateTime || spFields.Modified,
     };
 
-    const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => {
-        (acc as any)[spName] = appKey;
-        return acc;
-    }, {} as Record<string, string>);
-
     const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+    
+    // Iterate through all columns returned by SharePoint for this list
+    for (const column of columnDetails) {
+        const { displayName, internalName } = column;
 
-    for (const [internalName, originalValue] of Object.entries(spFields)) {
-        if (originalValue !== null && originalValue !== undefined) {
-            const appKey = Object.keys(appToSpDisplayNameMapping).find(key => (appToSpDisplayNameMapping as any)[key] === spFields.Title) || internalName;
-            
-            let finalValue: any = originalValue;
-            
-            const transformItem = (subItem: any): string => {
-                if (typeof subItem !== 'object' || subItem === null) return String(subItem);
-                if ('lookupValue' in subItem) return subItem.lookupValue;
-                if ('DisplayName' in subItem) return subItem.DisplayName; // For Person fields
-                if ('Title' in subItem) return subItem.Title;
-                if ('Url' in subItem) return subItem.Url;
-                return JSON.stringify(subItem);
-            };
+        // Find the corresponding key in our application's data model (e.g., 'controlId')
+        const appKey = spDisplayNameToAppKeyMap[displayName];
+        
+        // If it's a field we care about and it has a value in the SharePoint item
+        if (appKey && spFields[internalName] !== undefined && spFields[internalName] !== null) {
+            let value = spFields[internalName];
 
+            // Handle boolean fields, which might be "Sim"/"Não", true/false, etc.
             if (booleanFields.has(appKey)) {
-                finalValue = parseSharePointBoolean(originalValue);
-            } else if (Array.isArray(originalValue)) {
-                finalValue = originalValue.map(transformItem);
-            } else if (typeof originalValue === 'object' && !(originalValue instanceof Date)) {
-                 finalValue = transformItem(originalValue);
+                value = parseSharePointBoolean(value);
+            } 
+            // Handle multi-value fields (e.g., multi-lookup or multi-person)
+            else if (Array.isArray(value) && value.length > 0) {
+                value = value.map(subItem => {
+                    if (subItem && typeof subItem === 'object') {
+                        if ('lookupValue' in subItem) return subItem.lookupValue;
+                        if ('DisplayName' in subItem) return subItem.DisplayName;
+                        if ('Title' in subItem) return subItem.Title;
+                    }
+                    return String(subItem);
+                });
+            } 
+            // Handle single-value complex fields (e.g., single lookup or person)
+            else if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+                if ('lookupValue' in value) value = value.lookupValue;
+                else if ('DisplayName' in value) value = value.DisplayName;
+                else if ('Title' in value) value = value.Title;
             }
             
-            (soxControl as any)[appKey] = finalValue;
+            (soxControl as any)[appKey] = value;
         }
     }
     
-    // Re-map display names to application keys after initial population
-    for (const [appKey, displayName] of Object.entries(appToSpDisplayNameMapping)) {
-        if (spFields[displayName] !== undefined) {
-             let value = spFields[displayName];
-             if (booleanFields.has(appKey)) {
-                 value = parseSharePointBoolean(value);
-             }
-             (soxControl as any)[appKey] = value;
-        }
+    // Ensure status is correctly set
+    if (spFields.Status) {
+        soxControl.status = spFields.Status as SoxControlStatus;
+    } else {
+        soxControl.status = 'Ativo';
     }
-    
-    soxControl.status = spFields.Status as SoxControlStatus || 'Ativo';
-    soxControl.controlId = spFields['Código NOVO'] || soxControl.controlId;
 
     return soxControl as SoxControl;
 };
@@ -204,27 +167,36 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
+        // 1. Fetch all column definitions for this list to get displayName -> internalName mapping
+        const columnDetails = await getSharePointColumnDetails();
+        
+        // 2. Fetch all list items
         let response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`) // Select all fields
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`)
             .get();
 
-        const allControls: SoxControl[] = [];
+        const allItems: any[] = [];
         while (response && response.value) {
-            allControls.push(...response.value.map(item => mapSharePointItemToSoxControl(item)));
-            
+            allItems.push(...response.value);
             if (response['@odata.nextLink']) {
                 response = await graphClient.api(response['@odata.nextLink']).get();
             } else {
                 break;
             }
         }
+        
+        // 3. Map each raw SharePoint item to a structured SoxControl object
+        const allControls = allItems.map(item => mapSharePointItemToSoxControl(item, columnDetails));
+        
         return allControls;
-    } catch (error) {
+
+    } catch (error: any) {
         console.error("Failed to get SOX controls from SharePoint:", error);
-        // Fallback to mock data on error to avoid full app crash, but log the error.
-        return JSON.parse(JSON.stringify(mockSoxControls));
+        // Better to re-throw so the UI can show a proper error message
+        throw new Error(`Could not retrieve SOX controls from SharePoint. Reason: ${error.message}`);
     }
 };
+
 
 export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -556,6 +528,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
