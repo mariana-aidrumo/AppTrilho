@@ -323,35 +323,34 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     if (!fields) return null;
 
     const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
-    const fieldName = fields.Campoatualizado;
-    const newValueJson = fields.Descricaocampo;
+    // Attempt to parse the field data to reconstruct the changes object.
+    const fieldName = fields.Campoatualizado; // The technical name of the field
+    const newValueJson = fields.Descricaocampo; // The new value, as a JSON string
     let changes = {};
 
     if (fieldName && newValueJson) {
         try {
-            // Attempt to parse the stored value to restore its original type (e.g., boolean, array)
             const newValue = JSON.parse(newValueJson);
             changes = { [fieldName]: newValue };
         } catch (e) {
-            // If parsing fails, it's likely a simple string. Use it as is.
-            changes = { [fieldName]: newValueJson };
+            changes = { [fieldName]: newValueJson }; // Fallback for simple strings
         }
     }
     
     const request: ChangeRequest = {
-        id: fields.Title, // ID da Solicitação
+        id: fields.Title,
         spListItemId: item.id,
         controlId: fields.field_4, 
         controlName: fields.field_3, 
         requestType: fields.field_2 || 'Alteração', 
         requestedBy: fields.field_5 || "Não encontrado", 
         requestDate: fields.field_6 || item.lastModifiedDateTime,
-        status: fields.field_8 || 'Pendente', // Status
+        status: fields.field_8 || 'Pendente',
         comments: comments,
         changes: changes,
-        reviewedBy: fields.field_10, // Revisado Por
-        reviewDate: fields.field_11, // Data Revisão
-        adminFeedback: fields.field_12 || '', // Feedback do Admin
+        reviewedBy: fields.field_10,
+        reviewDate: fields.field_11,
+        adminFeedback: fields.field_12 || '',
     };
     
     return request;
@@ -411,9 +410,9 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
-        'field_7': requestData.comments, // The readable summary for the user.
-        'Campoatualizado': requestData.fieldName, // The technical name of the field being changed.
-        'Descricaocampo': JSON.stringify(requestData.newValue), // The new value, JSON-stringified to preserve its type.
+        'field_7': requestData.comments, // Human-readable summary
+        'Campoatualizado': requestData.fieldName, // The technical name of the field
+        'Descricaocampo': JSON.stringify(requestData.newValue), // The new value, JSON-stringified
         'field_8': "Pendente",
     };
     
@@ -534,6 +533,42 @@ export const updateChangeRequestStatus = async (
     return { ...requestToUpdate, status: newStatus };
 };
 
+export const getHistoryListColumns = async (): Promise<SharePointColumn[]> => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_HISTORY_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for history list.");
+    }
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const listId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME);
+    
+    const response = await graphClient
+        .api(`/sites/${siteId}/lists/${listId}/columns`)
+        .get();
+
+    if (!response || !response.value) {
+      throw new Error("Could not fetch column details from SharePoint history list.");
+    }
+
+    const getColumnType = (spColumn: any): SharePointColumn['type'] => {
+        if (spColumn.boolean) return 'boolean';
+        if (spColumn.dateTime) return 'dateTime';
+        if (spColumn.number) return 'number';
+        if (spColumn.choice) return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
+        if (spColumn.text) return spColumn.text.allowMultipleLines ? 'note' : 'text';
+        if (spColumn.lookup) return 'text';
+        if (spColumn.personOrGroup) return 'text';
+        return 'unsupported';
+    };
+
+    return response.value
+        .filter((column: any) => !column.hidden)
+        .map((column: any) => ({
+            displayName: column.displayName,
+            internalName: column.name,
+            type: getColumnType(column),
+        }));
+};
+
 
 // --- Mocked Services (for user management etc.) ---
 export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
@@ -573,6 +608,7 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
 
