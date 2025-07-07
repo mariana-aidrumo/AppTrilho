@@ -119,7 +119,7 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         if (spColumn.text) return spColumn.text.allowMultipleLines ? 'note' : 'text';
         if (spColumn.lookup) return 'text'; // Treat lookups as text for display
         if (spColumn.personOrGroup) return 'text'; // Treat people as text for display
-        return 'text'; // Default to text for any other unsupported type
+        return 'unsupported'; // Default to unsupported for any other type
     };
 
     return response.value
@@ -131,21 +131,16 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         }));
 };
 
-const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>): SoxControl => {
+const mapSharePointItemToSoxControl = (item: any): SoxControl => {
     const spFields = item.fields;
     if (!spFields) return {} as SoxControl;
 
     const soxControl: Partial<SoxControl> = {
-        id: spFields.id, // The list item ID is inside fields
-        spListItemId: spFields.id,
-        lastUpdated: spFields.lastModifiedDateTime,
+        id: item.id,
+        spListItemId: item.id,
+        lastUpdated: spFields.lastModifiedDateTime || spFields.Modified,
     };
-    
-    const internalNameToDisplayNameMap = new Map<string, string>();
-    for (const [displayName, internalName] of columnMap.entries()) {
-        internalNameToDisplayNameMap.set(internalName, displayName);
-    }
-    
+
     const spDisplayNameToAppKey = Object.entries(appToSpDisplayNameMapping).reduce((acc, [appKey, spName]) => {
         (acc as any)[spName] = appKey;
         return acc;
@@ -154,15 +149,15 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
     const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
 
     for (const [internalName, originalValue] of Object.entries(spFields)) {
-        const displayName = internalNameToDisplayNameMap.get(internalName);
-        if (displayName && originalValue !== null && originalValue !== undefined) {
-             const appKey = spDisplayNameToAppKey[displayName] || displayName.replace(/\s+/g, '');
-             let finalValue: any = originalValue;
-             
-             const transformItem = (subItem: any): string => {
+        if (originalValue !== null && originalValue !== undefined) {
+            const appKey = Object.keys(appToSpDisplayNameMapping).find(key => (appToSpDisplayNameMapping as any)[key] === spFields.Title) || internalName;
+            
+            let finalValue: any = originalValue;
+            
+            const transformItem = (subItem: any): string => {
                 if (typeof subItem !== 'object' || subItem === null) return String(subItem);
                 if ('lookupValue' in subItem) return subItem.lookupValue;
-                if ('displayName' in subItem) return subItem.displayName;
+                if ('DisplayName' in subItem) return subItem.DisplayName; // For Person fields
                 if ('Title' in subItem) return subItem.Title;
                 if ('Url' in subItem) return subItem.Url;
                 return JSON.stringify(subItem);
@@ -173,21 +168,26 @@ const mapSharePointItemToSoxControl = (item: any, columnMap: Map<string, string>
             } else if (Array.isArray(originalValue)) {
                 finalValue = originalValue.map(transformItem);
             } else if (typeof originalValue === 'object' && !(originalValue instanceof Date)) {
-                finalValue = transformItem(originalValue);
+                 finalValue = transformItem(originalValue);
             }
             
             (soxControl as any)[appKey] = finalValue;
         }
     }
     
-    const statusInternalName = columnMap.get("Status") || 'Status';
-    soxControl.status = (spFields[statusInternalName] as SoxControlStatus) || 'Ativo';
+    // Re-map display names to application keys after initial population
+    for (const [appKey, displayName] of Object.entries(appToSpDisplayNameMapping)) {
+        if (spFields[displayName] !== undefined) {
+             let value = spFields[displayName];
+             if (booleanFields.has(appKey)) {
+                 value = parseSharePointBoolean(value);
+             }
+             (soxControl as any)[appKey] = value;
+        }
+    }
     
-    // Ensure essential IDs are set correctly
-    soxControl.id = item.id;
-    const controlIdInternalName = columnMap.get("Código NOVO") || 'controlId'; // Fallback
-    soxControl.controlId = spFields[controlIdInternalName];
-
+    soxControl.status = spFields.Status as SoxControlStatus || 'Ativo';
+    soxControl.controlId = spFields['Código NOVO'] || soxControl.controlId;
 
     return soxControl as SoxControl;
 };
@@ -204,17 +204,13 @@ export const getSoxControls = async (): Promise<SoxControl[]> => {
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
         
-        // Get the dynamic column mapping first
-        const columnMap = await getControlsColumnMapping();
-        
         let response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=*)`) // Select all fields
             .get();
 
         const allControls: SoxControl[] = [];
         while (response && response.value) {
-            // Pass the map to the mapping function for each item
-            allControls.push(...response.value.map(item => mapSharePointItemToSoxControl(item, columnMap)));
+            allControls.push(...response.value.map(item => mapSharePointItemToSoxControl(item)));
             
             if (response['@odata.nextLink']) {
                 response = await graphClient.api(response['@odata.nextLink']).get();
@@ -244,6 +240,8 @@ export const addSoxControl = async (rowData: { [key: string]: any }): Promise<an
         const internalName = columnMap.get(displayName);
         if (internalName) {
             fieldsToCreate[internalName] = value;
+        } else {
+             fieldsToCreate[displayName] = value;
         }
     }
   
@@ -290,7 +288,6 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     
     const rawComments = fields.field_7 || ''; // Detalhes da Mudança
     
-    // Logic to extract technical data from comments
     const techDataRegex = /\[INTERNAL_CHANGE_DATA:(.*?)\]/;
     const match = rawComments.match(techDataRegex);
     let parsedChanges = {};
@@ -309,16 +306,16 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const request: ChangeRequest = {
         id: fields.Title, // ID da Solicitação
         spListItemId: item.id,
-        controlId: fields.field_4, // ID do Controle
-        controlName: fields.field_3, // Nome do Controle
-        requestType: fields.field_2 || 'Alteração', // Tipo
-        requestedBy: fields.field_5 || "Não encontrado", // Solicitado Por
-        requestDate: fields.field_6 || item.lastModifiedDateTime, // Data da Solicitação
+        controlId: fields.field_4, 
+        controlName: fields.field_3, 
+        requestType: fields.field_2 || 'Alteração', 
+        requestedBy: fields.field_5 || "Não encontrado", 
+        requestDate: fields.field_6 || item.lastModifiedDateTime,
         status: fields.field_8 || 'Pendente', // Status
-        comments: displayComments, // Detalhes da Mudança (cleaned)
+        comments: displayComments, 
         changes: parsedChanges,
-        reviewedBy: fields.field_11, // Revisado Por
-        reviewDate: fields.field_10, // Data Revisão
+        reviewedBy: fields.field_10, // Revisado Por
+        reviewDate: fields.field_11, // Data Revisão
         adminFeedback: fields.field_12 || '', // Feedback do Admin
     };
     
@@ -406,30 +403,15 @@ export const updateChangeRequestStatus = async (
     // --- PASSO 1: ATUALIZAR A LISTA DE REGISTRO-MATRIZ ---
     try {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
-        const historyColumnMap = await getHistoryColumnMapping();
         
-        const fieldsForHistoryUpdate: { [key: string]: any } = {};
-
-        // Define the mapping from a conceptual key to the expected SharePoint Display Name
-        const updateFieldMappings: { [key: string]: string | Date | undefined } = {
-            'Status': newStatus,
-            'Data Revisão': new Date().toISOString(),
-            'Revisado Por': reviewedBy,
-            'Feedback do Admin': adminFeedback || '',
+        // Use the exact internal field names provided by the user.
+        const fieldsForHistoryUpdate: { [key: string]: any } = {
+            'field_8': newStatus,                 // Status
+            'field_10': reviewedBy,               // RevisadoPor
+            'field_11': new Date().toISOString(), // DataRevisao
+            'field_12': adminFeedback || '',      // FeedbackAdmin
         };
-
-        // Dynamically build the payload based on what columns actually exist in the list
-        for (const [displayName, value] of Object.entries(updateFieldMappings)) {
-            const internalName = historyColumnMap.get(displayName);
-            if (internalName) {
-                fieldsForHistoryUpdate[internalName] = value;
-            }
-        }
         
-        if (Object.keys(fieldsForHistoryUpdate).length === 0) {
-            throw new Error(`Nenhuma das colunas de atualização ('Status', 'Data Revisão', 'Revisado Por', 'Feedback do Admin') foi encontrada na lista ${SHAREPOINT_HISTORY_LIST_NAME}. A atualização não pode continuar.`);
-        }
-
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
     } catch (error: any) {
         console.error("Erro no PASSO 1 (Atualizar Histórico):", JSON.stringify(error, null, 2));
@@ -453,6 +435,7 @@ export const updateChangeRequestStatus = async (
         if (error.statusCode) {
             detailedMessage += ` (Status code: ${error.statusCode})`;
         }
+        
         throw new Error(detailedMessage);
     }
 
@@ -460,16 +443,16 @@ export const updateChangeRequestStatus = async (
     if (newStatus === 'Aprovado') {
         try {
             if (requestToUpdate.requestType === 'Alteração') {
-                const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
-                const controlsColumnMap = await getControlsColumnMapping();
                 const allControls = await getSoxControls();
                 const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                     
                 if (!controlToUpdate || !controlToUpdate.id) {
                     throw new Error(`Controle principal com ID '${requestToUpdate.controlId}' não encontrado na matriz para aplicar a alteração.`);
                 }
-                const controlItemSpId = controlToUpdate.id;
                 
+                const controlItemSpId = controlToUpdate.id;
+                const controlsListId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME!);
+                const controlsColumnMap = await getControlsColumnMapping();
                 const changesToApply = requestToUpdate.changes;
                 
                 if (Object.keys(changesToApply).length > 0) {
@@ -480,12 +463,9 @@ export const updateChangeRequestStatus = async (
                             const spInternalName = controlsColumnMap.get(spDisplayName);
                             if(spInternalName) {
                                 let finalValue = value;
-                                if (typeof finalValue === 'string') {
-                                    // Check if the target field is boolean and convert string back to boolean
-                                    const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
-                                    if(booleanFields.has(appKey)){
-                                        finalValue = parseSharePointBoolean(finalValue);
-                                    }
+                                const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
+                                if(booleanFields.has(appKey)){
+                                    finalValue = parseSharePointBoolean(finalValue);
                                 }
                                 dynamicChanges[spInternalName] = finalValue;
                             } else {
@@ -576,5 +556,6 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
     
 
     
+
 
 
