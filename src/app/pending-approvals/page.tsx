@@ -8,7 +8,7 @@ import type { ChangeRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { HistoryIcon, AlertTriangle, FileText, CheckCircle2, Loader2, XCircle, CheckCircle } from "lucide-react";
+import { HistoryIcon, AlertTriangle, FileText, CheckCircle2, Loader2, XCircle, CheckCircle, PlusSquare } from "lucide-react";
 import Link from "next/link";
 import { useUserProfile } from "@/contexts/user-profile-context";
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -22,7 +22,7 @@ export default function PendingApprovalsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   
-  const [requestToAction, setRequestToAction] = useState<{request: ChangeRequest, action: 'Aprovado' | 'Rejeitado'} | null>(null);
+  const [requestToAction, setRequestToAction] = useState<{request: ChangeRequest, action: 'Aprovado' | 'Rejeitado' | 'Ciente'} | null>(null);
   const [adminFeedback, setAdminFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -44,7 +44,8 @@ export default function PendingApprovalsPage() {
   }, [currentUser.id, loadData]);
 
   // Filtros para Administrador
-  const adminPendingRequests = useMemo(() => changeRequests.filter(req => req.status === "Pendente"), [changeRequests]);
+  const adminPendingAlteracaoRequests = useMemo(() => changeRequests.filter(req => req.status === "Pendente" && req.requestType === "Alteração"), [changeRequests]);
+  const adminPendingCriacaoRequests = useMemo(() => changeRequests.filter(req => req.status === "Pendente" && req.requestType === "Criação"), [changeRequests]);
   const adminHistoryRequests = useMemo(() => changeRequests.filter(req => req.status !== "Pendente"), [changeRequests]);
 
 
@@ -66,7 +67,7 @@ export default function PendingApprovalsPage() {
   const ownerRequestsHistory = useMemo(() => {
     if (!currentUser) return [];
     return changeRequests.filter(
-      req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado")
+      req => req.requestedBy === currentUser.name && (req.status === "Aprovado" || req.status === "Rejeitado" || req.status === "Ciente")
     );
   }, [changeRequests, currentUser]);
 
@@ -78,7 +79,7 @@ export default function PendingApprovalsPage() {
         await updateChangeRequestStatus(requestToAction.request.id, requestToAction.action, currentUser.name, adminFeedback);
         toast({
             title: "Sucesso",
-            description: `A solicitação foi marcada como "${requestToAction.action}".`,
+            description: `A solicitação foi processada com sucesso.`,
         });
         loadData(); // Reload data to reflect changes
     } catch (error) {
@@ -91,7 +92,7 @@ export default function PendingApprovalsPage() {
     }
   };
 
-  const handleOpenDialog = (request: ChangeRequest, action: 'Aprovado' | 'Rejeitado') => {
+  const handleOpenDialog = (request: ChangeRequest, action: 'Aprovado' | 'Rejeitado' | 'Ciente') => {
     setRequestToAction({ request, action });
     setAdminFeedback(""); // Reset feedback on open
   };
@@ -101,10 +102,11 @@ export default function PendingApprovalsPage() {
     ? "Revise e aprove ou rejeite as solicitações de alteração e criação de controles."
     : "Acompanhe o status das suas propostas e alterações de controles internos.";
 
-  const renderRequestTable = (requests: ChangeRequest[], context: "admin-pending" | "admin-history" | "owner-pending" | "owner-feedback" | "owner-history") => {
+  const renderRequestTable = (requests: ChangeRequest[], context: "admin-alteracao" | "admin-criacao" | "admin-history" | "owner-pending" | "owner-feedback" | "owner-history") => {
     if (requests.length === 0) {
       let message = "Nenhuma solicitação encontrada para esta categoria.";
-      if (context === "admin-pending" && isUserAdmin()) message = "Nenhuma solicitação pendente de aprovação.";
+      if (context === "admin-alteracao" && isUserAdmin()) message = "Nenhuma solicitação de alteração pendente de aprovação.";
+      else if (context === "admin-criacao" && isUserAdmin()) message = "Nenhuma solicitação de criação pendente de aprovação.";
       else if (context === "admin-history") message = "Nenhuma solicitação no histórico.";
       else if (context === "owner-pending") message = "Você não possui solicitações pendentes de aprovação.";
       else if (context === "owner-feedback") message = "Nenhuma solicitação aguardando sua ação.";
@@ -112,7 +114,7 @@ export default function PendingApprovalsPage() {
       return <p className="mt-4 text-center text-muted-foreground">{message}</p>;
     }
 
-    const isAdminActionView = context === "admin-pending";
+    const isAdminActionView = context.startsWith("admin-");
     const isAdminView = context.startsWith("admin");
 
     return (
@@ -122,7 +124,7 @@ export default function PendingApprovalsPage() {
             <TableRow>
               <TableHead>ID Solicitação</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Controle (ID)</TableHead>
+              <TableHead>Controle (ID/Nome)</TableHead>
               {isAdminView && <TableHead>Solicitado Por</TableHead>}
               <TableHead>Data da Solicitação</TableHead>
               <TableHead>Status</TableHead>
@@ -148,6 +150,7 @@ export default function PendingApprovalsPage() {
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
                         request.status === "Pendente" ? "bg-yellow-100 text-yellow-700" :
                         request.status === "Aprovado" ? "bg-green-100 text-green-700" :
+                        request.status === "Ciente" ? "bg-sky-100 text-sky-700" :
                         request.status === "Rejeitado" ? "bg-red-100 text-red-700" :
                         request.status === "Em Análise" ? "bg-blue-100 text-blue-700" :
                         request.status === "Aguardando Feedback do Dono" ? "bg-orange-100 text-orange-700" :
@@ -159,16 +162,28 @@ export default function PendingApprovalsPage() {
                  <TableCell className="max-w-md whitespace-pre-wrap text-sm text-muted-foreground">
                     {request.comments || 'Nenhum detalhe fornecido.'}
                   </TableCell>
-                {context === "admin-history" && <TableHead>Revisado Por</TableHead>}
-                {context === "admin-history" && <TableHead>Data Revisão</TableHead>}
+                {context === "admin-history" && <TableCell>{request.reviewedBy || "N/A"}</TableCell>}
+                {context === "admin-history" && <TableCell>{request.reviewDate ? new Date(request.reviewDate).toLocaleDateString('pt-BR') : "N/A"}</TableCell>}
                 {context === "admin-history" && <TableCell className="whitespace-pre-wrap">{request.adminFeedback || "N/A"}</TableCell>}
                 
                 <TableCell className="text-right">
-                  {isAdminActionView && (
+                  {context === "admin-alteracao" && (
                       <div className="flex gap-2 justify-end">
                           <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleOpenDialog(request, 'Aprovado')} title="Aprovar">
                               <CheckCircle className="h-5 w-5" />
                               <span className="sr-only">Aprovar</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleOpenDialog(request, 'Rejeitado')} title="Rejeitar">
+                              <XCircle className="h-5 w-5" />
+                              <span className="sr-only">Rejeitar</span>
+                          </Button>
+                      </div>
+                  )}
+                   {context === "admin-criacao" && (
+                      <div className="flex gap-2 justify-end">
+                          <Button variant="ghost" size="icon" className="text-sky-600 hover:text-sky-700" onClick={() => handleOpenDialog(request, 'Ciente')} title="Ciente (Criar Controle)">
+                              <CheckCircle2 className="h-5 w-5" />
+                              <span className="sr-only">Ciente</span>
                           </Button>
                           <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleOpenDialog(request, 'Rejeitado')} title="Rejeitar">
                               <XCircle className="h-5 w-5" />
@@ -193,6 +208,20 @@ export default function PendingApprovalsPage() {
           </div>
       );
   }
+  
+  const getActionText = () => {
+    if (!requestToAction) return { verb: '', consequence: '' };
+    switch (requestToAction.action) {
+        case 'Aprovado':
+            return { verb: 'aprovar', consequence: 'As alterações serão aplicadas permanentemente.' };
+        case 'Ciente':
+            return { verb: 'marcar como ciente e criar', consequence: 'Um novo controle será criado na matriz com o nome proposto.' };
+        case 'Rejeitado':
+            return { verb: 'rejeitar', consequence: 'A solicitação será encerrada e o solicitante notificado.' };
+        default:
+            return { verb: '', consequence: '' };
+    }
+  };
 
   return (
     <div className="space-y-6 w-full">
@@ -203,17 +232,23 @@ export default function PendingApprovalsPage() {
         </CardHeader>
         <CardContent>
           {isUserAdmin() && (
-            <Tabs defaultValue="pending">
-              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2">
-                <TabsTrigger value="pending">
-                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Solicitações Pendentes ({adminPendingRequests.length})
+            <Tabs defaultValue="alteracoes">
+              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
+                <TabsTrigger value="alteracoes">
+                  <FileText className="mr-2 h-4 w-4 text-blue-600" /> Solicitações de Alteração ({adminPendingAlteracaoRequests.length})
+                </TabsTrigger>
+                 <TabsTrigger value="criacoes">
+                  <PlusSquare className="mr-2 h-4 w-4 text-purple-600" /> Solicitações de Criação ({adminPendingCriacaoRequests.length})
                 </TabsTrigger>
                 <TabsTrigger value="history">
                   <HistoryIcon className="mr-2 h-4 w-4 text-gray-600" /> Histórico de Solicitações ({adminHistoryRequests.length})
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="pending">
-                {renderRequestTable(adminPendingRequests, "admin-pending")}
+              <TabsContent value="alteracoes">
+                {renderRequestTable(adminPendingAlteracaoRequests, "admin-alteracao")}
+              </TabsContent>
+              <TabsContent value="criacoes">
+                 {renderRequestTable(adminPendingCriacaoRequests, "admin-criacao")}
               </TabsContent>
               <TabsContent value="history">
                 {renderRequestTable(adminHistoryRequests, "admin-history")}
@@ -221,7 +256,7 @@ export default function PendingApprovalsPage() {
             </Tabs>
           )}
           
-          {isUserControlOwner() && (
+          {isUserControlOwner() && !isUserAdmin() && (
             <Tabs defaultValue="pendentes">
               <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                 <TabsTrigger value="pendentes">
@@ -254,10 +289,9 @@ export default function PendingApprovalsPage() {
                   <AlertDialogTitle>Confirmar Ação</AlertDialogTitle>
                   <AlertDialogDescription>
                     <div>
-                        Você tem certeza que deseja <strong>{requestToAction?.action === 'Aprovado' ? 'aprovar' : 'rejeitar'}</strong> a solicitação para o controle <strong>{requestToAction?.request.controlName}</strong>?
+                        Você tem certeza que deseja <strong>{getActionText().verb}</strong> a solicitação para o controle <strong>{requestToAction?.request.controlName}</strong>?
                         <br />
-                        {requestToAction?.action === 'Aprovado' && 'As alterações serão aplicadas permanentemente.'}
-                        {requestToAction?.action === 'Rejeitado' && 'A solicitação será encerrada e o solicitante notificado.'}
+                        {getActionText().consequence}
                     </div>
                   </AlertDialogDescription>
               </AlertDialogHeader>

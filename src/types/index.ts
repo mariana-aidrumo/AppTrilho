@@ -71,7 +71,7 @@ export interface SoxControl {
   [key: string]: any;
 }
 
-export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono";
+export type ChangeRequestStatus = "Pendente" | "Aprovado" | "Rejeitado" | "Em Análise" | "Aguardando Feedback do Dono" | "Ciente";
 export type ChangeRequestType = "Alteração" | "Criação";
 
 export interface ChangeRequest {
@@ -88,6 +88,10 @@ export interface ChangeRequest {
   reviewDate?: string; // Data ISO da revisão
   comments?: string; // Comentários do solicitante
   adminFeedback?: string; // Feedback do admin para o Dono do Controle
+  
+  // Explicit fields for structured storage/retrieval
+  fieldName?: keyof SoxControl;
+  newValue?: any;
 }
 
 export interface VersionHistoryEntry {

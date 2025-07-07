@@ -322,19 +322,16 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
 
-    // Use a readable summary for the main comments field
     const comments = fields.field_7 || 'Nenhum detalhe fornecido.';
-    const fieldName = fields.Campoajustado; // The technical name of the field
-    const newValueJson = fields.Descricaocampo; // The new value as a JSON string
+    const fieldName = fields.Campoajustado;
+    const newValueJson = fields.Descricaocampo;
     
     let changes = {};
     if (fieldName && newValueJson !== undefined) {
         try {
-            // It's stored as a JSON string, so we need to parse it back to preserve type
             const newValue = JSON.parse(newValueJson);
             changes = { [fieldName]: newValue };
         } catch (e) {
-            // Fallback for older data that might not have been JSON stringified
             changes = { [fieldName]: newValueJson };
         }
     }
@@ -350,6 +347,8 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         status: fields.field_8 || 'Pendente',
         comments: comments,
         changes: changes,
+        fieldName: fieldName,
+        newValue: newValueJson ? JSON.parse(newValueJson) : undefined,
         reviewedBy: fields.field_10,
         reviewDate: fields.field_11,
         adminFeedback: fields.field_12 || '',
@@ -412,9 +411,9 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
         'field_4': requestData.controlId,
         'field_5': requestData.requestedBy,
         'field_6': requestDate,
-        'field_7': requestData.comments, // Human-readable summary
-        'Campoajustado': requestData.fieldName, // The technical name of the field
-        'Descricaocampo': JSON.stringify(requestData.newValue), // The new value, JSON-stringified
+        'field_7': requestData.comments,
+        'Campoajustado': requestData.fieldName,
+        'Descricaocampo': JSON.stringify(requestData.newValue),
         'field_8': "Pendente",
     };
     
@@ -434,7 +433,7 @@ export const addChangeRequest = async (requestData: Partial<ChangeRequest> & { f
 
 export const updateChangeRequestStatus = async (
   requestId: string,
-  newStatus: 'Aprovado' | 'Rejeitado',
+  newStatus: ChangeRequestStatus,
   reviewedBy: string,
   adminFeedback?: string
 ): Promise<ChangeRequest> => {
@@ -448,51 +447,35 @@ export const updateChangeRequestStatus = async (
     const graphClient = await getGraphClient();
     const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL!);
     
-    // --- PASSO 1: ATUALIZAR A LISTA DE REGISTRO-MATRIZ ---
     try {
         const historyListId = await getListId(graphClient, siteId, SHAREPOINT_HISTORY_LIST_NAME!);
         
         const fieldsForHistoryUpdate: { [key: string]: any } = {
-            'field_8': newStatus,                    // Status
-            'field_10': reviewedBy,                  // Revisado Por
-            'field_11': new Date().toISOString(),    // Data Revisão
-            'field_12': adminFeedback || '',         // Feedback do Admin
+            'field_8': newStatus,
+            'field_10': reviewedBy,
+            'field_11': new Date().toISOString(),
+            'field_12': adminFeedback || '',
         };
         
         await graphClient.api(`/sites/${siteId}/lists/${historyListId}/items/${requestToUpdate.spListItemId}/fields`).patch(fieldsForHistoryUpdate);
     } catch (error: any) {
-        console.error("Erro no PASSO 1 (Atualizar Histórico):", JSON.stringify(error, null, 2));
-        let detailedMessage = "Ocorreu um erro ao atualizar o status da solicitação no histórico (PASSO 1).";
-        
+        console.error("Erro ao atualizar o status da solicitação:", JSON.stringify(error, null, 2));
+        let detailedMessage = `Ocorreu um erro ao atualizar o status da solicitação. SharePoint Error: ${error.message}`;
         if (error.body) {
             try {
                 const errorBody = JSON.parse(error.body);
                 if (errorBody.error?.message) {
-                    detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
-                } else {
-                    detailedMessage += ` SharePoint returned an error body: ${error.body}`;
+                    detailedMessage = `SharePoint Error: ${errorBody.error.message}`;
                 }
-            } catch (parseError) {
-                detailedMessage += ` Invalid request to SharePoint. Raw response: ${error.body}`;
-            }
-        } else if (error.message) {
-            detailedMessage += ` Details: ${error.message}`;
+            } catch (e) { /* ignore parse error */ }
         }
-        
-        if (error.statusCode) {
-            detailedMessage += ` (Status code: ${error.statusCode})`;
-        }
-        
         throw new Error(detailedMessage);
     }
 
-    // --- PASSO 2: APLICAR ALTERAÇÕES NA MATRIZ PRINCIPAL (SE APROVADO) ---
-    if (newStatus === 'Aprovado') {
+    if (newStatus === 'Aprovado' || newStatus === 'Ciente') {
         try {
-            if (requestToUpdate.requestType === 'Alteração') {
+            if (requestToUpdate.requestType === 'Alteração' && newStatus === 'Aprovado') {
                 const allControls = await getSoxControls();
-                
-                // Find control by controlId, which is 'Código NOVO'
                 const controlToUpdate = allControls.find(c => c.controlId === requestToUpdate.controlId);
                     
                 if (!controlToUpdate || !controlToUpdate.id) {
@@ -507,7 +490,7 @@ export const updateChangeRequestStatus = async (
                     await updateSoxControlField(controlItemSpId, { appKey: appKey as keyof SoxControl, value });
                 }
 
-            } else if (requestToUpdate.requestType === 'Criação') {
+            } else if (requestToUpdate.requestType === 'Criação' && newStatus === 'Ciente') {
                 const fieldsForNewControl: {[key: string]: any} = {};
                 for(const [key, value] of Object.entries(requestToUpdate.changes)) {
                     const displayName = (appToSpDisplayNameMapping as any)[key];
@@ -516,29 +499,21 @@ export const updateChangeRequestStatus = async (
                     }
                 }
                 fieldsForNewControl['Status'] = 'Ativo';
+                const descriptionDisplayName = appToSpDisplayNameMapping.description;
+                if(descriptionDisplayName) {
+                    fieldsForNewControl[descriptionDisplayName] = requestToUpdate.comments;
+                }
                 await addSoxControl(fieldsForNewControl);
             }
         } catch (error: any) {
-            console.error("Erro no PASSO 2 (Aplicar Mudanças na Matriz):", JSON.stringify(error, null, 2));
-            let detailedMessage = "O status da solicitação foi atualizado, mas ocorreu um erro ao aplicar as mudanças na matriz principal (PASSO 2).";
-            
+            let detailedMessage = "O status foi atualizado, mas ocorreu um erro ao aplicar as mudanças na matriz principal.";
             if (error.body) {
                 try {
                     const errorBody = JSON.parse(error.body);
                     if (errorBody.error.message) {
                         detailedMessage += ` SharePoint Error: ${errorBody.error.message}`;
-                    } else {
-                        detailedMessage += ` SharePoint returned an error body: ${error.body}`;
                     }
-                } catch (parseError) {
-                    detailedMessage += ` Invalid request to SharePoint. Raw response: ${error.body}`;
-                }
-            } else if (error.message) {
-                detailedMessage += ` Details: ${error.message}`;
-            }
-            
-            if (error.statusCode) {
-                detailedMessage += ` (Status code: ${error.statusCode})`;
+                } catch (parseError) {}
             }
             throw new Error(detailedMessage);
         }
