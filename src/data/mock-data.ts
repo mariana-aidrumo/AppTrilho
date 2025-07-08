@@ -11,16 +11,9 @@ export interface MockUser {
     controlsOwned?: string[]; // IDs dos controles que este usuário possui
 }
 
-// User data is now managed locally for testing purposes.
-export let mockUsers: MockUser[] = [
-  {
-    id: 'user-adm-1',
-    name: 'Mariana Costa',
-    email: 'mariana.costa@rumolog.com',
-    roles: ['admin', 'control-owner'],
-    activeProfile: 'Administrador de Controles Internos',
-  }
-];
+// User data is now managed via SharePoint `lista-acessos`.
+// This array is kept for type reference and can be used for fallback/local testing if needed.
+export let mockUsers: MockUser[] = [];
 
 export const mockSoxControls: SoxControl[] = [
   {
