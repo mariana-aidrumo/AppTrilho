@@ -1,14 +1,19 @@
+
 // src/components/layout/app-layout.tsx
 "use client";
 
 import type { ReactNode } from 'react';
 import NextLink from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+
 import { siteConfig } from "@/config/site";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Bell, Users, UserSwitch } from "lucide-react";
+import { Bell, Users, LogOut, Loader2 } from "lucide-react";
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useNotification } from '@/contexts/notification-context';
 import { HorizontalNavItems } from "@/components/layout/horizontal-nav-items";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,15 +24,43 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { currentUser, setActiveProfile, switchUser, allUsers } = useUserProfile();
+  const { currentUser, isAuthenticated, setActiveProfile, logout } = useUserProfile();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotification();
+  const router = useRouter();
+  const pathname = usePathname();
 
+  useEffect(() => {
+    if (!isAuthenticated && pathname !== '/login') {
+      router.replace('/login');
+    }
+    if (isAuthenticated && pathname === '/login') {
+      router.replace('/sox-matrix');
+    }
+  }, [isAuthenticated, pathname, router]);
+
+  if (!isAuthenticated) {
+    // If we're on the login page, render it. Otherwise, show a loader while redirecting.
+    return pathname === '/login' ? <>{children}</> : (
+        <div className="flex items-center justify-center h-screen bg-background">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+    );
+  }
+
+  // From here, we know the user is authenticated, so `currentUser` cannot be null.
+  
   const handleProfileChange = (value: string) => {
     const profile = value as UserProfileType;
-    if (currentUser.activeProfile !== profile) {
+    if (currentUser!.activeProfile !== profile) {
       setActiveProfile(profile);
     }
   };
+  
+  const userInitials = currentUser!.name
+    .split(' ')
+    .map(n => n[0])
+    .slice(0, 2)
+    .join('');
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -40,30 +73,18 @@ export function AppLayout({ children }: AppLayoutProps) {
           </NextLink>
         </div>
         <div className="flex items-center gap-3 md:gap-4">
-            {/* User Switcher */}
-             <Select value={currentUser.id} onValueChange={switchUser}>
-                <SelectTrigger className="w-auto sm:w-[180px] h-9 text-primary-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
-                    <User className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="Trocar Usuário" />
-                </SelectTrigger>
-                <SelectContent>
-                    {allUsers.map(user => (
-                        <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-
+            
             {/* Profile Switcher */}
-            <Select value={currentUser.activeProfile} onValueChange={handleProfileChange}>
+            <Select value={currentUser!.activeProfile} onValueChange={handleProfileChange}>
                 <SelectTrigger className="w-auto sm:w-[280px] h-9 text-primary-foreground border-primary-foreground/50 bg-primary-foreground/10 hover:bg-primary-foreground/20">
                     <Users className="h-4 w-4 mr-2 text-primary-foreground" />
                     <SelectValue placeholder="Selecionar Perfil" />
                 </SelectTrigger>
                 <SelectContent>
-                    {currentUser.roles.includes('admin') && (
+                    {currentUser!.roles.includes('admin') && (
                         <SelectItem value="Administrador de Controles Internos">Administrador de Controles Internos</SelectItem>
                     )}
-                    {currentUser.roles.includes('control-owner') && (
+                    {currentUser!.roles.includes('control-owner') && (
                         <SelectItem value="Dono do Controle">Dono do Controle</SelectItem>
                     )}
                 </SelectContent>
@@ -129,6 +150,29 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
               </PopoverContent>
             </Popover>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                        <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary-foreground text-primary">{userInitials}</AvatarFallback>
+                        </Avatar>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                            <p className="text-sm font-medium leading-none">{currentUser!.name}</p>
+                            <p className="text-xs leading-none text-muted-foreground">{currentUser!.email}</p>
+                        </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { logout(); router.push('/login'); }}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Sair</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
       </header>
       
