@@ -48,12 +48,6 @@ export const siteConfig: SiteConfig = {
       allowedProfiles: ["Administrador de Controles Internos"],
     },
     {
-      title: "Diagnosticar Campos",
-      href: "/debug-fields",
-      icon: Terminal,
-      allowedProfiles: ["Administrador de Controles Internos"],
-    },
-    {
       title: "Configurar Matriz",
       href: "/sharepoint-config",
       icon: SlidersHorizontal,
