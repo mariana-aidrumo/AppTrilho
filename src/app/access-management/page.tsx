@@ -18,7 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Trash2, ArrowLeft, Loader2, ChevronsUpDown, Check } from "lucide-react";
 import Link from "next/link";
 import type { MockUser, TenantUser } from "@/data/mock-data";
-import { getUsers, addUser, deleteUser, updateUserRolesAndProfile, getTenantUsers } from "@/services/sox-service";
+// REMOVED: Service imports for user management
+// import { getUsers, addUser, deleteUser, updateUserRolesAndProfile, getTenantUsers } from "@/services/sox-service";
+import { getTenantUsers } from "@/services/sox-service";
 import { cn } from "@/lib/utils";
 
 
@@ -30,10 +32,11 @@ const addUserSchema = z.object({
 type AddUserFormValues = z.infer<typeof addUserSchema>;
 
 export default function AccessManagementPage() {
-  const { currentUser, isUserAdmin } = useUserProfile();
+  // Use the centralized state and functions from the context
+  const { currentUser, isUserAdmin, allUsers, addUser, deleteUser, updateUserRolesAndProfile } = useUserProfile();
   const { toast } = useToast();
   
-  const [users, setUsers] = useState<MockUser[]>([]);
+  const [users, setUsers] = useState<MockUser[]>(allUsers);
   const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearchingTenants, setIsSearchingTenants] = useState(false);
@@ -47,26 +50,15 @@ export default function AccessManagementPage() {
     resolver: zodResolver(addUserSchema),
   });
 
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
-    try {
-        const data = await getUsers();
-        setUsers(data);
-    } catch (error) {
-        toast({ title: "Erro", description: "Falha ao carregar usuários locais.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
-  }, [toast]);
-
-
+  // This effect will now react to changes in the centralized 'allUsers' state
   useEffect(() => {
     if (isUserAdmin()) {
-        fetchUsers();
+        setUsers(allUsers);
+        setIsLoading(false);
     } else {
         setIsLoading(false);
     }
-  }, [isUserAdmin, fetchUsers]);
+  }, [isUserAdmin, allUsers]);
 
   // Debounced search effect for Tenant Users
   useEffect(() => {
@@ -113,6 +105,7 @@ export default function AccessManagementPage() {
   }
 
   const handleAddUser: SubmitHandler<AddUserFormValues> = async (data) => {
+    // Check against the stateful 'users' list
     if (users.some(u => u.email === data.email)) {
       toast({
         title: "Erro",
@@ -123,6 +116,7 @@ export default function AccessManagementPage() {
     }
     
     try {
+        // Use the context function
         await addUser({ name: data.name, email: data.email });
         toast({
           title: "Usuário Adicionado",
@@ -130,7 +124,7 @@ export default function AccessManagementPage() {
         });
         reset();
         setSelectedTenantUser(null);
-        fetchUsers(); // Refresh the list
+        // No need to fetch, the state will update automatically via context
     } catch(error) {
         toast({ title: "Erro", description: "Não foi possível adicionar o usuário.", variant: "destructive" });
     }
@@ -140,7 +134,6 @@ export default function AccessManagementPage() {
     const user = users.find(u => u.id === userId);
     if (!user) return;
 
-    // Prevent removing the last admin
     if (role === 'admin' && user.roles.includes('admin')) {
         const adminCount = users.filter(u => u.roles.includes('admin')).length;
         if (adminCount <= 1) {
@@ -163,8 +156,9 @@ export default function AccessManagementPage() {
         (newRoles.includes('control-owner') ? "Dono do Controle" : user.activeProfile));
 
     try {
+        // Use the context function
         await updateUserRolesAndProfile(userId, newRoles, newActiveProfile);
-        fetchUsers(); // Refresh the list
+        // No need to fetch, state updates automatically
     } catch(error) {
         toast({ title: "Erro", description: "Não foi possível atualizar o perfil do usuário.", variant: "destructive" });
     }
@@ -173,19 +167,20 @@ export default function AccessManagementPage() {
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
     
-    if (userToDelete.id === currentUser.id) {
+    if (userToDelete.id === currentUser!.id) {
        toast({ title: "Ação não permitida", description: "Você não pode remover a si mesmo.", variant: "destructive" });
        setUserToDelete(null);
        return;
     }
     
     try {
+        // Use the context function
         await deleteUser(userToDelete.id);
         toast({
           title: "Usuário Removido",
           description: `${userToDelete.name} foi removido do sistema.`,
         });
-        fetchUsers(); // Refresh the list
+        // No need to fetch
     } catch(error) {
         toast({ title: "Erro", description: "Não foi possível remover o usuário.", variant: "destructive" });
     } finally {
@@ -298,7 +293,7 @@ export default function AccessManagementPage() {
                         id={`admin-role-${user.id}`}
                         checked={user.roles.includes('admin')}
                         onCheckedChange={() => handleToggleRole(user.id, 'admin')}
-                        disabled={user.id === currentUser.id && user.roles.filter(r => r === 'admin').length === 1 && users.filter(u => u.roles.includes('admin')).length === 1}
+                        disabled={user.id === currentUser!.id && user.roles.filter(r => r === 'admin').length === 1 && users.filter(u => u.roles.includes('admin')).length === 1}
                       />
                     </TableCell>
                     <TableCell>
@@ -311,7 +306,7 @@ export default function AccessManagementPage() {
                     <TableCell className="text-right">
                        <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => setUserToDelete(user)} disabled={user.id === currentUser.id}>
+                            <Button variant="ghost" size="icon" onClick={() => setUserToDelete(user)} disabled={user.id === currentUser!.id}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                               <span className="sr-only">Remover</span>
                             </Button>

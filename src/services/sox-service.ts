@@ -1,15 +1,8 @@
-
 // src/services/sox-service.ts
 'use server';
 
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
-import type { SoxControl, ChangeRequest, MockUser, Notification, VersionHistoryEntry, UserProfileType, SoxControlStatus, SharePointColumn, TenantUser, ChangeRequestStatus } from '@/types';
-import {
-  mockUsers,
-  mockNotifications,
-  mockVersionHistory,
-  mockSoxControls,
-} from '@/data/mock-data';
+import type { SoxControl, ChangeRequest, SharePointColumn, TenantUser, ChangeRequestStatus, SoxControlStatus } from '@/types';
 import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
 
 // --- SharePoint Integration ---
@@ -150,7 +143,8 @@ const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColum
 
 export const getSoxControls = async (): Promise<SoxControl[]> => {
     if (process.env.USE_MOCK_DATA === 'true') {
-        return JSON.parse(JSON.stringify(mockSoxControls));
+        // Mocks are no longer the source of truth for dynamic data
+        return [];
     }
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
         throw new Error("SharePoint site URL or list name is not configured.");
@@ -328,11 +322,19 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         comments: fields.field_7 || 'Nenhum detalhe fornecido.',
         changes: changes,
         fieldName: fields.Campoajustado,
-        newValue: fields.Descricaocampo ? JSON.parse(fields.Descricaocampo) : undefined,
+        newValue: fields.Descricaocampo, // Keep it as string, parse later
         reviewedBy: fields.field_10,
         reviewDate: fields.field_11,
         adminFeedback: fields.field_12 || '',
     };
+
+    try {
+        if(request.newValue) {
+            request.newValue = JSON.parse(request.newValue)
+        }
+    } catch (e) {
+      // It's just a plain string, that's fine.
+    }
     
     return request;
 };
@@ -491,15 +493,13 @@ export const updateChangeRequestStatus = async (
             if (!requestToUpdate.controlName) {
                 throw new Error("O nome do controle proposto não foi encontrado na solicitação de criação.");
             }
-            const newControlData = {
-                [appToSpDisplayNameMapping.controlName]: requestToUpdate.controlName,
-                [appToSpDisplayNameMapping.description]: requestToUpdate.comments || 'Descrição a ser preenchida.',
-                // Add other default values for a new control here if needed
-            };
-            await addSoxControl(newControlData);
+            
+            // This logic was flawed. It was trying to create the control when it should be handled elsewhere.
+            // When marking as "Ciente", we just update the status. The admin will create the control manually.
+            // This block is now intentionally left empty as per user request.
 
         } catch (error: any) {
-             throw new Error(`O status foi atualizado para Ciente, mas ocorreu um erro ao criar o novo controle na matriz. Detalhes: ${error.message}`);
+             throw new Error(`O status foi atualizado para Ciente, mas ocorreu um erro. Detalhes: ${error.message}`);
         }
     }
     
@@ -543,32 +543,7 @@ export const getHistoryListColumns = async (): Promise<SharePointColumn[]> => {
 };
 
 
-// --- Mocked Services (for user management etc.) ---
-export const getUsers = async (): Promise<MockUser[]> => JSON.parse(JSON.stringify(mockUsers));
-export const getNotifications = async (userId: string): Promise<Notification[]> => JSON.parse(JSON.stringify(mockNotifications.filter(n => n.userId === userId)));
-export const getVersionHistory = async (): Promise<VersionHistoryEntry[]> => JSON.parse(JSON.stringify(mockVersionHistory));
-export const addUser = async (userData: {name: string, email: string}): Promise<MockUser> => {
-    const newUser: MockUser = { id: `user-new-${Date.now()}`, ...userData, password: 'DefaultPassword123', roles: ['control-owner'], activeProfile: 'Dono do Controle' };
-    mockUsers.push(newUser);
-    return JSON.parse(JSON.stringify(newUser));
-}
-export const updateUserRolesAndProfile = async (userId: string, roles: string[], activeProfile: UserProfileType): Promise<MockUser | null> => {
-    const userIndex = mockUsers.findIndex(u => u.id === userId);
-    if(userIndex > -1) {
-        mockUsers[userIndex].roles = roles;
-        mockUsers[userIndex].activeProfile = activeProfile;
-        return JSON.parse(JSON.stringify(mockUsers[userIndex]));
-    }
-    return null;
-}
-export const deleteUser = async (userId: string): Promise<boolean> => {
-    const userIndex = mockUsers.findIndex(u => u.id === userId);
-    if (userIndex > -1) {
-        mockUsers.splice(userIndex, 1);
-        return true;
-    }
-    return false;
-}
+// --- Service for Tenant User search ---
 export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]> => {
   if (!searchQuery || searchQuery.trim().length < 3) return [];
   const graphClient = await getGraphClient();
@@ -576,22 +551,3 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
   const response = await graphClient.api('/users').header('ConsistencyLevel', 'eventual').count(true).filter(filterString).top(25).select('id,displayName,mail,userPrincipalName').get();
   return response.value.map((user: any) => ({ id: user.id, name: user.displayName, email: user.mail || user.userPrincipalName }));
 };
-
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
