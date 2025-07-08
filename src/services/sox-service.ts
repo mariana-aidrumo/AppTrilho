@@ -5,7 +5,6 @@
 import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
 import type { SoxControl, ChangeRequest, SharePointColumn, TenantUser, ChangeRequestStatus, SoxControlStatus, MockUser, UserProfileType } from '@/types';
 import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
-import { mockUsers } from '@/data/mock-data';
 
 // --- SharePoint Integration ---
 
@@ -581,65 +580,164 @@ export const getAccessListColumns = async (): Promise<SharePointColumn[]> => {
         }));
 };
 
-// --- User Access Management Services (Local Mock Data) ---
+// --- User Access Management Services (SharePoint Integration) ---
+
+const mapSpItemToMockUser = (item: any): MockUser | null => {
+    if (!item || !item.fields) return null;
+
+    const fields = item.fields;
+    const roles: string[] = [];
+    if (fields.acesso_x002d_admin === 'Sim') {
+        roles.push('admin');
+    }
+    if (fields.acesso_x002d_donocontrole === 'Sim') {
+        roles.push('control-owner');
+    }
+
+    if (roles.length === 0) {
+        // If user has no roles, they can't log in.
+        return null;
+    }
+
+    const primaryProfile: UserProfileType = roles.includes('admin')
+        ? 'Administrador de Controles Internos'
+        : 'Dono do Controle';
+    
+    return {
+        id: item.id,
+        spListItemId: item.id,
+        name: fields.Title || 'Nome não encontrado', // Use Title for name
+        email: fields['e_x002d_mail2'],
+        roles: roles,
+        activeProfile: primaryProfile,
+    };
+};
+
 
 export const getAccessUsers = async (): Promise<MockUser[]> => {
-    // Reads from the local mockUsers array.
-    return Promise.resolve(mockUsers);
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for access list.");
+    }
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+
+        let response = await graphClient
+            .api(`/sites/${siteId}/lists/${accessListId}/items?expand=fields`)
+            .get();
+
+        const allItems: any[] = [];
+        while (response && response.value) {
+            allItems.push(...response.value);
+            if (response['@odata.nextLink']) {
+                response = await graphClient.api(response['@odata.nextLink']).get();
+            } else {
+                break;
+            }
+        }
+        
+        return allItems
+            .map(mapSpItemToMockUser)
+            .filter((user): user is MockUser => user !== null);
+
+    } catch (error: any) {
+        console.error("Failed to get access users from SharePoint:", error);
+        throw new Error(`Could not retrieve access users. Reason: ${error.message}`);
+    }
 };
 
 export const findUserByEmail = async (email: string): Promise<MockUser | null> => {
-    // Finds a user in the local mockUsers array.
     if (!email) return null;
-    const foundUser = mockUsers.find(user => user.email.toLowerCase() === email.toLowerCase());
-    const userToReturn = foundUser ? { ...foundUser } : null;
-
-    if (userToReturn) {
-        // Ensure activeProfile is set correctly based on roles
-        const primaryProfile: UserProfileType = userToReturn.roles.includes('admin')
-            ? 'Administrador de Controles Internos'
-            : 'Dono do Controle';
-        userToReturn.activeProfile = primaryProfile;
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for access list.");
     }
-    
-    return Promise.resolve(userToReturn);
+
+    try {
+        const graphClient = await getGraphClient();
+        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+        const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+
+        const filterQuery = `fields/e_x002d_mail2 eq '${email.toLowerCase()}'`;
+
+        const response = await graphClient
+            .api(`/sites/${siteId}/lists/${accessListId}/items`)
+            .filter(filterQuery)
+            .expand('fields')
+            .top(1)
+            .get();
+
+        if (response && response.value && response.value.length > 0) {
+            return mapSpItemToMockUser(response.value[0]);
+        }
+        
+        return null;
+
+    } catch (error: any) {
+        console.error(`Failed to find user with email ${email}:`, error);
+        throw new Error(`Error during user lookup. Reason: ${error.message}`);
+    }
 };
 
 export const addAccessUser = async (userData: { name: string; email: string }): Promise<MockUser> => {
-    // Adds a user to the local mockUsers array.
-    const newUser: MockUser = {
-        id: `user-${Date.now()}`,
-        name: userData.name,
-        email: userData.email.toLowerCase(),
-        roles: ['control-owner'], // Default role
-        activeProfile: 'Dono do Controle',
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+      throw new Error("SharePoint access list is not configured.");
+    }
+    
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+    
+    const fieldsToCreate = {
+        'Title': userData.name,
+        'e_x002d_mail2': userData.email.toLowerCase(),
+        'acesso_x002d_donocontrole': 'Sim', // Default to control owner
+        'acesso_x002d_admin': 'Não',      // Default to not admin
     };
-    mockUsers.push(newUser);
-    return Promise.resolve(newUser);
+
+    const response = await graphClient
+        .api(`/sites/${siteId}/lists/${accessListId}/items`)
+        .post({ fields: fieldsToCreate });
+
+    const newUser = mapSpItemToMockUser({ ...response, fields: { ...response.fields, ...fieldsToCreate } });
+
+    if (!newUser) {
+        throw new Error("Failed to map the newly created user from SharePoint response.");
+    }
+    return newUser;
 };
 
 export const updateAccessUserRoles = async (userId: string, roles: { isAdmin: boolean; isControlOwner: boolean }): Promise<void> => {
-    // Updates a user's roles in the local mockUsers array.
-    const userIndex = mockUsers.findIndex(u => u.id === userId);
-    if (userIndex > -1) {
-        const newRoles: string[] = [];
-        if (roles.isAdmin) newRoles.push('admin');
-        if (roles.isControlOwner) newRoles.push('control-owner');
-        
-        mockUsers[userIndex].roles = newRoles;
-
-        // Also update activeProfile if it's no longer valid
-        if (mockUsers[userIndex].activeProfile === 'Administrador de Controles Internos' && !roles.isAdmin) {
-            mockUsers[userIndex].activeProfile = 'Dono do Controle';
-        }
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+      throw new Error("SharePoint access list is not configured.");
     }
-    return Promise.resolve();
+    
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+
+    const fieldsToUpdate = {
+        'acesso_x002d_admin': roles.isAdmin ? 'Sim' : 'Não',
+        'acesso_x002d_donocontrole': roles.isControlOwner ? 'Sim' : 'Não',
+    };
+    
+    await graphClient
+        .api(`/sites/${siteId}/lists/${accessListId}/items/${userId}/fields`)
+        .patch(fieldsToUpdate);
 };
 
 export const deleteAccessUser = async (userId: string): Promise<void> => {
-    // Deletes a user from the local mockUsers array.
-    mockUsers = mockUsers.filter(u => u.id !== userId);
-    return Promise.resolve();
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+      throw new Error("SharePoint access list is not configured.");
+    }
+    
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+
+    await graphClient
+        .api(`/sites/${siteId}/lists/${accessListId}/items/${userId}`)
+        .delete();
 };
 
 // --- Service for Tenant User search ---
