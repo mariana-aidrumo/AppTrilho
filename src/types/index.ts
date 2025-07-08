@@ -109,9 +109,10 @@ export type UserProfileType = "Dono do Controle" | "Administrador de Controles I
 
 export interface MockUser {
     id: string;
+    spListItemId?: string;
     name: string;
     email: string;
-    password: string; 
+    password?: string; 
     roles: string[]; 
     activeProfile: UserProfileType;
     controlsOwned?: string[];

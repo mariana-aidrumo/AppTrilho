@@ -37,10 +37,9 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit: SubmitHandler<LoginFormValues> = (data) => {
+  const onSubmit: SubmitHandler<LoginFormValues> = async (data) => {
     setIsLoading(true);
-    // The login function now returns a boolean for success/failure
-    const success = loginWithEmail(data.email);
+    const success = await loginWithEmail(data.email);
 
     if (success) {
       toast({

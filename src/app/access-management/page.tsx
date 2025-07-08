@@ -17,10 +17,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Trash2, ArrowLeft, Loader2, ChevronsUpDown, Check } from "lucide-react";
 import Link from "next/link";
-import type { MockUser, TenantUser } from "@/data/mock-data";
-// REMOVED: Service imports for user management
-// import { getUsers, addUser, deleteUser, updateUserRolesAndProfile, getTenantUsers } from "@/services/sox-service";
-import { getTenantUsers } from "@/services/sox-service";
+import type { MockUser, TenantUser } from "@/types";
+import { getAccessUsers, addAccessUser, updateAccessUserRoles, deleteAccessUser, getTenantUsers } from "@/services/sox-service";
 import { cn } from "@/lib/utils";
 
 
@@ -32,11 +30,10 @@ const addUserSchema = z.object({
 type AddUserFormValues = z.infer<typeof addUserSchema>;
 
 export default function AccessManagementPage() {
-  // Use the centralized state and functions from the context
-  const { currentUser, isUserAdmin, allUsers, addUser, deleteUser, updateUserRolesAndProfile } = useUserProfile();
+  const { currentUser, isUserAdmin } = useUserProfile();
   const { toast } = useToast();
   
-  const [users, setUsers] = useState<MockUser[]>(allUsers);
+  const [users, setUsers] = useState<MockUser[]>([]);
   const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearchingTenants, setIsSearchingTenants] = useState(false);
@@ -50,15 +47,29 @@ export default function AccessManagementPage() {
     resolver: zodResolver(addUserSchema),
   });
 
-  // This effect will now react to changes in the centralized 'allUsers' state
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+        const data = await getAccessUsers();
+        setUsers(data);
+    } catch (err: any) {
+        toast({
+            title: "Erro ao Carregar Usuários",
+            description: err.message || "Não foi possível buscar a lista de acessos do SharePoint.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     if (isUserAdmin()) {
-        setUsers(allUsers);
-        setIsLoading(false);
+        fetchUsers();
     } else {
         setIsLoading(false);
     }
-  }, [isUserAdmin, allUsers]);
+  }, [isUserAdmin, fetchUsers]);
 
   // Debounced search effect for Tenant Users
   useEffect(() => {
@@ -105,7 +116,6 @@ export default function AccessManagementPage() {
   }
 
   const handleAddUser: SubmitHandler<AddUserFormValues> = async (data) => {
-    // Check against the stateful 'users' list
     if (users.some(u => u.email === data.email)) {
       toast({
         title: "Erro",
@@ -116,17 +126,16 @@ export default function AccessManagementPage() {
     }
     
     try {
-        // Use the context function
-        await addUser({ name: data.name, email: data.email });
+        await addAccessUser({ name: data.name, email: data.email });
         toast({
           title: "Usuário Adicionado",
           description: `${data.name} foi adicionado como Dono do Controle.`,
         });
         reset();
         setSelectedTenantUser(null);
-        // No need to fetch, the state will update automatically via context
-    } catch(error) {
-        toast({ title: "Erro", description: "Não foi possível adicionar o usuário.", variant: "destructive" });
+        fetchUsers();
+    } catch(error: any) {
+        toast({ title: "Erro", description: error.message || "Não foi possível adicionar o usuário.", variant: "destructive" });
     }
   };
 
@@ -151,16 +160,15 @@ export default function AccessManagementPage() {
         return;
     }
     
-    const newActiveProfile = 
-        (newRoles.includes('admin') ? "Administrador de Controles Internos" :
-        (newRoles.includes('control-owner') ? "Dono do Controle" : user.activeProfile));
-
     try {
-        // Use the context function
-        await updateUserRolesAndProfile(userId, newRoles, newActiveProfile);
-        // No need to fetch, state updates automatically
-    } catch(error) {
-        toast({ title: "Erro", description: "Não foi possível atualizar o perfil do usuário.", variant: "destructive" });
+        await updateAccessUserRoles(user.id, {
+            isAdmin: newRoles.includes('admin'),
+            isControlOwner: newRoles.includes('control-owner')
+        });
+        fetchUsers();
+        toast({ title: "Perfis Atualizados", description: `Os perfis de ${user.name} foram atualizados.` });
+    } catch(error: any) {
+        toast({ title: "Erro", description: error.message || "Não foi possível atualizar o perfil do usuário.", variant: "destructive" });
     }
   };
   
@@ -174,15 +182,14 @@ export default function AccessManagementPage() {
     }
     
     try {
-        // Use the context function
-        await deleteUser(userToDelete.id);
+        await deleteAccessUser(userToDelete.id);
         toast({
           title: "Usuário Removido",
           description: `${userToDelete.name} foi removido do sistema.`,
         });
-        // No need to fetch
-    } catch(error) {
-        toast({ title: "Erro", description: "Não foi possível remover o usuário.", variant: "destructive" });
+        fetchUsers();
+    } catch(error: any) {
+        toast({ title: "Erro", description: error.message || "Não foi possível remover o usuário.", variant: "destructive" });
     } finally {
         setUserToDelete(null);
     }
