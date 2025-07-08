@@ -1,19 +1,19 @@
 // src/data/mock-data.ts
-import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions, TenantUser } from '@/types';
+import type { SoxControl, ChangeRequest, VersionHistoryEntry, UserProfileType, Notification, IPEAssertions, TenantUser, MockUser } from '@/types';
 
-export interface MockUser {
-    id: string;
-    name: string;
-    email: string;
-    password?: string; // Apenas para simulação, não use senhas em texto plano em uma aplicação real!
-    roles: string[]; // Ex: ['admin'], ['control-owner']
-    activeProfile: UserProfileType; // Perfil ativo do usuário
-    controlsOwned?: string[]; // IDs dos controles que este usuário possui
-}
 
 // User data is now managed via SharePoint `lista-acessos`.
 // This array is kept for type reference and can be used for fallback/local testing if needed.
-export let mockUsers: MockUser[] = [];
+export let mockUsers: MockUser[] = [
+  {
+    id: 'user-adm-1',
+    spListItemId: '1',
+    name: 'Mariana Costa',
+    email: 'mariana.costa@rumolog.com',
+    roles: ['admin', 'control-owner'],
+    activeProfile: 'Administrador de Controles Internos',
+  }
+];
 
 export const mockSoxControls: SoxControl[] = [
   {
