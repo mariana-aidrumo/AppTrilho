@@ -80,7 +80,7 @@ export default function AccessListFieldsPage() {
         <CardHeader>
           <CardTitle>Campos da Lista "lista-acessos"</CardTitle>
           <CardDescription>
-            Esta página lista todas as colunas disponíveis na sua lista do SharePoint `lista-acessos`. Utilize esta informação para referência e configuração.
+            Esta página lista todas as colunas disponíveis na sua lista do SharePoint `lista-acessos`. Utilize esta informação para resolvermos o problema de login.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -115,6 +115,22 @@ export default function AccessListFieldsPage() {
             </div>
           )}
         </CardContent>
+      </Card>
+
+      <Card className="bg-amber-50 border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Ação Necessária: Me ajude a corrigir o Login</CardTitle>
+          </CardHeader>
+          <CardContent className="text-amber-800 space-y-2">
+            <p>O problema de login acontece porque os nomes internos das colunas no SharePoint são diferentes do que esperamos. A tabela acima nos mostra os nomes corretos.</p>
+            <p>Por favor, siga estes 2 passos:</p>
+            <ul className="list-decimal pl-6 space-y-1">
+                <li>Encontre na tabela acima as linhas correspondentes ao **e-mail do usuário**, à permissão de **dono de controle** e à permissão de **administrador**.</li>
+                <li>Me informe quais são os valores exatos da coluna **"Nome Interno (para o código)"** para esses três campos.</li>
+            </ul>
+            <p className="mt-2"><b>Exemplo de como me responder:</b> <br /> <code className="bg-amber-200 px-1 rounded-sm">"Ok, para e-mail use 'field_2', para dono de controle use 'field_3' e para admin use 'field_4'."</code></p>
+            <p>Com essa informação, farei a correção final e o login funcionará.</p>
+          </CardContent>
       </Card>
     </div>
   );
