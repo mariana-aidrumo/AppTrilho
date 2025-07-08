@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -591,7 +592,7 @@ const mapSharePointItemToUser = (item: any): MockUser => {
     if (parseSharePointBoolean(fields['acesso_x002d_admin'])) {
         roles.push('admin');
     }
-    if (parseSharePointBoolean(fields['acesso-donocontrole'])) {
+    if (parseSharePointBoolean(fields['acesso_x002d_donocontrole'])) {
         roles.push('control-owner');
     }
 
@@ -619,7 +620,7 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
         const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
 
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=id,Title,E_x002d_mail,acesso-donocontrole,acesso_x002d_admin)`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=id,Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)`)
             .get();
             
         if (!response || !response.value) {
@@ -647,7 +648,7 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .filter(`fields/E_x002d_mail eq '${email.toLowerCase()}'`)
-            .expand('fields(select=id,Title,E_x002d_mail,acesso-donocontrole,acesso_x002d_admin)')
+            .expand('fields(select=id,Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)')
             .top(1)
             .get();
 
@@ -673,7 +674,7 @@ export const addAccessUser = async (userData: { name: string; email: string }): 
     const fieldsToCreate = {
         'Title': userData.name,
         'E_x002d_mail': userData.email.toLowerCase(),
-        'acesso-donocontrole': true,
+        'acesso_x002d_donocontrole': true,
         'acesso_x002d_admin': false,
     };
 
@@ -699,7 +700,7 @@ export const updateAccessUserRoles = async (spListItemId: string, roles: { isAdm
     const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
 
     const fieldsToUpdate = {
-        'acesso-donocontrole': roles.isControlOwner,
+        'acesso_x002d_donocontrole': roles.isControlOwner,
         'acesso_x002d_admin': roles.isAdmin,
     };
     
