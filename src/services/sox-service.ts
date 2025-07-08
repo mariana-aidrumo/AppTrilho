@@ -624,7 +624,7 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
         const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
 
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=Title,e_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields`)
             .get();
         
         if (!response || !response.value) {
@@ -652,11 +652,10 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
         const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
         const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
         
-        // Note: Filtering on email address requires it to be an indexed column in SharePoint for performance.
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .filter(`fields/e_x002d_mail eq '${email.toLowerCase()}'`)
-            .expand('fields(select=Title,e_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)')
+            .expand('fields')
             .top(1)
             .get();
 
