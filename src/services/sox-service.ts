@@ -620,7 +620,8 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
         const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
 
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=id,Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)`)
+            .api(`/sites/${siteId}/lists/${listId}/items`)
+            .expand('fields(select=Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)')
             .get();
             
         if (!response || !response.value) {
@@ -648,7 +649,7 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
             .filter(`fields/E_x002d_mail eq '${email.toLowerCase()}'`)
-            .expand('fields(select=id,Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)')
+            .expand('fields(select=Title,E_x002d_mail,acesso_x002d_donocontrole,acesso_x002d_admin)')
             .top(1)
             .get();
 
