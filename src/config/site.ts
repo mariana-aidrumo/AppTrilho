@@ -53,6 +53,12 @@ export const siteConfig: SiteConfig = {
       icon: SlidersHorizontal,
       allowedProfiles: ["Administrador de Controles Internos"],
     },
+    {
+      title: "Campos de Acessos",
+      href: "/access-list-fields",
+      icon: Terminal,
+      allowedProfiles: ["Administrador de Controles Internos"],
+    },
     
 
     // Itens para Dono do Controle

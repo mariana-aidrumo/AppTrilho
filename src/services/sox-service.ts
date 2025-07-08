@@ -10,6 +10,7 @@ import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepo
 const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
 const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
 const SHAREPOINT_HISTORY_LIST_NAME = 'REGISTRO-MATRIZ';
+const SHAREPOINT_ACCESS_LIST_NAME = 'lista-acessos';
 
 let controlsColumnMapCache: Map<string, string> | null = null;
 
@@ -520,6 +521,42 @@ export const getHistoryListColumns = async (): Promise<SharePointColumn[]> => {
 
     if (!response || !response.value) {
       throw new Error("Could not fetch column details from SharePoint history list.");
+    }
+
+    const getColumnType = (spColumn: any): SharePointColumn['type'] => {
+        if (spColumn.boolean) return 'boolean';
+        if (spColumn.dateTime) return 'dateTime';
+        if (spColumn.number) return 'number';
+        if (spColumn.choice) return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
+        if (spColumn.text) return spColumn.text.allowMultipleLines ? 'note' : 'text';
+        if (spColumn.lookup) return 'text';
+        if (spColumn.personOrGroup) return 'text';
+        return 'unsupported';
+    };
+
+    return response.value
+        .filter((column: any) => !column.hidden)
+        .map((column: any) => ({
+            displayName: column.displayName,
+            internalName: column.name,
+            type: getColumnType(column),
+        }));
+};
+
+export const getAccessListColumns = async (): Promise<SharePointColumn[]> => {
+    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
+        throw new Error("SharePoint configuration is missing for access list.");
+    }
+    const graphClient = await getGraphClient();
+    const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
+    const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
+    
+    const response = await graphClient
+        .api(`/sites/${siteId}/lists/${listId}/columns`)
+        .get();
+
+    if (!response || !response.value) {
+      throw new Error("Could not fetch column details from SharePoint access list.");
     }
 
     const getColumnType = (spColumn: any): SharePointColumn['type'] => {
