@@ -649,29 +649,14 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
 
 export const findUserByEmail = async (email: string): Promise<MockUser | null> => {
     if (!email) return null;
-    if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
-        throw new Error("SharePoint configuration is missing for access list.");
-    }
-
+    
     try {
-        const graphClient = await getGraphClient();
-        const siteId = await getSiteId(graphClient, SHAREPOINT_SITE_URL);
-        const accessListId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
-
-        const filterQuery = `fields/e_x002d_mail2 eq '${email.toLowerCase()}'`;
-
-        const response = await graphClient
-            .api(`/sites/${siteId}/lists/${accessListId}/items`)
-            .filter(filterQuery)
-            .expand('fields')
-            .top(1)
-            .get();
-
-        if (response && response.value && response.value.length > 0) {
-            return mapSpItemToMockUser(response.value[0]);
-        }
+        // More robust approach: get all users and filter in code.
+        // This avoids SharePoint's tricky OData filtering syntax.
+        const allUsers = await getAccessUsers();
+        const foundUser = allUsers.find(user => user && user.email && user.email.toLowerCase() === email.toLowerCase());
         
-        return null;
+        return foundUser || null;
 
     } catch (error: any) {
         console.error(`Failed to find user with email ${email}:`, error);
