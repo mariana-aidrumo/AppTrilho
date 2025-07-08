@@ -603,7 +603,7 @@ const mapSharePointItemToUser = (item: any): MockUser => {
         id: item.id,
         spListItemId: item.id,
         name: fields.Title,
-        email: fields['e_x002d_mail'],
+        email: fields['E_x002d_mail'],
         roles,
         activeProfile: primaryProfile,
     };
@@ -619,7 +619,7 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
         const listId = await getListId(graphClient, siteId, SHAREPOINT_ACCESS_LIST_NAME);
 
         const response = await graphClient
-            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=id,Title,e_x002d_mail,acesso-donocontrole,acesso_x002d_admin)`)
+            .api(`/sites/${siteId}/lists/${listId}/items?expand=fields(select=id,Title,E_x002d_mail,acesso-donocontrole,acesso_x002d_admin)`)
             .get();
             
         if (!response || !response.value) {
@@ -646,8 +646,8 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
 
         const response = await graphClient
             .api(`/sites/${siteId}/lists/${listId}/items`)
-            .filter(`fields/e_x002d_mail eq '${email.toLowerCase()}'`)
-            .expand('fields(select=id,Title,e_x002d_mail,acesso-donocontrole,acesso_x002d_admin)')
+            .filter(`fields/E_x002d_mail eq '${email.toLowerCase()}'`)
+            .expand('fields(select=id,Title,E_x002d_mail,acesso-donocontrole,acesso_x002d_admin)')
             .top(1)
             .get();
 
@@ -672,7 +672,7 @@ export const addAccessUser = async (userData: { name: string; email: string }): 
 
     const fieldsToCreate = {
         'Title': userData.name,
-        'e_x002d_mail': userData.email,
+        'E_x002d_mail': userData.email.toLowerCase(),
         'acesso-donocontrole': true,
         'acesso_x002d_admin': false,
     };
