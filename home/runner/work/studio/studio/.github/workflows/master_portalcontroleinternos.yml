@@ -1,19 +1,16 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy Node.js app to Azure Web App - portalcontroleinternos
+# Este workflow foi desativado e pode ser removido.
+# O workflow ativo é o build-test.yml
+name: Old Azure Deploy Workflow (Disabled)
 
 on:
   push:
     branches:
-      - master
+      - "non-existent-branch" # Previne a execução automática
   workflow_dispatch:
 
 jobs:
-  build:
+  do_nothing:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
       - name: Log a message
-        run: echo "Workflow triggered. No deployment to Azure will be performed from here."
+        run: echo "Este workflow está desativado. Use o 'Build and Test Next.js App'."
