@@ -2,7 +2,7 @@
 // src/services/sox-service.ts
 'use server';
 
-import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
+import { getGraphClient, getSiteId, getListId } from '@/services/sharepoint-client';
 import type { SoxControl, ChangeRequest, SharePointColumn, TenantUser, ChangeRequestStatus, SoxControlStatus, MockUser, UserProfileType } from '@/types';
 import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
 
@@ -204,17 +204,17 @@ export const updateSoxControlField = async (
 
         const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
         if (!spDisplayName) {
-            console.warn(`No SharePoint display name mapping found for app key '${appKey}'. Attempting to update using app key directly.`);
+            console.warn(`No SharePoint display name mapping found for app key '${String(appKey)}'. Attempting to update using app key directly.`);
         }
 
         const spInternalName = columnMap.get(spDisplayName);
         if (!spInternalName) {
-            throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || appKey}'. The column may not exist or is not accessible.`);
+            throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || String(appKey)}'. The column may not exist or is not accessible.`);
         }
 
         const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
         let finalValue = value;
-        if (booleanFields.has(appKey)) {
+        if (booleanFields.has(appKey as string)) {
             finalValue = parseSharePointBoolean(finalValue);
         }
 
@@ -227,7 +227,7 @@ export const updateSoxControlField = async (
             .patch(fieldsToUpdate);
 
     } catch (error: any) {
-        console.error(`Failed to update field '${fieldToUpdate.appKey}' on item '${spListItemId}' in SharePoint:`, error);
+        console.error(`Failed to update field '${String(fieldToUpdate.appKey)}' on item '${spListItemId}' in SharePoint:`, error);
         
         let detailedMessage = `Could not update field in SharePoint. Reason: ${error.message}`;
         if (error.body) {
@@ -650,30 +650,7 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
 export const findUserByEmail = async (email: string): Promise<MockUser | null> => {
     if (!email) return null;
 
-    // Temporary fallback for debugging login issues
-    const tempAdminEmails = [
-        'mariana.costa@rumolog.com',
-        'cristiane.carolina@rumolog.com',
-        'philipe.nascimento@rumolog.com',
-        'rafaela.franquini@rumolog.com',
-        'maria.nogueira@rumolog.com',
-        'mariane.pechebela@rumolog.com',
-        'pedro.becel@rumolog.com'
-    ];
-
     const lowerCaseEmail = email.toLowerCase();
-
-    if (tempAdminEmails.includes(lowerCaseEmail)) {
-        const name = lowerCaseEmail.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
-        return {
-            id: `user-debug-${name.replace(' ', '-')}`,
-            spListItemId: `user-debug-${name.replace(' ', '-')}`,
-            name: `${name} (Debug)`,
-            email: lowerCaseEmail,
-            roles: ['admin', 'control-owner'],
-            activeProfile: 'Administrador de Controles Internos',
-        };
-    }
     
     try {
         const allUsers = await getAccessUsers();
