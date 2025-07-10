@@ -586,10 +586,10 @@ const mapSpItemToMockUser = (item: any): MockUser | null => {
 
     const fields = item.fields;
     const roles: string[] = [];
-    if (fields.acesso_x002d_admin === 'Sim') {
+    if (parseSharePointBoolean(fields.acesso_x002d_admin)) {
         roles.push('admin');
     }
-    if (fields.acesso_x002d_donocontrole === 'Sim') {
+    if (parseSharePointBoolean(fields.acesso_x002d_donocontrole)) {
         roles.push('control-owner');
     }
 
@@ -605,8 +605,8 @@ const mapSpItemToMockUser = (item: any): MockUser | null => {
     return {
         id: item.id,
         spListItemId: item.id,
-        name: fields.Title || 'Nome não encontrado', // Use Title for name
-        email: fields['e_x002d_mail2'],
+        name: fields.Title || 'Nome não encontrado',
+        email: fields.e_x002d_mail2,
         roles: roles,
         activeProfile: primaryProfile,
     };
@@ -650,12 +650,25 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
     if (!email) return null;
 
     // Temporary fallback for debugging login issues
-    if (email.toLowerCase() === 'mariana.costa@rumolog.com') {
+    const tempAdminEmails = [
+        'mariana.costa@rumolog.com',
+        'cristiane.carolina@rumolog.com',
+        'philipe.nascimento@rumolog.com',
+        'rafaela.franquini@rumolog.com',
+        'maria.nogueira@rumolog.com',
+        'mariane.pechebela@rumolog.com',
+        'pedro.becel@rumolog.com'
+    ];
+
+    const lowerCaseEmail = email.toLowerCase();
+
+    if (tempAdminEmails.includes(lowerCaseEmail)) {
+        const name = lowerCaseEmail.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
         return {
-            id: 'user-debug-admin',
-            spListItemId: 'user-debug-admin',
-            name: 'Mariana Costa (Debug)',
-            email: 'mariana.costa@rumolog.com',
+            id: `user-debug-${name.replace(' ', '-')}`,
+            spListItemId: `user-debug-${name.replace(' ', '-')}`,
+            name: `${name} (Debug)`,
+            email: lowerCaseEmail,
             roles: ['admin', 'control-owner'],
             activeProfile: 'Administrador de Controles Internos',
         };
@@ -663,7 +676,7 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
     
     try {
         const allUsers = await getAccessUsers();
-        const foundUser = allUsers.find(user => user && user.email && user.email.toLowerCase() === email.toLowerCase());
+        const foundUser = allUsers.find(user => user && user.email && user.email.toLowerCase() === lowerCaseEmail);
         
         return foundUser || null;
 
