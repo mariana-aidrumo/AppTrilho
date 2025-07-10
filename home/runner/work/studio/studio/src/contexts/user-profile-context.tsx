@@ -52,6 +52,21 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const loginWithEmail = useCallback(async (email: string): Promise<boolean> => {
     const lowerCaseEmail = email.toLowerCase();
     
+    // Check for the special debug/default user
+    if (lowerCaseEmail === 'mariana.costa@rumolog.com') {
+      const defaultUser: MockUser = {
+        id: 'user-default-mariana',
+        name: 'Mariana Costa',
+        email: lowerCaseEmail,
+        roles: ['admin', 'control-owner'],
+        activeProfile: 'Administrador de Controles Internos',
+        controlsOwned: [], // Can be empty for the default user or populated if needed
+      };
+      setCurrentUser(defaultUser);
+      return true;
+    }
+
+    // Normal flow for all other users
     try {
         const userToLogin = await findUserByEmail(lowerCaseEmail);
         if (userToLogin && userToLogin.roles.length > 0) {

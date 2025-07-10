@@ -45,4 +45,3 @@ jobs:
           app-name: 'portalcontroleinternos'
           slot-name: 'Production'
           package: .
-
