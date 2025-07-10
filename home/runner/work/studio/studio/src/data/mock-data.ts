@@ -1,4 +1,3 @@
-
 // src/data/mock-data.ts
 import type { Notification } from '@/types';
 

@@ -1,0 +1,49 @@
+
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and Deploy Next.js App to Azure
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Application
+        run: npm run build
+        env:
+          SHAREPOINT_TENANT_ID: "dummy-value"
+          SHAREPOINT_CLIENT_ID: "dummy-value"
+          SHAREPOINT_CLIENT_SECRET: "dummy-value"
+          SHAREPOINT_SITE_URL: "https://tenant.sharepoint.com/sites/dummy"
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B5233E896E4941919E61A858807A843E }}
+      
+      - name: 'Deploy to Azure Web App'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'portalcontroleinternos'
+          slot-name: 'Production'
+          package: .
+
+
