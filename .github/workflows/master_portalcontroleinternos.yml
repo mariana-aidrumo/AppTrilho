@@ -32,14 +32,7 @@ jobs:
           slot-name: 'Production'
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_206C5BA44301421D9EA57D4E5B5F4463 }}
-          # The following app settings are passed to the Azure environment.
-          # The build will happen on Azure, so it needs the secrets there.
           app-settings: |
             [
-              { "name": "SHAREPOINT_TENANT_ID", "value": "${{ secrets.SHAREPOINT_TENANT_ID }}", "slotSetting": false },
-              { "name": "SHAREPOINT_CLIENT_ID", "value": "${{ secrets.SHAREPOINT_CLIENT_ID }}", "slotSetting": false },
-              { "name": "SHAREPOINT_CLIENT_SECRET", "value": "${{ secrets.SHAREPOINT_CLIENT_SECRET }}", "slotSetting": false },
-              { "name": "SHAREPOINT_SITE_URL", "value": "${{ secrets.SHAREPOINT_SITE_URL }}", "slotSetting": false },
-              { "name": "NEXT_PUBLIC_SHAREPOINT_SITE_URL", "value": "${{ secrets.SHAREPOINT_SITE_URL }}", "slotSetting": false },
               { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "true", "slotSetting": false }
             ]
