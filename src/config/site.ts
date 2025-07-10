@@ -19,8 +19,8 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "Portal de Controles Internos", // Internal name/ID
-  description: "Portal de Controles Internos", // Displayed name updated
+  name: "Portal Trilho", // Internal name/ID
+  description: "Portal Trilho", // Displayed name updated
   navItems: [
     // Itens para Administrador de Controles Internos
     {

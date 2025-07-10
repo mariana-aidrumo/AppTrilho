@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div className="mx-auto h-12 w-auto flex justify-center text-primary">
                 <Icons.AppLogo />
             </div>
-            <CardTitle className="mt-4">Portal de Controles Internos</CardTitle>
+            <CardTitle className="mt-4">Portal Trilho</CardTitle>
             <CardDescription>Insira seu e-mail para acessar o sistema</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>

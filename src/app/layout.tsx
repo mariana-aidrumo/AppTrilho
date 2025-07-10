@@ -13,8 +13,8 @@ const fontSans = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Portal de Controles Internos',
-  description: 'Portal de Controles Internos.',
+  title: 'Portal Trilho',
+  description: 'Portal Trilho.',
 };
 
 export default function RootLayout({
