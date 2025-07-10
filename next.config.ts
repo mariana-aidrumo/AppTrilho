@@ -19,7 +19,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // output: 'export', // This must be removed for server-side logic (API, Server Actions) to work
 };
 
 export default nextConfig;
