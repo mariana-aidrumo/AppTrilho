@@ -11,28 +11,48 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js version
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-
-      - name: 'Login to Azure'
+      
+      - name: Login to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
+      - name: Download App Settings
+        id: app-settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'portalcontroleinternos'
+          slot-name: 'Production'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build with Azure environment variables
+        run: npm run build
+        env:
+          SHAREPOINT_TENANT_ID: ${{ steps.app-settings.outputs.SHAREPOINT_TENANT_ID }}
+          SHAREPOINT_CLIENT_ID: ${{ steps.app-settings.outputs.SHAREPOINT_CLIENT_ID }}
+          SHAREPOINT_CLIENT_SECRET: ${{ steps.app-settings.outputs.SHAREPOINT_CLIENT_SECRET }}
+          SHAREPOINT_SITE_URL: ${{ steps.app-settings.outputs.SHAREPOINT_SITE_URL }}
+          # Ensures Next.js build uses the production environment
+          NODE_ENV: production
       
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'portalcontroleinternos'
           slot-name: 'Production'
           package: .
-          post-build-command: 'npm run build'
 
