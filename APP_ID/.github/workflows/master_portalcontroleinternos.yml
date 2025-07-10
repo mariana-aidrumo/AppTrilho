@@ -2,7 +2,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build Node.js app
+name: Build and Deploy Node.js app to Azure Web App
 
 on:
   push:
@@ -22,12 +22,16 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: npm install, build
-        run: |
-          npm install
-          npm run build --if-present
-        env:
-          SHAREPOINT_TENANT_ID: ${{ secrets.SHAREPOINT_TENANT_ID }}
-          SHAREPOINT_CLIENT_ID: ${{ secrets.SHAREPOINT_CLIENT_ID }}
-          SHAREPOINT_CLIENT_SECRET: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
-          SHAREPOINT_SITE_URL: ${{ secrets.SHAREPOINT_SITE_URL }}
+      - name: 'Login to Azure'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+      
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'portalcontroleinternos'
+          slot-name: 'Production'
+          package: .
+          post-build-command: 'npm run build'

@@ -1,3 +1,4 @@
+
 // src/services/sox-service.ts
 'use server';
 
@@ -676,7 +677,7 @@ export const findUserByEmail = async (email: string): Promise<MockUser | null> =
     
     try {
         const allUsers = await getAccessUsers();
-        const foundUser = allUsers.find(user => user && user.email && user.email.toLowerCase() === lowerCaseEmail);
+        const foundUser = allUsers.find(user => user?.email?.toLowerCase() === lowerCaseEmail);
         
         return foundUser || null;
 
