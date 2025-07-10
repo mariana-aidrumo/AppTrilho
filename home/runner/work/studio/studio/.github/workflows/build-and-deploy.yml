@@ -44,4 +44,5 @@ jobs:
         with:
           app-name: 'portalcontroleinternos'
           slot-name: 'Production'
-          package: .
+          package: .next/standalone
+
