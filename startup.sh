@@ -1,12 +1,7 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status.
 set -e
-
-# Run the build command
-echo "Running custom build step..."
+echo "Executing custom startup script..."
+echo "Running build..."
 npm run build
-
-# Run the start command
-echo "Starting application..."
+echo "Starting server..."
 npm start

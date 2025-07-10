@@ -28,3 +28,4 @@ jobs:
           slot-name: 'Production'
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_206C5BA44301421D9EA57D4E5B5F4463 }}
+          post-deploy-action: 'sh startup.sh'
