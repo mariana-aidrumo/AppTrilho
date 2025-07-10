@@ -23,6 +23,11 @@ jobs:
         with:
           node-version: '20.x'
 
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
@@ -30,11 +35,8 @@ jobs:
           app-name: 'portalcontroleinternos'
           slot-name: 'Production'
           package: .
-          # The publish profile contains all the authentication information.
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           
 # The Azure Web App service will automatically detect the package.json and run
 # 'npm install' and 'npm run build'. The environment variables configured
 # in the Azure Portal will be available during this build process.
 # After the build, it will run the 'start' script from package.json.
-
