@@ -1,21 +1,138 @@
-
 // src/services/sox-service.ts
 'use server';
 
-import { getGraphClient, getSiteId, getListId } from './sharepoint-client';
+import 'isomorphic-fetch'; // Required polyfill for Microsoft Graph client
+import { Client } from '@microsoft/microsoft-graph-client';
+import { ConfidentialClientApplication, Configuration, LogLevel } from '@azure/msal-node';
 import type { SoxControl, ChangeRequest, SharePointColumn, TenantUser, ChangeRequestStatus, SoxControlStatus, MockUser, UserProfileType } from '@/types';
 import { parseSharePointBoolean, appToSpDisplayNameMapping } from '@/lib/sharepoint-utils';
 
-// --- SharePoint Integration ---
+// --- SharePoint Client Logic (Consolidated) ---
 
-const SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL;
+const {
+  SHAREPOINT_TENANT_ID,
+  SHAREPOINT_CLIENT_ID,
+  SHAREPOINT_CLIENT_SECRET,
+  SHAREPOINT_SITE_URL,
+} = process.env;
+
+if (!SHAREPOINT_TENANT_ID || !SHAREPOINT_CLIENT_ID || !SHAREPOINT_CLIENT_SECRET || !SHAREPOINT_SITE_URL) {
+  // In a real build environment (like Azure), this would fail the build if variables are missing.
+  // In a local or GitHub Actions test build, dummy variables are expected.
+  console.warn("One or more SharePoint environment variables are not set. This is expected for local/test builds but will fail in production.");
+}
+
+const msalConfig: Configuration = {
+  auth: {
+    clientId: SHAREPOINT_CLIENT_ID!,
+    authority: `https://login.microsoftonline.com/${SHAREPOINT_TENANT_ID}`,
+    clientSecret: SHAREPOINT_CLIENT_SECRET!,
+  },
+  system: {
+    loggerOptions: {
+      logLevel: LogLevel.Warning,
+      loggerCallback: (level, message, containsPii) => {
+        if (containsPii) return;
+        switch (level) {
+          case LogLevel.Error:
+            console.error(message);
+            return;
+          case LogLevel.Warning:
+            console.warn(message);
+            return;
+        }
+      },
+    },
+  },
+};
+
+const cca = new ConfidentialClientApplication(msalConfig);
+const scopes = ['https://graph.microsoft.com/.default'];
+
+let graphClient: Client | undefined;
+const idCache: { siteId?: string; listIds: Map<string, string> } = { listIds: new Map() };
+
+async function getGraphClient(): Promise<Client> {
+  if (graphClient) {
+    return graphClient;
+  }
+  
+  if (!SHAREPOINT_CLIENT_ID || !SHAREPOINT_CLIENT_SECRET || !SHAREPOINT_TENANT_ID) {
+    throw new Error("Cannot initialize Graph Client: SharePoint environment variables are missing.");
+  }
+  
+  try {
+    const authProvider = {
+      getAccessToken: async (): Promise<string> => {
+        const authResponse = await cca.acquireTokenByClientCredential({ scopes });
+        if (!authResponse || !authResponse.accessToken) {
+          throw new Error('Failed to acquire access token for Graph request.');
+        }
+        return authResponse.accessToken;
+      },
+    };
+    const client = Client.initWithMiddleware({ authProvider });
+    graphClient = client;
+    return graphClient;
+  } catch (error) {
+    console.error("Error initializing Graph client:", error);
+    throw new Error("Could not connect to Microsoft Graph.");
+  }
+}
+
+async function getSiteId(client: Client, siteUrl: string): Promise<string> {
+    if (idCache.siteId) {
+        return idCache.siteId;
+    }
+    const url = new URL(siteUrl);
+    const sitePath = url.pathname;
+    const hostname = url.hostname;
+    try {
+        const site = await client.api(`/sites/${hostname}:${sitePath}`).get();
+        idCache.siteId = site.id;
+        return site.id;
+    } catch(error) {
+        console.error(`Error fetching site ID for ${siteUrl}:`, error);
+        throw new Error("Could not retrieve SharePoint Site ID.");
+    }
+}
+
+async function getListId(client: Client, siteId: string, listName: string): Promise<string> {
+    if (idCache.listIds.has(listName)) {
+        return idCache.listIds.get(listName)!;
+    }
+    try {
+        const response = await client.api(`/sites/${siteId}/lists`)
+            .filter(`displayName eq '${listName}'`)
+            .select('id')
+            .get();
+        if (response.value && response.value.length === 1) {
+            const listId = response.value[0].id;
+            idCache.listIds.set(listName, listId);
+            return listId;
+        } else if (response.value && response.value.length > 1) {
+            throw new Error(`Multiple lists found with the name '${listName}'. Please use a unique name.`);
+        } else {
+            throw new Error(`List '${listName}' not found in the specified SharePoint site.`);
+        }
+    } catch(error: any) {
+        console.error(`Error fetching list ID for '${listName}':`, error);
+        if (error.message.includes('not found')) {
+            throw error;
+        }
+        throw new Error(`Could not retrieve SharePoint List ID for '${listName}'.`);
+    }
+}
+
+
+// --- SOX Service Logic ---
+
 const SHAREPOINT_CONTROLS_LIST_NAME = 'LISTA-MATRIZ-SOX';
 const SHAREPOINT_HISTORY_LIST_NAME = 'REGISTRO-MATRIZ';
 const SHAREPOINT_ACCESS_LIST_NAME = 'lista-acessos';
 
 let controlsColumnMapCache: Map<string, string> | null = null;
 
-// Dynamically gets and caches the column mapping for the controls list
 async function getControlsColumnMapping(): Promise<Map<string, string>> {
     if (controlsColumnMapCache) {
         return controlsColumnMapCache;
@@ -55,7 +172,6 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
     const listId = await getListId(graphClient, siteId, SHAREPOINT_CONTROLS_LIST_NAME);
     const systemColumnInternalNames = new Set(['Title', 'ContentType', 'Attachments', 'Edit', 'DocIcon', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount', '_UIVersionString', '_ComplianceTag', '_ComplianceTagWrittenTime', '_ComplianceTagUserId']);
     
-    // Fetch all column properties by removing the .select() clause
     const response = await graphClient
         .api(`/sites/${siteId}/lists/${listId}/columns`)
         .get();
@@ -64,16 +180,15 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
       throw new Error("Could not fetch column details from SharePoint.");
     }
 
-    // A more comprehensive way to determine type, falling back to 'text'
     const getColumnType = (spColumn: any): SharePointColumn['type'] => {
         if (spColumn.boolean) return 'boolean';
         if (spColumn.dateTime) return 'dateTime';
         if (spColumn.number) return 'number';
         if (spColumn.choice) return spColumn.choice.allowMultipleValues ? 'multiChoice' : 'choice';
         if (spColumn.text) return spColumn.text.allowMultipleLines ? 'note' : 'text';
-        if (spColumn.lookup) return 'text'; // Treat lookups as text for display
-        if (spColumn.personOrGroup) return 'text'; // Treat people as text for display
-        return 'unsupported'; // Default to unsupported for any other type
+        if (spColumn.lookup) return 'text';
+        if (spColumn.personOrGroup) return 'text';
+        return 'unsupported';
     };
 
     return response.value
@@ -81,7 +196,7 @@ export const getSharePointColumnDetails = async (): Promise<SharePointColumn[]> 
         .map((column: any) => ({
             displayName: column.displayName,
             internalName: column.name,
-            type: getColumnType(column), // Type is now more general
+            type: getColumnType(column),
         }));
 };
 
@@ -145,7 +260,6 @@ const mapSharePointItemToSoxControl = (item: any, columnDetails: SharePointColum
 
 export const getSoxControls = async (): Promise<SoxControl[]> => {
     if (process.env.USE_MOCK_DATA === 'true') {
-        // Mocks are no longer the source of truth for dynamic data
         return [];
     }
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -204,17 +318,17 @@ export const updateSoxControlField = async (
 
         const spDisplayName = (appToSpDisplayNameMapping as any)[appKey];
         if (!spDisplayName) {
-            console.warn(`No SharePoint display name mapping found for app key '${appKey}'. Attempting to update using app key directly.`);
+            console.warn(`No SharePoint display name mapping found for app key '${String(appKey)}'. Attempting to update using app key directly.`);
         }
 
         const spInternalName = columnMap.get(spDisplayName);
         if (!spInternalName) {
-            throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || appKey}'. The column may not exist or is not accessible.`);
+            throw new Error(`Could not find SharePoint internal column name for '${spDisplayName || String(appKey)}'. The column may not exist or is not accessible.`);
         }
 
         const booleanFields = new Set(['mrc', 'aplicavelIPE', 'ipe_C', 'ipe_EO', 'ipe_VA', 'ipe_OR', 'ipe_PD', 'impactoMalhaSul']);
         let finalValue = value;
-        if (booleanFields.has(appKey)) {
+        if (booleanFields.has(appKey as string)) {
             finalValue = parseSharePointBoolean(finalValue);
         }
 
@@ -227,7 +341,7 @@ export const updateSoxControlField = async (
             .patch(fieldsToUpdate);
 
     } catch (error: any) {
-        console.error(`Failed to update field '${fieldToUpdate.appKey}' on item '${spListItemId}' in SharePoint:`, error);
+        console.error(`Failed to update field '${String(fieldToUpdate.appKey)}' on item '${spListItemId}' in SharePoint:`, error);
         
         let detailedMessage = `Could not update field in SharePoint. Reason: ${error.message}`;
         if (error.body) {
@@ -242,7 +356,6 @@ export const updateSoxControlField = async (
         throw new Error(detailedMessage);
     }
 };
-
 
 export const addSoxControl = async (rowData: { [key: string]: any }): Promise<any> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_CONTROLS_LIST_NAME) {
@@ -296,9 +409,6 @@ export const addSharePointColumn = async (columnData: { displayName: string; typ
     return graphClient.api(`/sites/${siteId}/lists/${listId}/columns`).post(payload);
 };
 
-
-// --- Change Request Services ---
-
 const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
     const fields = item.fields;
     if (!fields) return null;
@@ -324,7 +434,7 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
         comments: fields.field_7 || 'Nenhum detalhe fornecido.',
         changes: changes,
         fieldName: fields.Campoajustado,
-        newValue: fields.Descricaocampo, // Keep it as string, parse later
+        newValue: fields.Descricaocampo,
         reviewedBy: fields.field_10,
         reviewDate: fields.field_11,
         adminFeedback: fields.field_12 || '',
@@ -335,7 +445,6 @@ const mapHistoryItemToChangeRequest = (item: any): ChangeRequest | null => {
             request.newValue = JSON.parse(request.newValue)
         }
     } catch (e) {
-      // It's just a plain string, that's fine.
     }
     
     return request;
@@ -496,10 +605,6 @@ export const updateChangeRequestStatus = async (
                 throw new Error("O nome do controle proposto não foi encontrado na solicitação de criação.");
             }
             
-            // This logic was flawed. It was trying to create the control when it should be handled elsewhere.
-            // When marking as "Ciente", we just update the status. The admin will create the control manually.
-            // This block is now intentionally left empty as per user request.
-
         } catch (error: any) {
              throw new Error(`O status foi atualizado para Ciente, mas ocorreu um erro. Detalhes: ${error.message}`);
         }
@@ -580,8 +685,6 @@ export const getAccessListColumns = async (): Promise<SharePointColumn[]> => {
         }));
 };
 
-// --- User Access Management Services (SharePoint Integration) ---
-
 const mapSpItemToMockUser = (item: any): MockUser | null => {
     if (!item || !item.fields) return null;
 
@@ -595,7 +698,6 @@ const mapSpItemToMockUser = (item: any): MockUser | null => {
     }
 
     if (roles.length === 0) {
-        // If user has no roles, they can't log in.
         return null;
     }
 
@@ -612,7 +714,6 @@ const mapSpItemToMockUser = (item: any): MockUser | null => {
         activeProfile: primaryProfile,
     };
 };
-
 
 export const getAccessUsers = async (): Promise<MockUser[]> => {
     if (!SHAREPOINT_SITE_URL || !SHAREPOINT_ACCESS_LIST_NAME) {
@@ -649,15 +750,10 @@ export const getAccessUsers = async (): Promise<MockUser[]> => {
 
 export const findUserByEmail = async (email: string): Promise<MockUser | null> => {
     if (!email) return null;
-
     const lowerCaseEmail = email.toLowerCase();
-    
     try {
         const allUsers = await getAccessUsers();
-        const foundUser = allUsers.find(user => user?.email?.toLowerCase() === lowerCaseEmail);
-        
-        return foundUser || null;
-
+        return allUsers.find(user => user?.email?.toLowerCase() === lowerCaseEmail) || null;
     } catch (error: any) {
         console.error(`Failed to find user with email ${email}:`, error);
         throw new Error(`Error during user lookup. Reason: ${error.message}`);
@@ -676,8 +772,8 @@ export const addAccessUser = async (userData: { name: string; email: string }): 
     const fieldsToCreate = {
         'Title': userData.name,
         'e_x002d_mail2': userData.email.toLowerCase(),
-        'acesso_x002d_donocontrole': 'Sim', // Default to control owner
-        'acesso_x002d_admin': 'Não',      // Default to not admin
+        'acesso_x002d_donocontrole': 'Sim',
+        'acesso_x002d_admin': 'Não',
     };
 
     const response = await graphClient
@@ -725,7 +821,6 @@ export const deleteAccessUser = async (userId: string): Promise<void> => {
         .delete();
 };
 
-// --- Service for Tenant User search ---
 export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]> => {
   if (!searchQuery || searchQuery.trim().length < 3) return [];
   const graphClient = await getGraphClient();
