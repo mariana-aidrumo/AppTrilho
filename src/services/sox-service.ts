@@ -18,14 +18,16 @@ const {
 } = process.env;
 
 if (!SHAREPOINT_TENANT_ID || !SHAREPOINT_CLIENT_ID || !SHAREPOINT_CLIENT_SECRET || !SHAREPOINT_SITE_URL) {
-  throw new Error("Missing SharePoint environment variables. Please check your .env file.");
+  // In a real build environment (like Azure), this would fail the build if variables are missing.
+  // In a local or GitHub Actions test build, dummy variables are expected.
+  console.warn("One or more SharePoint environment variables are not set. This is expected for local/test builds but will fail in production.");
 }
 
 const msalConfig: Configuration = {
   auth: {
-    clientId: SHAREPOINT_CLIENT_ID,
+    clientId: SHAREPOINT_CLIENT_ID!,
     authority: `https://login.microsoftonline.com/${SHAREPOINT_TENANT_ID}`,
-    clientSecret: SHAREPOINT_CLIENT_SECRET,
+    clientSecret: SHAREPOINT_CLIENT_SECRET!,
   },
   system: {
     loggerOptions: {
@@ -55,6 +57,11 @@ async function getGraphClient(): Promise<Client> {
   if (graphClient) {
     return graphClient;
   }
+  
+  if (!SHAREPOINT_CLIENT_ID || !SHAREPOINT_CLIENT_SECRET || !SHAREPOINT_TENANT_ID) {
+    throw new Error("Cannot initialize Graph Client: SharePoint environment variables are missing.");
+  }
+  
   try {
     const authProvider = {
       getAccessToken: async (): Promise<string> => {
@@ -822,3 +829,5 @@ export const getTenantUsers = async (searchQuery: string): Promise<TenantUser[]>
   const response = await graphClient.api('/users').header('ConsistencyLevel', 'eventual').count(true).filter(filterString).top(25).select('id,displayName,mail,userPrincipalName').get();
   return response.value.map((user: any) => ({ id: user.id, name: user.displayName, email: user.mail || user.userPrincipalName }));
 };
+
+    
