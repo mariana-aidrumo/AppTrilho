@@ -22,9 +22,6 @@ jobs:
         with:
           node-version: '20.x'
       
-      # O passo de 'npm install' e 'npm run build' foi removido daqui.
-      # O Azure cuidará disso.
-
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
@@ -52,8 +49,4 @@ jobs:
           slot-name: 'Production'
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_206C5BA44301421D9EA57D4E5B5F4463 }}
-          app-settings: |
-            [
-              { "name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "true" },
-              { "name": "WEBSITES_NODE_DEFAULT_VERSION", "value": "20.x" }
-            ]
+          startup-command: 'sh startup.sh'
