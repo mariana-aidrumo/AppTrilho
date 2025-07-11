@@ -18,6 +18,15 @@ interface UserProfileContextType {
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
+const defaultUsers: { [email: string]: { name: string } } = {
+    'mariana.costa@rumolog.com': { name: 'Mariana Costa' },
+    'cristiane.carolina@rumolog.com': { name: 'Cristiane Carolina' },
+    'philipe.nascimento@rumolog.com': { name: 'Philipe Nascimento' },
+    'rafaela.franquini@rumolog.com': { name: 'Rafaela Franquini' },
+    'maria.nogueira@rumolog.com': { name: 'Maria Nogueira' },
+    'mariane.pechebela@rumolog.com': { name: 'Mariane Pechebela' }
+};
+
 export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<MockUser | null>(null);
 
@@ -52,21 +61,22 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const loginWithEmail = useCallback(async (email: string): Promise<boolean> => {
     const lowerCaseEmail = email.toLowerCase();
     
-    // Check for the special debug/default user
-    if (lowerCaseEmail === 'mariana.costa@rumolog.com') {
+    // Check for special default users
+    if (defaultUsers[lowerCaseEmail]) {
+      const defaultUserData = defaultUsers[lowerCaseEmail];
       const defaultUser: MockUser = {
-        id: 'user-default-mariana',
-        name: 'Mariana Costa',
+        id: `user-default-${lowerCaseEmail.split('@')[0]}`,
+        name: defaultUserData.name,
         email: lowerCaseEmail,
         roles: ['admin', 'control-owner'],
         activeProfile: 'Administrador de Controles Internos',
-        controlsOwned: [], // Can be empty for the default user or populated if needed
+        controlsOwned: [],
       };
       setCurrentUser(defaultUser);
       return true;
     }
 
-    // Normal flow for all other users
+    // Normal flow for all other users from SharePoint
     try {
         const userToLogin = await findUserByEmail(lowerCaseEmail);
         if (userToLogin && userToLogin.roles.length > 0) {
